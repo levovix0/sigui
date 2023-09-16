@@ -16,7 +16,7 @@ win.makeLayout:
   - UiRect():
     this.centerIn(parent)
     this.w[] = 100
-    this.binding h: w[]
+    this.binding h: this.w[]
 
     var state = 0.property
 
@@ -25,18 +25,17 @@ win.makeLayout:
         case state[]
         of 0: color(1, 0, 0)
         of 1: color(0, 1, 0)
-        of 2: color(0, 0, 1)
+        else: color(0, 0, 1)
       ).lighten(if mouse.hovered[]: 0.3 else: 0)
 
     - this.color.transition(0.4's)
 
-    - UiMouseArea() as mouse:
+    - MouseArea() as mouse:
       this.fill(parent)
       this.mouseDownAndUpInside.connectTo root:
         state[] = (state[] + 1) mod 3
 
 run win.siwinWindow
-
 ```
 
 
@@ -281,13 +280,14 @@ x.makeLayout:
   this.fill parent
   this.color[] = color(0, 1, 0)
 
-  - UiRect():
+  - UiRect() as rect:
     this.left = parent.center
+    this.right = parent.right
     this.bottom = parent.bottom - 10  # -i always means up/left and +i means down/right, even if theese all are bottom anchors
     this.color[] = color(1, 0, 0)
   
   - UiRect():
-    this.centerX = parent.center - 1
+    this.centerX = rect.left
     this.centerY = parent.center + 1
     this.color[] = color(0, 0, 1)
 ```
