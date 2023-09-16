@@ -1,12 +1,14 @@
-# Package
-
 version       = "0.1.0"
 author        = "levovix0"
 description   = "Flexieble gui framework"
 license       = "MIT"
 srcDir        = "src"
 
-
-# Dependencies
-
 requires "nim >= 2.0.0"
+requires "fusion"  # to write macros using pattern matching
+requires "siwin >= 0.8.4.5"  # to make window
+requires "imageman"  # to decode png  #? just use pixie instead?
+requires "bumpy"  # for rects
+requires "opengl"  # for graphics
+requires "shady"  # for writing shaders in Nim istead of GLSL
+  # note: shady imples pixie  # for complex paths (like text and svg) rendering

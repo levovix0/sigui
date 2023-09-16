@@ -6,9 +6,9 @@ export times
 let
   linearInterpolation* = proc(x: float): float = x
   inSquareInterpolation* = proc(x: float): float = x * x
-  inQubicInterpolation* = proc(x: float): float = x * x * x
+  inCubicInterpolation* = proc(x: float): float = x * x * x
   outSquareInterpolation* = proc(x: float): float = 1 - (x - 1) * (x - 1)
-  outQubicInterpolation* = proc(x: float): float = 1 + (x - 1) * (x - 1) * (x - 1)
+  outCubicInterpolation* = proc(x: float): float = 1 + (x - 1) * (x - 1) * (x - 1)
   outBounceInterpolation* = proc(x: float): float = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
   inBounceInterpolation* = proc(x: float): float = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
 

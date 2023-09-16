@@ -1408,16 +1408,22 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       ident "this"
                       bracketExpr(prop)
                     
-                    call bindSym"connectTo":
+                    call bindSym"connect":
                       dotExpr(prop, ident"changed")
-                      ident "this"
-                      stmtList:
+                      dotExpr ident "this", ident "eventHandler"
+                      lambda:
+                        empty()
+                        empty(); empty()
+                        let propVal = genSym(nskParam)
+                        formalParams:
+                          empty()
+                          identDefs(propVal, call(bindSym"typeof", bracketExpr prop), empty())
+                        empty(); empty()
                         call updateProc:
                           ident "this"
-                          bracketExpr(prop)
+                          propVal
                     
-                    call bindSym"move":
-                      prop
+                    prop
 
 
             for x in body:
