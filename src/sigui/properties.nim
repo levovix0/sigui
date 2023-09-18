@@ -37,7 +37,7 @@ proc `[]`*[T](p: Property[T]): T = p.unsafeVal
 
 proc `{}`*[T](p: var Property[T]): var T = p.unsafeVal
 proc `{}=`*[T](p: var Property[T], v: T) = p.unsafeVal = v
-  ## same as []=, but does not emit p.changed
+  ## same as `[]=`, but does not emit p.changed
 
 converter toValue*[T](p: Property[T]): T = p[]
 

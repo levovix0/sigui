@@ -15,7 +15,7 @@ type
 
   Anchor* = object
     obj: UiObj
-      ## if nil, anchor is disabled
+      # if nil, anchor is disabled
     offsetFrom: AnchorOffsetFrom
     offset: float32
     eventHandler: EventHandler
@@ -1305,30 +1305,22 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
     let a = UiRect()
     let b = UiRect()
     let c = UiRect()
+    var ooo: CustomProperty[UiRect]
     a.makeLayout:
-      - RectShadow(radius: 7.5, blurRadius: 10, color: color(0, 0, 0, 0.3)) as shadowEfect
+      - RectShadow(radius: 7.5'f32.property, blurRadius: 10'f32.property, color: color(0, 0, 0, 0.3).property) as shadowEffect
 
       - newUiRect():
         this.fill(parent)
         echo shadowEffect.radius
-        doassert parent == this.parent
+        doassert parent.Uiobj == this.parent
 
-        - ClipRect(radius: 7.5):
+        - ClipRect():
+          this.radius[] = 7.5
           this.fill(parent, 10)
-          doassert root == this.parent.parent
+          doassert root.Uiobj == this.parent.parent
 
           ooo --- UiRect():  # add changable child
             this.fill(parent)
-          #[ equivalent to (roughly):
-          ooo = block:
-            let x = this.addChangableChild(UiRect())
-            proc update(parent: typeof(this), this: typeof(x[])) =
-              initIfNeeded(this)
-              this.fill(parent)
-            update(this, x[])
-            x.changed.connectTo this: update(this, x[])
-            x
-          ]#
 
           - b
           - UiRect()
@@ -1492,24 +1484,28 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
 
 proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: NimNode, redraw: bool, init: bool, kind: BindingKind): NimNode =
-  ## connects update proc to every x[] property changed, and invokes update proc instantly
-  runnableExamples:
-    type MyObj = ref object of Uiobj
-      c: Property[int]
-
-    obj.binding c:
-      if config.csd[]: parent[].b else: 10[]
-
-    # convers to (roughly):
-    block bindingBlock:
-      let o {.cursor.} = obj
-      proc updateC(this: MyObj) =
-        this.c[] = if config.csd[]: parent[].b else: 10[]
-
-      config.csd.changed.connectTo o: updateC(this)
-      parent.changed.connectTo o: updateC(this)
-      10.changed.connectTo o: updateC(this)  # yes, 10[] will considered property too
-      updateC(o)
+  ## connects update proc to every `x[]` property changed, and invokes update proc instantly
+  ## 
+  ## .. code-block:: nim
+  ##   type MyObj = ref object of Uiobj
+  ##     c: Property[int]
+  ##   
+  ##   let obj = MyObj()
+  ##   obj.binding c:
+  ##     if config.csd[]: parent[].b else: 10[]
+  ##
+  ## convers to (roughly):
+  ## 
+  ## .. code-block:: nim
+  ##   block bindingBlock:
+  ##     let o {.cursor.} = obj
+  ##     proc updateC(this: MyObj) =
+  ##       this.c[] = if config.csd[]: parent[].b else: 10[]
+  ##   
+  ##     config.csd.changed.connectTo o: updateC(this)
+  ##     parent.changed.connectTo o: updateC(this)
+  ##     10.changed.connectTo o: updateC(this)  # yes, 10[] will considered property too
+  ##     updateC(o)
   
   let updateProc = genSym(nskProc)
   let objCursor = genSym(nskLet)
@@ -1605,10 +1601,14 @@ macro bindingProc*[T: HasEventHandler](obj: T, target: typed, body: typed, after
 
 template buildIt*[T](obj: T, body: untyped): T =
   ## for situations like:
+  ## 
+  ## .. code-block:: nim
   ##   this.font[] = newFont(typeface).buildIt:
   ##     it.size = 14
   ## 
   ## use buildIt instead of:
+  ## 
+  ## .. code-block:: nim
   ##   this.font[] = block:
   ##     let font = newFont(typeface)
   ##     font.size = 14

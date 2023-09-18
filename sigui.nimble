@@ -12,3 +12,6 @@ requires "bumpy"  # for rects
 requires "opengl"  # for graphics
 requires "shady"  # for writing shaders in Nim istead of GLSL
   # note: shady imples pixie  # for complex paths (like text and svg) rendering
+
+task docs, "Write the package docs":
+  exec "nim doc --project --index:on --git.url:git@github.com:levovix0/sigui.git --git.commit:master -o:docs/apidocs src/sigui.nim"

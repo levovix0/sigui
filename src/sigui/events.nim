@@ -18,9 +18,9 @@ type
     ## connection can be removed, but if EventHandler connected to event multiple times, they all will be removed
     connected: ref seq[(EventHandlerCursor, proc(v: T) {.closure.})]
     emitCurrIdx: ref int
-      ## change if you adding/deleting events at the time it is emitting
-      ## yes, it is not exported, use std/importutils.privateAccess to access it
-      ## ref int because we should be able to emit event from non-var location
+      # change if you adding/deleting events at the time it is emitting
+      # yes, it is not exported, use std/importutils.privateAccess to access it
+      # ref int because we should be able to emit event from non-var location
 
 
 
