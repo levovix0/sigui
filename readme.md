@@ -220,7 +220,7 @@ Built-in interpolation modifiers:
 - `outBounceInterpolation` - like outSquare, but goes above target value and back at end
 - `inBounceInterpolation` - like inSquare, but goes under start value at start
 
-# Layouts
+## Layouts
 *not to be confused with makeLayout macro*
 ```nim
 - Layout():
@@ -251,7 +251,7 @@ Built-in interpolation modifiers:
     this.w[] = 20
 ```
 
-# makeLayout
+## makeLayout
 ```nim
 type
   MyLayout = ref object of Uiobj
@@ -273,7 +273,7 @@ x.makeLayout:
         this.fill(parent, 2, 4)
 ```
 
-# Anchors
+## Anchors
 *yes, centering component is just `this.centerIn parent`, is it so hard, html?*
 ```nim
 - UiRect():
@@ -290,4 +290,18 @@ x.makeLayout:
     this.centerX = rect.left
     this.centerY = parent.center + 1
     this.color[] = color(0, 0, 1)
+```
+
+## Layers
+![image](http://levovix.ru:8000/docs/sigui/layers%20example.png)
+Unlike other ui libs, sigui don't have z-indices. Instead, you can directly specify component `before`, `after` or `beforeChilds` your component should be rendered.
+```nim
+- UiRect():
+  #...
+
+  - UiRect() as rect:
+    this.drawLayer = before parent
+  
+- UiRect():
+  this.drawLayer = after rect
 ```

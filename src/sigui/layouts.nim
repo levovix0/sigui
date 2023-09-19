@@ -15,7 +15,8 @@ type
     orientation*: Property[LayoutOrientation]
     spacing*, wrapSpacing*: Property[float32]
     fillWithSpaces*, wrapFillWithSpaces*: Property[bool]
-    hugContent*, wrapHugContent*: Property[bool]
+    hugContent*: Property[bool]
+    wrapHugContent*: Property[bool] = true.property
     alignment*, wrapAlignment*: Property[LayoutAlignment]
     consistentSpacing*: Property[bool]
     
