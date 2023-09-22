@@ -340,6 +340,9 @@ Unlike other ui libs, sigui don't have z-indices. Instead, you can directly spec
 
 # Builtin components
 ## Text Area
+
+https://github.com/levovix0/sigui/assets/53170138/56007317-7558-459d-bf79-ff9b44b7ac6b
+
 Text area allows user to write text.  
 It has .active property.  
 It is cropped.  
