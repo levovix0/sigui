@@ -1,5 +1,5 @@
 import times, std/importutils, strutils
-import imageman, siwin
+import siwin
 import ./uibase
 export times
 
@@ -171,10 +171,10 @@ when isMainModule:
       this.color[] = color(1, 1, 1)
 
       - this.x.transition(0.4's):
-        this.interpolation[] = outQubicInterpolation
+        this.interpolation[] = outCubicInterpolation
 
       - this.color.transition(0.4's):
-        this.interpolation[] = outQubicInterpolation
+        this.interpolation[] = outCubicInterpolation
 
       - globalShortcut({Key.a}, exact=false):
         this.activated.connectTo root:

@@ -1,9 +1,9 @@
 import times, macros, algorithm, tables, unicode
 import vmath, bumpy, siwin, shady, fusion/[matching, astdsl], pixie, pixie/fileformats/svg
 import gl, events, properties
-import imageman except Rect, color, Color
+when hasImageman:
+  import imageman except Rect, color, Color
 export vmath, bumpy, gl, pixie, events, properties
-export imageman except Rect
 
 type
   Col* = pixie.Color
@@ -699,8 +699,6 @@ proc newDrawContext*: DrawContext =
     return 1
 
   proc roundRectStroke(pos, size: Vec2, radius: float32, borderWidth: float32): float32 =
-    if radius == 0: return 1
-    
     if pos.x < radius + borderWidth and pos.y < radius + borderWidth:
       let d = length(pos - vec2(radius, radius) - vec2(borderWidth, borderWidth))
       return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
@@ -1037,12 +1035,13 @@ proc `image=`*(obj: UiImage, img: pixie.Image) =
       obj.wh[] = vec2(img.width.float32, img.height.float32)
     obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
 
-proc `image=`*(obj: UiImage, img: imageman.Image[ColorRGBAU]) =
-  if obj.tex == nil: obj.tex = newTextures(1)
-  loadTexture(obj.tex[0], img)
-  if obj.wh[] == vec2():
-    obj.wh[] = vec2(img.width.float32, img.height.float32)
-  obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
+when hasImageman:
+  proc `image=`*(obj: UiImage, img: imageman.Image[ColorRGBAU]) =
+    if obj.tex == nil: obj.tex = newTextures(1)
+    loadTexture(obj.tex[0], img)
+    if obj.wh[] == vec2():
+      obj.wh[] = vec2(img.width.float32, img.height.float32)
+    obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
 
 
 method draw*(rect: UiRect, ctx: DrawContext) =

@@ -1,6 +1,13 @@
-import vmath, opengl, imageman, pixie
+import vmath, opengl, pixie
+
+when (compiles do: import imageman):
+  import imageman
+  const hasImageman* = true
+else:
+  const hasImageman* = false
+
 export vmath, opengl
-export imageman except Rect, initRect, toRect
+
 
 type
   Buffers* = ref BuffersObj
@@ -97,11 +104,12 @@ template withVertexArray*(vao: GlUint, body) =
   block: body
   glBindVertexArray(0)
 
-proc loadTexture*(obj: GlUint, img: imageman.Image[ColorRGBAU]) =
-  glBindTexture(GlTexture2d, obj)
-  glTexImage2D(GlTexture2d, 0, GlRgba.GLint, img.width.GLsizei, img.height.GLsizei, 0, GlRgba, GlUnsignedByte, img.data[0].unsafeaddr)
-  glGenerateMipmap(GlTexture2d)
-  glBindTexture(GlTexture2d, 0)
+when hasImageman:
+  proc loadTexture*(obj: GlUint, img: imageman.Image[ColorRGBAU]) =
+    glBindTexture(GlTexture2d, obj)
+    glTexImage2D(GlTexture2d, 0, GlRgba.GLint, img.width.GLsizei, img.height.GLsizei, 0, GlRgba, GlUnsignedByte, img.data[0].unsafeaddr)
+    glGenerateMipmap(GlTexture2d)
+    glBindTexture(GlTexture2d, 0)
 
 proc loadTexture*(obj: GlUint, img: pixie.Image) =
   glBindTexture(GlTexture2d, obj)
