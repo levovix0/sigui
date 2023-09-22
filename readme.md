@@ -6,7 +6,10 @@ Pure Nim, easy to use and flexible UI framework, primary for desktop application
 Sigui is inspired by QtQuick.
 
 # Examples
+see also: [tests](https://github.com/levovix0/sigui/tree/main/tests)
+
 ## Basic
+![video](http://levovix.ru:8000/docs/sigui/basic%20example.mkv)
 ```nim
 import sigui, siwin
 
@@ -40,6 +43,7 @@ run win.siwinWindow
 
 
 ## Custom component
+![video](http://levovix.ru:8000/docs/sigui/custom%20component%20example.mkv)
 ```nim
 import sigui/[uibase, mouseArea, animations]
 
@@ -88,6 +92,14 @@ method init*(this: Switch) =
             this.interpolation[] = outCubicInterpolation
 
     this.newChildsObject = mouse
+
+
+when isMainModule:
+  preview(clearColor = color(1, 1, 1), margin = 20, withWindow = proc: Uiobj =
+    var r = Switch()
+    init r
+    r
+  )
 ```
 
 # Features
