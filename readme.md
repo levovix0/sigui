@@ -9,7 +9,7 @@ Sigui is inspired by QtQuick.
 see also: [tests](https://github.com/levovix0/sigui/tree/main/tests)
 
 ## Basic
-![video](http://levovix.ru:8000/docs/sigui/basic%20example.webm)
+https://github.com/levovix0/sigui/assets/53170138/9509e245-2701-4dba-8237-a83f480aa635
 ```nim
 import sigui, siwin
 
@@ -43,7 +43,7 @@ run win.siwinWindow
 
 
 ## Custom component
-![video](http://levovix.ru:8000/docs/sigui/custom%20component%20example.webm)
+https://github.com/levovix0/sigui/assets/53170138/409cb2a3-5299-48a6-b01e-d8b7bb951fbb
 ```nim
 import sigui/[uibase, mouseArea, animations]
 
