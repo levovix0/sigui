@@ -1,5 +1,8 @@
 # Sigui
-Pure Nim, easy to use and flexible UI framework, primary for desktop applications.
+<img alt="sigui" width="100%" src="http://levovix.ru:8000/docs/sigui/banner.png">
+<p align="center">
+  Pure Nim, easy to use and flexible UI framework, primary for desktop applications.
+</p>
 
 !!! Work in progress
 
