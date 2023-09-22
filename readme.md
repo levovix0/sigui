@@ -8,6 +8,22 @@
 
 Sigui is inspired by QtQuick.
 
+## Table of contents
+1. [Examples](#Examples)
+    1. [Basic](#Basic)
+    2. [Custom component](#Custom-component)
+2. [Features](#Features)
+    1. [Events](#Events)
+    2. [Properties and bindings](#Properties-and-bindings)
+    3. [Ui Objects](#Ui-Objects)
+    4. [Signals](#Signals)
+    5. [Animations and transitions](#Animations-and-transitions)
+    6. [Layouts](#Layouts)
+    7. [makeLayout](#makeLayout)
+    8. [Anchors](#Anchors)
+    9. [Layers](#Layers)
+3. [Builtin components](#Builtin-components)
+
 # Examples
 see also: [tests](https://github.com/levovix0/sigui/tree/main/tests)
 
@@ -320,4 +336,22 @@ Unlike other ui libs, sigui don't have z-indices. Instead, you can directly spec
   
 - UiRect():
   this.drawLayer = after rect
+```
+
+# Builtin components
+## Text Area
+Text area allows user to write text.  
+It has .active property.  
+It is cropped.  
+Configure .allowedInteractions if you need somthing advanced.
+```nim
+const typefaceFile = staticRead "../../tests/Roboto-Regular.ttf"
+let typeface = parseTtf(typefaceFile)
+
+- TextArea():
+  this.text[] = "start text"
+  this.textObj[].font[] = newFont(typeface).buildIt:
+    it.size = 24
+
+  # note: create your own UiText to make tip/hint
 ```

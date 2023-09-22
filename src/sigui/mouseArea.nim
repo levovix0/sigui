@@ -11,7 +11,7 @@ type
     pressed*: Property[bool]
     hovered*: Property[bool]
 
-    mouseMove*: Event[MouseMoveEvent]
+    mouseX*, mouseY*: Property[float32]
     clicked*: Event[ClickEvent]
     mouseButton*: Event[MouseButtonEvent]
     mouseDownAndUpInside*: Event[void]
@@ -21,6 +21,13 @@ type
     pressedButtons: set[MouseButton]
     pressedPos: IVec2
     dragStarted: bool
+
+
+proc mouseXy*(this: MouseArea): CustomProperty[Vec2] =
+  CustomProperty[Vec2](
+    get: proc(): Vec2 = vec2(this.mouseX[], this.mouseY[]),
+    set: proc(v: Vec2) = this.mouseX[] = v.x; this.mouseY[] = v.y,
+  )
 
 
 method recieve*(this: MouseArea, signal: Signal) =
@@ -48,14 +55,14 @@ method recieve*(this: MouseArea, signal: Signal) =
         this.hovered[] = false
     
     case signal
+    of of WindowEvent(event: @ea is of MouseMoveEvent()):
+      let e = (ref MouseMoveEvent)ea
+      this.mouseX[] = e.window.mouse.pos.x.float32 - this.parent.x[]
+      this.mouseY[] = e.window.mouse.pos.y.float32 - this.parent.y[]
+
+    case signal
 
     of of WindowEvent(event: @ea is of MouseMoveEvent(), handled: false, fake: false):
-      let e = (ref MouseMoveEvent)ea
-      if this.pressed[] or this.hovered[]:
-        if this.mouseMove.hasHandlers:
-          signal.WindowEvent.handled = true
-        this.mouseMove.emit(e[])
-
       if this.pressed[]:
         if not this.dragStarted:
           this.dragStarted = true
