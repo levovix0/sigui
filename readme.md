@@ -286,6 +286,7 @@ x.makeLayout:
 ```
 
 ## Anchors
+![image](http://levovix.ru:8000/docs/sigui/anchors%20example.png)
 *yes, centering component is just `this.centerIn parent`, is it so hard, html?*
 ```nim
 - UiRect():
