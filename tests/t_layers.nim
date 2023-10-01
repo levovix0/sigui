@@ -7,6 +7,8 @@ test "layers":
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
+  globalDefaultFont = newFont(typeface).buildIt:
+    it.size = 24
 
   window.makeLayout:
     this.clearColor = color(1, 1, 1)
@@ -15,22 +17,19 @@ test "layers":
       this.centerX = nonClipped_rect.center
       this.top = parent.top + 20
       this.text[] = "non-clipped"
-      this.font[] = newFont(typeface).buildIt:
-        it.size = 32
+      this.fontSize = 32
 
     - UiText() as clipped_text:
       this.centerX = clipped_rect.center
       this.top = parent.top + 20
       this.text[] = "clipped"
-      this.font[] = newFont(typeface).buildIt:
-        it.size = 32
+      this.fontSize = 32
     
     - UiText():
       this.left = parent.left + 20
       this.bottom = parent.bottom - 10
       this.text[] = "*not exacly parent, since object is in larger hierarchy: [ ClipRect ] > UiRect > Layout > this"
-      this.font[] = newFont(typeface).buildIt:
-        it.size = 16
+      this.fontSize = 16
 
     - Layout():
       this.left = parent.left + 20
@@ -64,8 +63,6 @@ test "layers":
               this.left = parent.left + 20
               this.color[] = color(1, 1, 1)
               this.text[] = "no modifications"
-              this.font[] = newFont(typeface).buildIt:
-                it.size = 24
           
           - UiRect():
             this.drawLayer = after nonClipped_rect
@@ -81,8 +78,6 @@ test "layers":
               this.left = parent.left + 20
               this.color[] = color(1, 1, 1)
               this.text[] = "after parent*"
-              this.font[] = newFont(typeface).buildIt:
-                it.size = 24
           
           - UiRect():
             this.drawLayer = before nonClipped_rect
@@ -98,8 +93,6 @@ test "layers":
               this.right = parent.right - 20
               this.color[] = color(1, 1, 1)
               this.text[] = "before parent*"
-              this.font[] = newFont(typeface).buildIt:
-                it.size = 24
 
       - ClipRect() as clipped_rect:
         this.w[] = 300
@@ -129,8 +122,6 @@ test "layers":
                 this.centerY = parent.center
                 this.right = parent.right - 20
                 this.text[] = "no modifications"
-                this.font[] = newFont(typeface).buildIt:
-                  it.size = 24
             
             - UiRect():
               this.drawLayer = after clipped_rect
@@ -145,8 +136,6 @@ test "layers":
                 this.centerY = parent.center
                 this.left = parent.left + 20
                 this.text[] = "after parent*"
-                this.font[] = newFont(typeface).buildIt:
-                  it.size = 24
             
             - UiRect():
               this.drawLayer = before clipped_rect
@@ -161,7 +150,5 @@ test "layers":
                 this.centerY = parent.center
                 this.left = parent.left + 20
                 this.text[] = "before parent*"
-                this.font[] = newFont(typeface).buildIt:
-                  it.size = 24
 
   run window.siwinWindow

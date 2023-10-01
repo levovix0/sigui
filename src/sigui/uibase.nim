@@ -1,9 +1,9 @@
-import times, macros, algorithm, tables, unicode
+import times, macros, algorithm, tables, unicode, sequtils
 import vmath, bumpy, siwin, shady, fusion/[matching, astdsl], pixie, pixie/fileformats/svg
 import gl, events, properties
 when hasImageman:
   import imageman except Rect, color, Color
-export vmath, bumpy, gl, pixie, events, properties
+export vmath, bumpy, gl, pixie, events, properties, tables
 
 type
   Col* = pixie.Color
@@ -178,55 +178,12 @@ type
 
 
   DrawContext* = ref object
-    solid: tuple[
-      shader: Shader,
-      transform: GlInt,
-      size: GlInt,
-      px: GlInt,
-      radius: GlInt,
-      color: GlInt,
-    ]
-    stroke: tuple[
-      shader: Shader,
-      transform: GlInt,
-      size: GlInt,
-      px: GlInt,
-      radius: GlInt,
-      color: GlInt,
-      borderWidth: GlInt,
-      tileSize: GlInt,
-      tileSecondSize: GlInt,
-      secondColor: GlInt,
-    ]
-    image: tuple[
-      shader: Shader,
-      transform: GlInt,
-      size: GlInt,
-      px: GlInt,
-      radius: GlInt,
-    ]
-    icon: tuple[
-      shader: Shader,
-      transform: GlInt,
-      size: GlInt,
-      px: GlInt,
-      radius: GlInt,
-      color: GlInt,
-    ]
-    rectShadow: tuple[
-      shader: Shader,
-      transform: GlInt,
-      size: GlInt,
-      px: GlInt,
-      radius: GlInt,
-      blurRadius: GlInt,
-      color: GlInt,
-    ]
-
-    rect: Shape
+    rect*: Shape
+    shaders*: Table[int, RootRef]
 
     px, wh: Vec2
     frameBufferHierarchy: seq[tuple[fbo: GlUint, size: IVec2]]
+    offset*: Vec2
   
   BindingKind = enum
     bindProperty
@@ -236,6 +193,11 @@ type
   
   HasEventHandler* = concept x
     x.eventHandler is EventHandler
+
+
+var globalDefaultFont*: Font
+  ## note: on init, if not nil, copied to UiText's font, if it is nil
+
 
 
 proc vec4*(color: Col): Vec4 =
@@ -252,6 +214,179 @@ proc ceil*(v: Vec2): Vec2 =
 
 proc floor*(v: Vec2): Vec2 =
   vec2(floor(v.x), floor(v.y))
+
+
+#* ------------- Internal macros ------------- *#
+var newShaderId {.compileTime.}: int = 1
+
+
+macro makeShader*(ctx: DrawContext, body: untyped): auto =
+  ## 
+  ## .. code-block:: nim
+  ##   let solid = ctx.makeShader:
+  ##     {.version: "330 core".}
+  ##     proc vert(
+  ##       gl_Position: var Vec4,
+  ##       pos: var Vec2,
+  ##       ipos: Vec2,
+  ##       transform: Uniform[Mat4],
+  ##       size: Uniform[Vec2],
+  ##       px: Uniform[Vec2],
+  ##     ) =
+  ##       transformation(gl_Position, pos, size, px, ipos, transform)
+  ##    
+  ##     proc frag(
+  ##       glCol: var Vec4,
+  ##       pos: Vec2,
+  ##       radius: Uniform[float],
+  ##       size: Uniform[Vec2],
+  ##       color: Uniform[Vec4],
+  ##     ) =
+  ##       glCol = vec4(color.rgb * color.a, color.a) * roundRect(pos, size, radius)
+  ##
+  ## convers to (roughly):
+  ## 
+  ## .. code-block:: nim
+  ##   proc vert(
+  ##     gl_Position: var Vec4,
+  ##     pos: var Vec2,
+  ##     ipos: Vec2,
+  ##     transform: Uniform[Mat4],
+  ##     size: Uniform[Vec2],
+  ##     px: Uniform[Vec2],
+  ##   ) =
+  ##     transformation(gl_Position, pos, size, px, ipos, transform)
+  ##  
+  ##   proc frag(
+  ##     glCol: var Vec4,
+  ##     pos: Vec2,
+  ##     radius: Uniform[float],
+  ##     size: Uniform[Vec2],
+  ##     color: Uniform[Vec4],
+  ##   ) =
+  ##     glCol = vec4(color.rgb * color.a, color.a) * roundRect(pos, size, radius)
+  ##   
+  ##   type MyShader = ref object of RootObj
+  ##     shader: Shader
+  ##     transform: OpenglUniform[Mat4]
+  ##     size: OpenglUniform[Vec2]
+  ##     px: OpenglUniform[Vec2]
+  ##     radius: OpenglUniform[float]
+  ##     color: OpenglUniform[Vec4]
+  ##   
+  ##   if not ctx.shaders.hasKey(1):
+  ##     let x = MyShader()
+  ##     x.shader = newShader {GlVertexShader: vert.toGLSL("330 core"), GlFragmentShader: frag.toGLSL("330 core")}
+  ##     x.transform =  OpenglUniform[Mat4](result.solid.shader["transform"])
+  ##     x.size = OpenglUniform[Vec2](result.solid.shader["size"])
+  ##     x.px = OpenglUniform[Vec2](result.solid.shader["px"])
+  ##     x.radius = OpenglUniform[float](result.solid.shader["radius"])
+  ##     x.color = OpenglUniform[Vec4](result.solid.shader["color"])
+  ##     ctx.shaders[1] = RootRef(x)
+  ##   
+  ##   MyShader(ctx.shaders[1])
+  let id = newShaderId
+  inc newShaderId
+  var
+    vert: NimNode
+    frag: NimNode
+    uniforms: Table[string, NimNode]
+  
+  var version: NimNode = newLit "330 core"
+  var origBody = body
+  var body = body
+  if body.kind != nnkStmtList:
+    body = newStmtList(body)
+
+  proc findUniforms(uniforms: var Table[string, NimNode], params: seq[NimNode]) =
+    for x in params:
+      x.expectKind nnkIdentDefs
+      var names = x[0..^3].mapit($it)
+      case x[^2]
+      of BracketExpr[Ident(strVal: "Uniform"), @t]:
+        for name in names:
+          uniforms[name] = t
+
+  result = buildAst(stmtList):
+    for x in body:
+      case x
+      of Pragma[ExprColonExpr[Ident(strVal: "version"), @ver]]:
+        version = ver
+      of ProcDef[@name is Ident(strVal: "vert"), _, _, FormalParams[Empty(), all @params], .._]:
+        x
+        vert = name
+        (uniforms.findUniforms(params))
+      of ProcDef[@name is Ident(strVal: "frag"), _, _, FormalParams[Empty(), all @params], .._]:
+        x
+        frag = name
+        (uniforms.findUniforms(params))
+      else: x
+
+    if vert == nil:
+      (error("vert shader proc not defined", origBody))
+    if frag == nil:
+      (error("frag shader proc not defined", origBody))
+    
+    let shaderT = genSym(nskType)
+
+    typeSection:
+      typeDef:
+        shaderT
+        empty()
+        refTy:
+          objectTy:
+            empty()
+            ofInherit:
+              bindSym"RootObj"
+            recList:
+              identDefs(ident "shader"):
+                bindSym"Shader"
+                empty()
+
+              for n, t in uniforms:
+                identDefs(ident n):
+                  bracketExpr bindSym"OpenglUniform": t
+                  empty()
+    
+    ifExpr:
+      elifBranch:
+        call bindSym"not":
+          call bindSym"hasKey":
+            dotExpr(ctx, ident "shaders")
+            newLit id
+        stmtList:
+          let shaderX = genSym(nskLet)
+          letSection:
+            identDefs(shaderX, empty(), call(bindSym"new", shaderT))
+          
+          asgn dotExpr(shaderX, ident"shader"):
+            call bindSym"newShader":
+              tableConstr:
+                exprColonExpr:
+                  ident "GlVertexShader"
+                  call bindSym"toGLSL":
+                    vert
+                    version
+                exprColonExpr:
+                  ident "GlFragmentShader"
+                  call bindSym"toGLSL":
+                    frag
+                    version
+          
+          for n, t in uniforms:
+            asgn dotExpr(shaderX, ident n):
+              call bracketExpr(bindSym"OpenglUniform", t):
+                bracketExpr:
+                  dotExpr(shaderX, ident "shader")
+                  newLit n
+          
+          asgn bracketExpr(dotExpr(ctx, ident "shaders"), newLit id):
+            call bindSym"RootRef": shaderX
+    
+    call shaderT: bracketExpr(dotExpr(ctx, ident "shaders"), newLit id)
+  
+  result = nnkBlockStmt.newTree(newEmptyNode(), result)
+
 
 
 #* ------------- Uiobj ------------- *#
@@ -658,7 +793,7 @@ proc mat4(x: Mat2): Mat4 = discard
   ## note: this function exists in Glsl, but do not in vmath
 
 
-proc passTransform(ctx: DrawContext, shader: tuple, pos = vec2(), size = vec2(10, 10), angle: float32 = 0, flipY = false) =
+proc passTransform*(ctx: DrawContext, shader: tuple|object|ref object, pos = vec2(), size = vec2(10, 10), angle: float32 = 0, flipY = false) =
   shader.transform.uniform =
     translate(vec3(ctx.px*(vec2(pos.x, -pos.y) - ctx.wh - (if flipY: vec2(0, size.y) else: vec2())), 0)) *
     scale(if flipY: vec3(1, -1, 1) else: vec3(1, 1, 1)) *
@@ -666,270 +801,38 @@ proc passTransform(ctx: DrawContext, shader: tuple, pos = vec2(), size = vec2(10
   shader.size.uniform = size
   shader.px.uniform = ctx.px
 
-var tex: Uniform[Sampler2d]  # workaround shady#9
+
+var gltex: Uniform[Sampler2d]  # workaround shady#9
+
+proc transformation*(glpos: var Vec4, pos: var Vec2, size, px, ipos: Vec2, transform: Mat4) =
+  let scale = vec2(px.x * size.x, px.y * -size.y)
+  glpos = transform * mat2(scale.x, 0, 0, scale.y).mat4 * vec4(ipos, vec2(0, 1))
+  pos = vec2(ipos.x * size.x, ipos.y * size.y)
+
+proc roundRect(pos, size: Vec2, radius: float32): float32 =
+  if radius == 0: return 1
+  
+  if pos.x < radius and pos.y < radius:
+    let d = length(pos - vec2(radius, radius))
+    return (radius - d + 0.5).max(0).min(1)
+  
+  elif pos.x > size.x - radius and pos.y < radius:
+    let d = length(pos - vec2(size.x - radius, radius))
+    return (radius - d + 0.5).max(0).min(1)
+  
+  elif pos.x < radius and pos.y > size.y - radius:
+    let d = length(pos - vec2(radius, size.y - radius))
+    return (radius - d + 0.5).max(0).min(1)
+  
+  elif pos.x > size.x - radius and pos.y > size.y - radius:
+    let d = length(pos - vec2(size.x - radius, size.y - radius))
+    return (radius - d + 0.5).max(0).min(1)
+
+  return 1
+
 
 proc newDrawContext*: DrawContext =
   new result
-  # compile shaders and init shapes
-
-  proc transformation(glpos: var Vec4, pos: var Vec2, size, px, ipos: Vec2, transform: Mat4) =
-    let scale = vec2(px.x * size.x, px.y * -size.y)
-    glpos = transform * mat2(scale.x, 0, 0, scale.y).mat4 * vec4(ipos, vec2(0, 1))
-    pos = vec2(ipos.x * size.x, ipos.y * size.y)
-
-  proc roundRect(pos, size: Vec2, radius: float32): float32 =
-    if radius == 0: return 1
-    
-    if pos.x < radius and pos.y < radius:
-      let d = length(pos - vec2(radius, radius))
-      return (radius - d + 0.5).max(0).min(1)
-    
-    elif pos.x > size.x - radius and pos.y < radius:
-      let d = length(pos - vec2(size.x - radius, radius))
-      return (radius - d + 0.5).max(0).min(1)
-    
-    elif pos.x < radius and pos.y > size.y - radius:
-      let d = length(pos - vec2(radius, size.y - radius))
-      return (radius - d + 0.5).max(0).min(1)
-    
-    elif pos.x > size.x - radius and pos.y > size.y - radius:
-      let d = length(pos - vec2(size.x - radius, size.y - radius))
-      return (radius - d + 0.5).max(0).min(1)
-
-    return 1
-
-  proc roundRectStroke(pos, size: Vec2, radius: float32, borderWidth: float32): float32 =
-    if pos.x < radius + borderWidth and pos.y < radius + borderWidth:
-      let d = length(pos - vec2(radius, radius) - vec2(borderWidth, borderWidth))
-      return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
-    
-    elif pos.x > size.x - radius - borderWidth and pos.y < radius + borderWidth:
-      let d = length(pos - vec2(size.x - radius, radius) - vec2(-borderWidth, borderWidth))
-      return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
-    
-    elif pos.x < radius + borderWidth and pos.y > size.y - radius - borderWidth:
-      let d = length(pos - vec2(radius, size.y - radius) - vec2(borderWidth, -borderWidth))
-      return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
-    
-    elif pos.x > size.x - radius - borderWidth and pos.y > size.y - radius - borderWidth:
-      let d = length(pos - vec2(size.x - radius, size.y - radius) - vec2(-borderWidth, -borderWidth))
-      return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
-
-    elif pos.x < borderWidth: return 1
-    elif pos.y < borderWidth: return 1
-    elif pos.x > size.x - borderWidth: return 1
-    elif pos.y > size.y - borderWidth: return 1
-    return 0
-
-  proc strokeTiling(pos, size, tileSize, tileSecondSize: Vec2, radius, borderWidth: float32): float32 =
-    if tileSize == size: return 0
-
-    if (
-      (pos.x < radius + borderWidth and pos.y < radius + borderWidth) or
-      (pos.x > size.x - radius - borderWidth and pos.y < radius + borderWidth) or
-      (pos.x < radius + borderWidth and pos.y > size.y - radius - borderWidth) or
-      (pos.x > size.x - radius - borderWidth and pos.y > size.y - radius - borderWidth)
-    ):
-      return 0
-    else:
-      if pos.x <= borderWidth or pos.x >= size.x - borderWidth:
-        var y = pos.y
-        while y > 0:
-          if y < tileSize.y: return 0
-          y -= tileSize.y
-          if y < tileSecondSize.y: return 1
-          y -= tileSecondSize.y
-      else:
-        var x = pos.x
-        while x > 0:
-          if x < tileSize.x: return 0
-          x -= tileSize.x
-          if x < tileSecondSize.x: return 1
-          x -= tileSecondSize.x
-      return 1
-
-    return 0
-
-  proc distanceRoundRect(pos, size: Vec2, radius: float32, blurRadius: float32): float32 =
-    if pos.x < radius + blurRadius and pos.y < radius + blurRadius:
-      let d = length(pos - vec2(radius + blurRadius, radius + blurRadius))
-      result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
-    
-    elif pos.x > size.x - radius - blurRadius and pos.y < radius + blurRadius:
-      let d = length(pos - vec2(size.x - radius - blurRadius, radius + blurRadius))
-      result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
-    
-    elif pos.x < radius + blurRadius and pos.y > size.y - radius - blurRadius:
-      let d = length(pos - vec2(radius + blurRadius, size.y - radius - blurRadius))
-      result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
-    
-    elif pos.x > size.x - radius - blurRadius and pos.y > size.y - radius - blurRadius:
-      let d = length(pos - vec2(size.x - radius - blurRadius, size.y - radius - blurRadius))
-      result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
-    
-    elif pos.x < blurRadius:
-      result = (pos.x / blurRadius).max(0).min(1)
-
-    elif pos.y < blurRadius:
-      result = (pos.y / blurRadius).max(0).min(1)
-    
-    elif pos.x > size.x - blurRadius:
-      result = ((size.x - pos.x) / blurRadius).max(0).min(1)
-
-    elif pos.y > size.y - blurRadius:
-      result = ((size.y - pos.y) / blurRadius).max(0).min(1)
-    
-    else:
-      result = 1
-    
-    result *= result
-
-
-  proc solidVert(
-    gl_Position: var Vec4,
-    pos: var Vec2,
-    ipos: Vec2,
-    transform: Uniform[Mat4],
-    size: Uniform[Vec2],
-    px: Uniform[Vec2],
-  ) =
-    transformation(gl_Position, pos, size, px, ipos, transform)
-
-  proc solidFrag(
-    glCol: var Vec4,
-    pos: Vec2,
-    radius: Uniform[float],
-    size: Uniform[Vec2],
-    color: Uniform[Vec4],
-  ) =
-    glCol = vec4(color.rgb * color.a, color.a) * roundRect(pos, size, radius)
-
-  result.solid.shader = newShader {GlVertexShader: solidVert.toGLSL("330 core"), GlFragmentShader: solidFrag.toGLSL("330 core")}
-  result.solid.transform = result.solid.shader["transform"]
-  result.solid.size = result.solid.shader["size"]
-  result.solid.px = result.solid.shader["px"]
-  result.solid.radius = result.solid.shader["radius"]
-  result.solid.color = result.solid.shader["color"]
-
-
-  proc strokeVert(
-    gl_Position: var Vec4,
-    pos: var Vec2,
-    ipos: Vec2,
-    transform: Uniform[Mat4],
-    size: Uniform[Vec2],
-    px: Uniform[Vec2],
-  ) =
-    transformation(gl_Position, pos, size, px, ipos, transform)
-
-  proc strokeFrag(
-    glCol: var Vec4,
-    pos: Vec2,
-    radius: Uniform[float],
-    size: Uniform[Vec2],
-    color: Uniform[Vec4],
-    borderWidth: Uniform[float],
-    tileSize: Uniform[Vec2],
-    tileSecondSize: Uniform[Vec2],
-    secondColor: Uniform[Vec4],
-  ) =
-    if strokeTiling(pos, size, tileSize, tileSecondSize, radius, borderWidth) > 0:
-      glCol =
-        vec4(secondColor.rgb * secondColor.a, secondColor.a) *
-        roundRectStroke(pos, size, radius, borderWidth)
-    else:
-      glCol =
-        vec4(color.rgb * color.a, color.a) *
-        roundRectStroke(pos, size, radius, borderWidth)
-
-  result.stroke.shader = newShader {GlVertexShader: strokeVert.toGLSL("330 core"), GlFragmentShader: strokeFrag.toGLSL("330 core")}
-  result.stroke.transform = result.stroke.shader["transform"]
-  result.stroke.size = result.stroke.shader["size"]
-  result.stroke.px = result.stroke.shader["px"]
-  result.stroke.radius = result.stroke.shader["radius"]
-  result.stroke.color = result.stroke.shader["color"]
-  result.stroke.borderWidth = result.stroke.shader["borderWidth"]
-  result.stroke.tileSize = result.stroke.shader["tileSize"]
-  result.stroke.tileSecondSize = result.stroke.shader["tileSecondSize"]
-  result.stroke.secondColor = result.stroke.shader["secondColor"]
-
-
-  proc imageVert(
-    gl_Position: var Vec4,
-    pos: var Vec2,
-    uv: var Vec2,
-    ipos: Vec2,
-    transform: Uniform[Mat4],
-    size: Uniform[Vec2],
-    px: Uniform[Vec2],
-  ) =
-    transformation(gl_Position, pos, size, px, ipos, transform)
-    uv = ipos
-
-  proc imageFrag(
-    glCol: var Vec4,
-    pos: Vec2,
-    uv: Vec2,
-    radius: Uniform[float],
-    size: Uniform[Vec2],
-  ) =
-    let color = tex.texture(uv)
-    glCol = vec4(color.rgb, color.a) * roundRect(pos, size, radius)
-
-  result.image.shader = newShader {GlVertexShader: imageVert.toGlsl("330 core"), GlFragmentShader: imageFrag.toGlsl("330 core")}
-  result.image.transform = result.image.shader["transform"]
-  result.image.size = result.image.shader["size"]
-  result.image.px = result.image.shader["px"]
-  result.image.radius = result.image.shader["radius"]
-
-
-  proc iconFrag(
-    glCol: var Vec4,
-    pos: Vec2,
-    uv: Vec2,
-    radius: Uniform[float],
-    size: Uniform[Vec2],
-    color: Uniform[Vec4],
-  ) =
-    let col = tex.texture(uv)
-    glCol = vec4(color.rgb * color.a, color.a) * col.a * roundRect(pos, size, radius)
-
-  result.icon.shader = newShader {GlVertexShader: imageVert.toGlsl("330 core"), GlFragmentShader: iconFrag.toGlsl("330 core")}
-  result.icon.transform = result.icon.shader["transform"]
-  result.icon.size = result.icon.shader["size"]
-  result.icon.px = result.icon.shader["px"]
-  result.icon.radius = result.icon.shader["radius"]
-  result.icon.color = result.icon.shader["color"]
-
-
-  proc rectShadowVert(
-    gl_Position: var Vec4,
-    pos: var Vec2,
-    ipos: Vec2,
-    transform: Uniform[Mat4],
-    size: Uniform[Vec2],
-    px: Uniform[Vec2],
-  ) =
-    transformation(gl_Position, pos, size, px, ipos, transform)
-
-  proc rectShadowFrag(
-    glCol: var Vec4,
-    pos: Vec2,
-    radius: Uniform[float],
-    blurRadius: Uniform[float],
-    size: Uniform[Vec2],
-    color: Uniform[Vec4],
-  ) =
-    glCol = vec4(color.rgb * color.a, color.a) * distanceRoundRect(pos, size, radius, blurRadius)
-
-  result.rectShadow.shader = newShader {GlVertexShader: rectShadowVert.toGLSL("330 core"), GlFragmentShader: rectShadowFrag.toGLSL("330 core")}
-  result.rectShadow.transform = result.rectShadow.shader["transform"]
-  result.rectShadow.size = result.rectShadow.shader["size"]
-  result.rectShadow.px = result.rectShadow.shader["px"]
-  result.rectShadow.radius = result.rectShadow.shader["radius"]
-  result.rectShadow.blurRadius = result.rectShadow.shader["blurRadius"]
-  result.rectShadow.color = result.rectShadow.shader["color"]
-
 
   result.rect = newShape(
     [
@@ -951,74 +854,285 @@ proc updateSizeRender(ctx: DrawContext, size: IVec2) =
 
 
 proc drawRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius: float32, blend: bool, angle: float32) =
-  # draw rect
+  let shader = ctx.makeShader:
+    proc vert(
+      gl_Position: var Vec4,
+      pos: var Vec2,
+      ipos: Vec2,
+      transform: Uniform[Mat4],
+      size: Uniform[Vec2],
+      px: Uniform[Vec2],
+    ) =
+      transformation(gl_Position, pos, size, px, ipos, transform)
+
+    proc frag(
+      glCol: var Vec4,
+      pos: Vec2,
+      radius: Uniform[float],
+      size: Uniform[Vec2],
+      color: Uniform[Vec4],
+    ) =
+      glCol = vec4(color.rgb * color.a, color.a) * roundRect(pos, size, radius)
+  
   if blend:
     glEnable(GlBlend)
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
-  use ctx.solid.shader
-  ctx.passTransform(ctx.solid, pos=pos, size=size, angle=angle)
-  ctx.solid.radius.uniform = radius
-  ctx.solid.color.uniform = col
+
+  use shader.shader
+  ctx.passTransform(shader, pos=pos, size=size, angle=angle)
+  shader.radius.uniform = radius
+  shader.color.uniform = col
   draw ctx.rect
   if blend: glDisable(GlBlend)
+
 
 proc drawRectStroke*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius: float32, blend: bool, angle: float32, borderWidth: float32, tiled: bool, tileSize: Vec2, tileSecondSize: Vec2, secondColor: Vec4) =
-  # draw rect
+  let shader = ctx.makeShader:
+    proc roundRectStroke(pos, size: Vec2, radius: float32, borderWidth: float32): float32 =
+      if pos.x < radius + borderWidth and pos.y < radius + borderWidth:
+        let d = length(pos - vec2(radius, radius) - vec2(borderWidth, borderWidth))
+        return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
+      
+      elif pos.x > size.x - radius - borderWidth and pos.y < radius + borderWidth:
+        let d = length(pos - vec2(size.x - radius, radius) - vec2(-borderWidth, borderWidth))
+        return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
+      
+      elif pos.x < radius + borderWidth and pos.y > size.y - radius - borderWidth:
+        let d = length(pos - vec2(radius, size.y - radius) - vec2(borderWidth, -borderWidth))
+        return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
+      
+      elif pos.x > size.x - radius - borderWidth and pos.y > size.y - radius - borderWidth:
+        let d = length(pos - vec2(size.x - radius, size.y - radius) - vec2(-borderWidth, -borderWidth))
+        return (radius + borderWidth - d + 0.5).max(0).min(1) * (1 - (radius - d + 0.5).max(0).min(1))
+
+      elif pos.x < borderWidth: return 1
+      elif pos.y < borderWidth: return 1
+      elif pos.x > size.x - borderWidth: return 1
+      elif pos.y > size.y - borderWidth: return 1
+      return 0
+
+    proc strokeTiling(pos, size, tileSize, tileSecondSize: Vec2, radius, borderWidth: float32): float32 =
+      if tileSize == size: return 0
+
+      if (
+        (pos.x < radius + borderWidth and pos.y < radius + borderWidth) or
+        (pos.x > size.x - radius - borderWidth and pos.y < radius + borderWidth) or
+        (pos.x < radius + borderWidth and pos.y > size.y - radius - borderWidth) or
+        (pos.x > size.x - radius - borderWidth and pos.y > size.y - radius - borderWidth)
+      ):
+        return 0
+      else:
+        if pos.x <= borderWidth or pos.x >= size.x - borderWidth:
+          var y = pos.y
+          while y > 0:
+            if y < tileSize.y: return 0
+            y -= tileSize.y
+            if y < tileSecondSize.y: return 1
+            y -= tileSecondSize.y
+        else:
+          var x = pos.x
+          while x > 0:
+            if x < tileSize.x: return 0
+            x -= tileSize.x
+            if x < tileSecondSize.x: return 1
+            x -= tileSecondSize.x
+        return 1
+
+      return 0
+
+
+    proc vert(
+      gl_Position: var Vec4,
+      pos: var Vec2,
+      ipos: Vec2,
+      transform: Uniform[Mat4],
+      size: Uniform[Vec2],
+      px: Uniform[Vec2],
+    ) =
+      transformation(gl_Position, pos, size, px, ipos, transform)
+
+    proc frag(
+      glCol: var Vec4,
+      pos: Vec2,
+      radius: Uniform[float],
+      size: Uniform[Vec2],
+      color: Uniform[Vec4],
+      borderWidth: Uniform[float],
+      tileSize: Uniform[Vec2],
+      tileSecondSize: Uniform[Vec2],
+      secondColor: Uniform[Vec4],
+    ) =
+      if strokeTiling(pos, size, tileSize, tileSecondSize, radius, borderWidth) > 0:
+        glCol =
+          vec4(secondColor.rgb * secondColor.a, secondColor.a) *
+          roundRectStroke(pos, size, radius, borderWidth)
+      else:
+        glCol =
+          vec4(color.rgb * color.a, color.a) *
+          roundRectStroke(pos, size, radius, borderWidth)
+  
   if blend:
     glEnable(GlBlend)
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
-  use ctx.stroke.shader
-  ctx.passTransform(ctx.stroke, pos=pos, size=size, angle=angle)
-  ctx.stroke.radius.uniform = radius
-  ctx.stroke.color.uniform = col
-  ctx.stroke.borderWidth.uniform = borderWidth
+
+  use shader.shader
+  ctx.passTransform(shader, pos=pos, size=size, angle=angle)
+  shader.radius.uniform = radius
+  shader.color.uniform = col
+  shader.borderWidth.uniform = borderWidth
   if tiled:
-    ctx.stroke.tileSize.uniform = tileSize
-    ctx.stroke.tileSecondSize.uniform = tileSecondSize
+    shader.tileSize.uniform = tileSize
+    shader.tileSecondSize.uniform = tileSecondSize
   else:
-    ctx.stroke.tileSize.uniform = size
-    ctx.stroke.tileSecondSize.uniform = vec2(0, 0)
-  ctx.stroke.secondColor.uniform = secondColor
+    shader.tileSize.uniform = size
+    shader.tileSecondSize.uniform = vec2(0, 0)
+  shader.secondColor.uniform = secondColor
   draw ctx.rect
   if blend: glDisable(GlBlend)
 
+
 proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, radius: float32, blend: bool, angle: float32, flipY = false) =
-  # draw image
+  let shader = ctx.makeShader:
+    proc vert(
+      gl_Position: var Vec4,
+      pos: var Vec2,
+      uv: var Vec2,
+      ipos: Vec2,
+      transform: Uniform[Mat4],
+      size: Uniform[Vec2],
+      px: Uniform[Vec2],
+    ) =
+      transformation(gl_Position, pos, size, px, ipos, transform)
+      uv = ipos
+
+    proc frag(
+      glCol: var Vec4,
+      pos: Vec2,
+      uv: Vec2,
+      radius: Uniform[float],
+      size: Uniform[Vec2],
+    ) =
+      let color = gltex.texture(uv)
+      glCol = vec4(color.rgb, color.a) * roundRect(pos, size, radius)
+
   if blend:
     glEnable(GlBlend)
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
-  use ctx.image.shader
-  ctx.passTransform(ctx.image, pos=pos, size=size, angle=angle, flipY=flipY)
-  ctx.image.radius.uniform = radius
+  
+  use shader.shader
+  ctx.passTransform(shader, pos=pos, size=size, angle=angle, flipY=flipY)
+  shader.radius.uniform = radius
   glBindTexture(GlTexture2d, tex)
   draw ctx.rect
   glBindTexture(GlTexture2d, 0)
   if blend: glDisable(GlBlend)
+
 
 proc drawIcon*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, col: Vec4, radius: float32, blend: bool, angle: float32) =
   # draw image (with solid color)
+  let shader = ctx.makeShader:
+    proc vert(
+      gl_Position: var Vec4,
+      pos: var Vec2,
+      uv: var Vec2,
+      ipos: Vec2,
+      transform: Uniform[Mat4],
+      size: Uniform[Vec2],
+      px: Uniform[Vec2],
+    ) =
+      transformation(gl_Position, pos, size, px, ipos, transform)
+      uv = ipos
+
+    proc frag(
+      glCol: var Vec4,
+      pos: Vec2,
+      uv: Vec2,
+      radius: Uniform[float],
+      size: Uniform[Vec2],
+      color: Uniform[Vec4],
+    ) =
+      let col = gltex.texture(uv)
+      glCol = vec4(color.rgb * color.a, color.a) * col.a * roundRect(pos, size, radius)
+
   if blend:
     glEnable(GlBlend)
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
-  use ctx.icon.shader
-  ctx.passTransform(ctx.icon, pos=pos, size=size, angle=angle)
-  ctx.icon.radius.uniform = radius
-  ctx.icon.color.uniform = col
+
+  use shader.shader
+  ctx.passTransform(shader, pos=pos, size=size, angle=angle)
+  shader.radius.uniform = radius
+  shader.color.uniform = col
   glBindTexture(GlTexture2d, tex)
   draw ctx.rect
   glBindTexture(GlTexture2d, 0)
   if blend: glDisable(GlBlend)
 
+
 proc drawShadowRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius: float32, blend: bool, blurRadius: float32, angle: float32) =
-  # draw rect
+  let shader = ctx.makeShader:
+    proc distanceRoundRect(pos, size: Vec2, radius: float32, blurRadius: float32): float32 =
+      if pos.x < radius + blurRadius and pos.y < radius + blurRadius:
+        let d = length(pos - vec2(radius + blurRadius, radius + blurRadius))
+        result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
+      
+      elif pos.x > size.x - radius - blurRadius and pos.y < radius + blurRadius:
+        let d = length(pos - vec2(size.x - radius - blurRadius, radius + blurRadius))
+        result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
+      
+      elif pos.x < radius + blurRadius and pos.y > size.y - radius - blurRadius:
+        let d = length(pos - vec2(radius + blurRadius, size.y - radius - blurRadius))
+        result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
+      
+      elif pos.x > size.x - radius - blurRadius and pos.y > size.y - radius - blurRadius:
+        let d = length(pos - vec2(size.x - radius - blurRadius, size.y - radius - blurRadius))
+        result = ((radius + blurRadius - d) / blurRadius).max(0).min(1)
+      
+      elif pos.x < blurRadius:
+        result = (pos.x / blurRadius).max(0).min(1)
+
+      elif pos.y < blurRadius:
+        result = (pos.y / blurRadius).max(0).min(1)
+      
+      elif pos.x > size.x - blurRadius:
+        result = ((size.x - pos.x) / blurRadius).max(0).min(1)
+
+      elif pos.y > size.y - blurRadius:
+        result = ((size.y - pos.y) / blurRadius).max(0).min(1)
+      
+      else:
+        result = 1
+      
+      result *= result
+
+    proc vert(
+      gl_Position: var Vec4,
+      pos: var Vec2,
+      ipos: Vec2,
+      transform: Uniform[Mat4],
+      size: Uniform[Vec2],
+      px: Uniform[Vec2],
+    ) =
+      transformation(gl_Position, pos, size, px, ipos, transform)
+
+    proc frag(
+      glCol: var Vec4,
+      pos: Vec2,
+      radius: Uniform[float],
+      blurRadius: Uniform[float],
+      size: Uniform[Vec2],
+      color: Uniform[Vec4],
+    ) =
+      glCol = vec4(color.rgb * color.a, color.a) * distanceRoundRect(pos, size, radius, blurRadius)
+
   if blend:
     glEnable(GlBlend)
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
-  use ctx.rectShadow.shader
-  ctx.passTransform(ctx.rectShadow, pos=pos, size=size, angle=angle)
-  ctx.rectShadow.radius.uniform = radius
-  ctx.rectShadow.color.uniform = col
-  ctx.rectShadow.blurRadius.uniform = blurRadius
+  
+  use shader.shader
+  ctx.passTransform(shader, pos=pos, size=size, angle=angle)
+  shader.radius.uniform = radius
+  shader.color.uniform = col
+  shader.blurRadius.uniform = blurRadius
   draw ctx.rect
   if blend: glDisable(GlBlend)
 
@@ -1047,21 +1161,21 @@ when hasImageman:
 method draw*(rect: UiRect, ctx: DrawContext) =
   rect.drawBefore(ctx)
   if rect.visibility[] == visible:
-    ctx.drawRect(rect.xy[].posToGlobal(rect.parent).round, rect.wh[], rect.color.vec4, rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle)
+    ctx.drawRect((rect.xy[].posToGlobal(rect.parent) + ctx.offset).round, rect.wh[], rect.color.vec4, rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle)
   rect.drawAfter(ctx)
 
 
 method draw*(img: UiImage, ctx: DrawContext) =
   img.drawBefore(ctx)
   if img.visibility[] == visible and img.tex != nil:
-    ctx.drawImage(img.xy[].posToGlobal(img.parent).round, img.wh[], img.tex[0], img.radius, img.blend or img.radius != 0, img.angle)
+    ctx.drawImage((img.xy[].posToGlobal(img.parent) + ctx.offset).round, img.wh[], img.tex[0], img.radius, img.blend or img.radius != 0, img.angle)
   img.drawAfter(ctx)
 
 
 method draw*(ico: UiIcon, ctx: DrawContext) =
   ico.drawBefore(ctx)
   if ico.visibility[] == visible and ico.tex != nil:
-    ctx.drawIcon(ico.xy[].posToGlobal(ico.parent).round, ico.wh[], ico.tex[0], ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
+    ctx.drawIcon((ico.xy[].posToGlobal(ico.parent) + ctx.offset).round, ico.wh[], ico.tex[0], ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
   ico.drawAfter(ctx)
 
 
@@ -1107,13 +1221,17 @@ method init*(this: UiSvgImage) =
 method draw*(ico: UiSvgImage, ctx: DrawContext) =
   ico.drawBefore(ctx)
   if ico.visibility[] == visible and ico.tex != nil:
-    ctx.drawIcon(ico.xy[].posToGlobal(ico.parent).round, ico.wh[].ceil, ico.tex[0], ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
+    ctx.drawIcon((ico.xy[].posToGlobal(ico.parent) + ctx.offset).round, ico.wh[].ceil, ico.tex[0], ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
   ico.drawAfter(ctx)
 
 
+proc `fontSize=`*(this: UiText, size: float32) =
+  this.font[].size = size
+  this.font.changed.emit(this.font[])
+
 method init*(this: UiText) =
   procCall this.super.init
-  
+
   this.arrangement.changed.connectTo this:
     if this.tex == nil: this.tex = newTextures(1)
     if e != nil:
@@ -1139,14 +1257,19 @@ method init*(this: UiText) =
   this.vAlign.changed.connectTo this: this.arrangement[] = newArrangement
   this.wrap.changed.connectTo this: this.arrangement[] = newArrangement
 
+  if this.font == nil and globalDefaultFont != nil:
+    new this.font{}
+    this.font{}[] = globalDefaultFont[]
+    this.font.changed.emit(this.font[])
+
 
 method draw*(text: UiText, ctx: DrawContext) =
   text.drawBefore(ctx)
   let pos =
     if text.roundPositionOnDraw[]:
-      text.xy[].posToGlobal(text.parent).round
+      (text.xy[].posToGlobal(text.parent) + ctx.offset).round
     else:
-      text.xy[].posToGlobal(text.parent)
+      text.xy[].posToGlobal(text.parent) + ctx.offset
 
   if text.visibility[] == visible and text.tex != nil:
     ctx.drawIcon(pos, text.wh[], text.tex[0], text.color.vec4, 0, true, text.angle)
@@ -1156,38 +1279,38 @@ method draw*(text: UiText, ctx: DrawContext) =
 method draw*(rect: UiRectStroke, ctx: DrawContext) =
   rect.drawBefore(ctx)
   if rect.visibility[] == visible:
-    ctx.drawRectStroke(rect.xy[].posToGlobal(rect.parent).round, rect.wh[], rect.color.vec4, rect.radius, true, rect.angle, rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4)
+    ctx.drawRectStroke((rect.xy[].posToGlobal(rect.parent) + ctx.offset).round, rect.wh[], rect.color.vec4, rect.radius, true, rect.angle, rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4)
   rect.drawAfter(ctx)
 
 
 method draw*(rect: RectShadow, ctx: DrawContext) =
   rect.drawBefore(ctx)
   if rect.visibility[] == visible:
-    ctx.drawShadowRect(rect.xy[].posToGlobal(rect.parent), rect.wh[], rect.color.vec4, rect.radius, true, rect.blurRadius, rect.angle)
+    ctx.drawShadowRect((rect.xy[].posToGlobal(rect.parent) + ctx.offset).round, rect.wh[], rect.color.vec4, rect.radius, true, rect.blurRadius, rect.angle)
   rect.drawAfter(ctx)
 
 
-method draw*(rect: ClipRect, ctx: DrawContext) =
-  rect.drawBefore(ctx)
-  if rect.visibility == visible:
-    if rect.w[] <= 0 or rect.h[] <= 0: return
-    if rect.fbo == nil: rect.fbo = newFrameBuffers(1)
+method draw*(this: ClipRect, ctx: DrawContext) =
+  this.drawBefore(ctx)
+  if this.visibility == visible:
+    if this.w[] <= 0 or this.h[] <= 0: return
+    if this.fbo == nil: this.fbo = newFrameBuffers(1)
 
-    let size = ivec2(rect.w[].round.int32, rect.h[].round.int32)
+    let size = ivec2(this.w[].round.int32, this.h[].round.int32)
 
-    ctx.frameBufferHierarchy.add (rect.fbo[0], size)
-    glBindFramebuffer(GlFramebuffer, rect.fbo[0])
+    ctx.frameBufferHierarchy.add (this.fbo[0], size)
+    glBindFramebuffer(GlFramebuffer, this.fbo[0])
     
-    if rect.prevSize != size or rect.tex == nil:
-      rect.prevSize = size
-      rect.tex = newTextures(1)
-      glBindTexture(GlTexture2d, rect.tex[0])
+    if this.prevSize != size or this.tex == nil:
+      this.prevSize = size
+      this.tex = newTextures(1)
+      glBindTexture(GlTexture2d, this.tex[0])
       glTexImage2D(GlTexture2d, 0, GlRgba.Glint, size.x, size.y, 0, GlRgba, GlUnsignedByte, nil)
       glTexParameteri(GlTexture2d, GlTextureMinFilter, GlNearest)
       glTexParameteri(GlTexture2d, GlTextureMagFilter, GlNearest)
-      glFramebufferTexture2D(GlFramebuffer, GlColorAttachment0, GlTexture2d, rect.tex[0], 0)
+      glFramebufferTexture2D(GlFramebuffer, GlColorAttachment0, GlTexture2d, this.tex[0], 0)
     else:
-      glBindTexture(GlTexture2d, rect.tex[0])
+      glBindTexture(GlTexture2d, this.tex[0])
     
     glClearColor(0, 0, 0, 0)
     glClear(GlColorBufferBit)
@@ -1195,30 +1318,34 @@ method draw*(rect: ClipRect, ctx: DrawContext) =
     glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
     ctx.updateSizeRender(size)
 
-    let gt = rect.globalTransform[]
-    let pos = rect.xy[]
+    let offset = block:
+      var xy = this.xy[]
+      var obj = this.parent
+      while obj != nil and not(obj of ClipRect):
+        xy.x += obj.x[]
+        xy.y += obj.y[]
+        obj = obj.parent
+      xy
+    ctx.offset -= offset
     try:
-      rect.globalTransform{} = true
-      rect.xy[] = vec2()
-      rect.drawBeforeChilds(ctx)
-      rect.drawChilds(ctx)
+      this.drawBeforeChilds(ctx)
+      this.drawChilds(ctx)
     
     finally:
       ctx.frameBufferHierarchy.del ctx.frameBufferHierarchy.high
-      rect.globalTransform{} = gt
-      rect.xy[] = pos
+      ctx.offset += offset
 
       glBindFramebuffer(GlFramebuffer, if ctx.frameBufferHierarchy.len == 0: 0.GlUint else: ctx.frameBufferHierarchy[^1].fbo)
       
-      let size = if ctx.frameBufferHierarchy.len == 0: rect.parentWindow.size else: ctx.frameBufferHierarchy[^1].size
+      let size = if ctx.frameBufferHierarchy.len == 0: this.parentWindow.size else: ctx.frameBufferHierarchy[^1].size
       glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
       ctx.updateSizeRender(size)
       
-      ctx.drawImage(rect.xy[].posToGlobal(rect.parent).round, rect.wh[], rect.tex[0], rect.radius, true, rect.angle, flipY=true)
+      ctx.drawImage((this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0], this.radius, true, this.angle, flipY=true)
   else:
-    rect.drawBeforeChilds(ctx)
-    rect.drawChilds(ctx)
-  rect.drawAfterLayer(ctx)
+    this.drawBeforeChilds(ctx)
+    this.drawChilds(ctx)
+  this.drawAfterLayer(ctx)
 
 
 method draw*(win: UiWindow, ctx: DrawContext) =

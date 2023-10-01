@@ -43,6 +43,8 @@ type
     vao: VertexArrays
     bo: Buffers
 
+  OpenglUniform*[T] = distinct GlInt
+
 
 # -------- Buffers, VertexArrays, Textures --------
 template makeOpenglObjectSeq(t, tobj, T, gen, del, newp, delextra) =
@@ -181,6 +183,8 @@ proc `uniform=`*(i: GlInt, value: Vec4) =
 proc `uniform=`*(i: GlInt, value: Mat4) =
   glUniformMatrix4fv(i, 1, GlFalse, cast[ptr GlFloat](value.unsafeaddr))
 
+
+proc `uniform=`*[T](x: OpenglUniform[T], value: T) = x.GlInt.uniform = value
 
 
 # -------- Shape --------
