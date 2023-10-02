@@ -4,7 +4,7 @@
   Pure Nim, easy to use and flexible UI framework.
 </p>
 
-!!! Work in progress
+*Not quite ready for production*
 
 Sigui is inspired by QtQuick.
 
