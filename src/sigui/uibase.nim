@@ -54,7 +54,7 @@ type
     this {.cursor.}: Uiobj
   
 
-  Uiobj* {.acyclic.} = ref object of RootObj
+  Uiobj* = ref object of RootObj
     eventHandler*: EventHandler
     
     parent* {.cursor.}: Uiobj
@@ -1183,26 +1183,17 @@ method init*(this: UiSvgImage) =
   procCall this.super.init
 
   var prevSize = ivec2(0, 0)
-  proc updateTexture(sizePrecise: Vec2, size = ivec2()) =
+  proc updateTexture(size = ivec2()) =
     let sz =
       if size.x > 0 and size.y > 0: size
       elif this.w[].int32 > 0 and this.h[].int32 > 0: this.wh[].ivec2
       else: ivec2(0, 0)
-    
-    when not defined(sigui_morePreciseSvgResizing):
-      if prevSize == size.ivec2(): return
     
     prevSize = size
     
     if this.image[] != "":
       
       var img = this.image[].parseSvg(sz.x, sz.y).newImage
-      
-      when defined(sigui_morePreciseSvgResizing):
-        if sizePrecise != size.vec2:
-          let img2 = newImage(img.width, img.height)
-          img2.draw(img, translate((size.vec2 - sizePrecise) / 2) * scale(sizePrecise / size.vec2))
-          img = img2
       
       if this.tex == nil: this.tex = newTextures(1)
       loadTexture(this.tex[0], img)
@@ -1213,9 +1204,9 @@ method init*(this: UiSvgImage) =
     else:
       this.imageWh[] = ivec2()
 
-  this.image.changed.connectTo this: updateTexture(this.wh[])
-  this.w.changed.connectTo this: updateTexture(this.wh[], this.wh[].ceil.ivec2)
-  this.h.changed.connectTo this: updateTexture(this.wh[], this.wh[].ceil.ivec2)
+  this.image.changed.connectTo this: updateTexture()
+  this.w.changed.connectTo this: updateTexture(this.wh[].ceil.ivec2)
+  this.h.changed.connectTo this: updateTexture(this.wh[].ceil.ivec2)
 
 
 method draw*(ico: UiSvgImage, ctx: DrawContext) =
