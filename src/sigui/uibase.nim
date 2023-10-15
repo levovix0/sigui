@@ -54,7 +54,8 @@ type
     this {.cursor.}: Uiobj
   
 
-  Uiobj* = ref object of RootObj
+  Uiobj* = ref UiobjObjType
+  UiobjObjType = object of RootObj
     eventHandler*: EventHandler
     
     parent* {.cursor.}: Uiobj
@@ -63,9 +64,9 @@ type
     childs*: seq[owned(Uiobj)]
       ## childs that should be deleted when this object is deleted
     
-    globalTransform*: Property[bool]
     x*, y*, w*, h*: Property[float32]
     visibility*: Property[Visibility]
+    globalTransform*: Property[bool]
     
     onSignal*: Event[Signal]
     
@@ -198,6 +199,10 @@ type
 var globalDefaultFont*: Font
   ## note: on init, if not nil, copied to UiText's font, if it is nil
 
+var registredComponents {.compileTime.}: seq[NimNode]
+  # type syms
+var registredReflection {.compileTime.}: seq[NimNode]
+  # callable syms
 
 
 proc vec4*(color: Col): Vec4 =
@@ -1764,3 +1769,29 @@ proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, t
       this.fill(parent, margin)
   
   run win.siwinWindow
+
+
+macro registerComponent*(t: type) =
+  registredComponents.add t
+  result = buildAst(stmtList):
+    for x in registredReflection:
+      call(x, t)
+
+
+macro registerReflection*(x: typed, includeUiobj: static bool = false) =
+  registredReflection.add x
+  result = buildAst(stmtList):
+    for t in registredComponents[(if includeUiobj: 0 else: 1)..^1]:
+      call(x, t)
+
+
+registerComponent Uiobj
+registerComponent UiWindow
+registerComponent UiRect
+registerComponent UiImage
+registerComponent UiIcon
+registerComponent UiSvgImage
+registerComponent UiRectStroke
+registerComponent RectShadow
+registerComponent ClipRect
+registerComponent UiText

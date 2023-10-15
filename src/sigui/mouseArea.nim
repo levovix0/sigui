@@ -22,6 +22,8 @@ type
     pressedPos: IVec2
     dragStarted: bool
 
+registerComponent MouseArea
+
 
 proc mouseXy*(this: MouseArea): CustomProperty[Vec2] =
   CustomProperty[Vec2](

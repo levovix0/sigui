@@ -7,6 +7,8 @@ type
     exact*: Property[bool]
     activated*: Event[void]
 
+registerComponent GlobalShortcut
+
 
 proc globalShortcut*(sequence: set[Key], exact: bool = true): GlobalShortcut =
   result = GlobalShortcut(sequence: sequence.property, exact: exact.property)

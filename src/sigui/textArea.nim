@@ -62,6 +62,8 @@ type
     
     m_cursorPos: int
 
+registerComponent TextArea
+
 
 proc `mod`(a, b: Duration): Duration =
   result = a

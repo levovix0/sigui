@@ -28,7 +28,9 @@ type
   
   Animator* = ref object of Uiobj
     onTick*: Event[Duration]
-  
+
+registerComponent Animator
+
 
 func interpolate*[T: enum | bool](a, b: T, x: float): T =
   # note: x can be any number, not just 0..1

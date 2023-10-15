@@ -33,6 +33,9 @@ type
     
     isChangingW, isChangingH: bool
 
+registerComponent Layout
+registerComponent InLayout
+
 
 proc reposition(this: Layout) =
   if this.inRepositionProcess: return
