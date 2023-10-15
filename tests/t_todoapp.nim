@@ -5,13 +5,16 @@ import siwin
 import sigui
 import t_customComponent
 
+type App = ref object of Uiobj
+  tasks: seq[tuple[name: string, complete: Property[bool]]]
+  tasksChanged: Event[void]
+
+  layout: CustomProperty[Layout]
+
+registerComponent App
+
+
 test "todo app":
-  type App = ref object of Uiobj
-    tasks: seq[tuple[name: string, complete: Property[bool]]]
-    tasksChanged: Event[void]
-
-    layout: CustomProperty[Layout]
-
   let window = newOpenglWindow(size = ivec2(500, 800), title = "todos").newUiWindow
 
   const typefaceFile = staticRead "Roboto-Regular.ttf"

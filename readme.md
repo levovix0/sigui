@@ -65,7 +65,7 @@ run win.siwinWindow
 ## Custom component
 https://github.com/levovix0/sigui/assets/53170138/409cb2a3-5299-48a6-b01e-d8b7bb951fbb
 ```nim
-import sigui/[uibase, mouseArea, animations]
+import sigui/[uibase, mouseArea, animations, dolars]
 
 type
   Switch* = ref object of Uiobj
@@ -73,12 +73,15 @@ type
     isOn*: Property[bool]
     color*: Property[Col] = color(0, 0, 0).property
 
+registerComponent Switch
+
+
 method init*(this: Switch) =
   if this.initialized: return
   procCall this.super.init()
   
   this.isOn.changed.connectTo this, val:
-    echo "isOn changed: ", val
+    echo this
 
   this.makeLayout:
     this.w[] = 40
@@ -186,6 +189,9 @@ type
     myState*: Property[int]
     myInternalState: int
 
+registerComponent MyComponent
+
+
 method init*(this: MyComponent) =
   if this.initialized: return
   procCall this.super.init()
@@ -289,6 +295,9 @@ type
   MyLayout = ref object of Uiobj
     changableChild: CustomProperty[UiRect]
 
+registerComponent MyLayout
+
+
 let x = MyLayout()
 x.makeLayout:
   - UiRect():
@@ -347,6 +356,9 @@ import shady
 
 type ChessTiles = ref object of Uiobj
   tileSize: float
+
+registerComponent ChessTiles
+
 
 method draw*(this: ChessTiles, ctx: DrawContext) =
   this.drawBefore(ctx)

@@ -1,4 +1,4 @@
-import sigui/[uibase, mouseArea, animations]
+import sigui/[uibase, mouseArea, animations, dolars]
 
 type
   Switch* = ref object of Uiobj
@@ -6,12 +6,15 @@ type
     isOn*: Property[bool]
     color*: Property[Col] = color(0, 0, 0).property
 
+registerComponent Switch
+
+
 method init*(this: Switch) =
   if this.initialized: return
   procCall this.super.init()
   
   this.isOn.changed.connectTo this, val:
-    echo "isOn changed: ", val
+    echo this
 
   this.makeLayout:
     this.w[] = 40

@@ -21,7 +21,7 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] =
         when compiles($v[]):
           result.add k & ": " & $v[]
     else:
-      if v != typeof(v).default:
+      if (v is bool) or (v is enum) or (v != typeof(v).default):
         when compiles($v):
           result.add k & ": " & $v
 

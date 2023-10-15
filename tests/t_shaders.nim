@@ -4,6 +4,8 @@ import sigui, shady
 type ChessTiles = ref object of Uiobj
   tileSize: float
 
+registerComponent ChessTiles
+
 
 method draw*(this: ChessTiles, ctx: DrawContext) =
   this.drawBefore(ctx)
