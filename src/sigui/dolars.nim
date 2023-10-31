@@ -62,7 +62,7 @@ macro declareComponentTypeName(t: typed) =
       stmtList:
         newLit $t
 
-registerReflection declareComponentTypeName
+registerReflection declareComponentTypeName, T is Uiobj and t != "Uiobj"
 
 
 macro declareFormatFields(t: typed) =
@@ -86,7 +86,7 @@ macro declareFormatFields(t: typed) =
           bracketExpr:
             thisSym
 
-registerReflection declareFormatFields
+registerReflection declareFormatFields, T is Uiobj and t != "Uiobj"
 
 
 when isMainModule:

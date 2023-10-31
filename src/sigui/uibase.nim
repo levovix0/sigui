@@ -201,7 +201,7 @@ var globalDefaultFont*: Font
 
 var registredComponents {.compileTime.}: seq[NimNode]
   # type syms
-var registredReflection {.compileTime.}: seq[NimNode]
+var registredReflection {.compileTime.}: seq[tuple[f: NimNode, filter: NimNode]]
   # callable syms
 
 
@@ -1771,18 +1771,33 @@ proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, t
   run win.siwinWindow
 
 
+proc invokeReflection(refl: NimNode, filter: NimNode, t: NimNode): NimNode =
+  proc replaceTree(x, a, to: NimNode): NimNode =
+    if x == a: return to
+    else:
+      result = copy x
+      for i, x in result:
+        result[i] = replaceTree(x, a, to)
+
+  buildAst:
+    whenStmt:
+      elifBranch:
+        filter.replaceTree(ident"T", t).replaceTree(ident"t", newLit t.repr)
+        stmtList:
+          call(refl, t)
+
 macro registerComponent*(t: type) =
   registredComponents.add t
   result = buildAst(stmtList):
     for x in registredReflection:
-      call(x, t)
+      invokeReflection(x.f, x.filter, t)
 
 
-macro registerReflection*(x: typed, includeUiobj: static bool = false) =
-  registredReflection.add x
+macro registerReflection*(x: typed, filter: untyped = true) =
+  registredReflection.add (x, filter)
   result = buildAst(stmtList):
-    for t in registredComponents[(if includeUiobj: 0 else: 1)..^1]:
-      call(x, t)
+    for t in registredComponents:
+      invokeReflection(x, filter, t)
 
 
 registerComponent Uiobj
