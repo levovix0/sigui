@@ -7,8 +7,7 @@ test "layers":
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
-  globalDefaultFont = newFont(typeface).buildIt:
-    it.size = 24
+  globalDefaultFont = typeface.withSize(24)
 
   window.makeLayout:
     this.clearColor = color(1, 1, 1)

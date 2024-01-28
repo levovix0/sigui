@@ -294,8 +294,7 @@ when isMainModule:
       let this = TextArea()
       init this
       this.text[] = "start text"
-      this.textObj[].font[] = newFont(typeface).buildIt:
-        it.size = 24
+      this.textObj[].font[] = typeface.withSize(24)
       this.w[] = 400
       this.h[] = this.textObj[].h[]
       this.makeLayout:

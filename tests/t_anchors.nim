@@ -14,15 +14,14 @@ test "anchors":
     
     var w = 0'f32.property
     var h = 0'f32.property
-    this.bindingProperty w: (this.w[] - margin * 4) / 3
-    this.bindingProperty h: (this.h[] - margin * 4) / 3
+    this.bindingValue w[]: (this.w[] - margin * 4) / 3
+    this.bindingValue h[]: (this.h[] - margin * 4) / 3
 
     proc text(s: string): UiText =
       result = UiText()
       init result
       result.text[] = s
-      result.font[] = newFont(typeface).buildIt:
-        it.size = 16
+      result.font[] = typeface.withSize(16)
 
     - UiRectStroke() as rect_tl:
       this.left = parent.left + margin

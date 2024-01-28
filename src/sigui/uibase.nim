@@ -188,7 +188,6 @@ type
   
   BindingKind = enum
     bindProperty
-    bindOtherProperty
     bindValue
     bindProc
   
@@ -943,8 +942,6 @@ proc drawRectStroke*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
             x -= tileSecondSize.x
         return 1
 
-      return 0
-
 
     proc vert(
       gl_Position: var Vec4,
@@ -1578,16 +1575,28 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   to
                   changableImpl(ctor, body)
               
-              of ForStmt[@v, @cond, @body]:
+              of ForStmt():
                 forStmt:
-                  v
-                  cond
+                  x[0]
+                  for cond in x[1..^2]: cond
                   stmtList:
                     letSection:
                       var fwd: seq[NimNode]
-                      (implFwd(body, fwd))
+                      (implFwd(x[^1], fwd))
                       for x in fwd: x
-                    impl(ident "parent", ident "this", body)
+                    impl(ident "parent", ident "this", x[^1])
+              
+              of IfStmt[all @branches]:
+                ifStmt:
+                  for x in branches:
+                    x[^1] = buildAst:
+                      stmtList:
+                        letSection:
+                          var fwd: seq[NimNode]
+                          (implFwd(x[^1], fwd))
+                          for x in fwd: x
+                        impl(ident "parent", ident "this", x[^1])
+                    x
 
               else: x
         parent
@@ -1634,7 +1643,7 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
   let thisInProc = genSym(nskParam)
   var alreadyBinded: seq[NimNode]
 
-  proc impl(stmts: var seq[NimNode], obj, body: NimNode) =
+  proc impl(stmts: var seq[NimNode], body: NimNode) =
     case body
     of in alreadyBinded: return
     of Call[Sym(strVal: "[]"), @exp]:
@@ -1645,10 +1654,10 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
         call updateProc:
           objCursor
       alreadyBinded.add body
-      impl(stmts, obj, exp)
+      impl(stmts, exp)
 
     else:
-      for x in body: impl(stmts, obj, x)
+      for x in body: impl(stmts, x)
   
   result = buildAst(blockStmt):
     ident "bindingBlock"
@@ -1668,10 +1677,6 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
             asgn:
               bracketExpr dotExpr(thisInProc, target)
               body
-          of bindOtherProperty:
-            asgn:
-              bracketExpr target
-              body
           of bindValue:
             asgn:
               target
@@ -1689,7 +1694,7 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
           if redraw: call bindSym "redraw", thisInProc
       
       var stmts: seq[NimNode]
-      (impl(stmts, obj, body))
+      (impl(stmts, body))
       for x in stmts: x
       if init:
         call updateProc, objCursor
@@ -1698,47 +1703,26 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
 macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
   bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProperty)
 
-macro bindingValue*(obj: EventHandler, target: typed, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
+macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
   bindingImpl(obj, target, body, afterUpdate, redraw, init, bindValue)
 
-macro bindingProperty*(obj: EventHandler, target: typed, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindOtherProperty)
-
-macro bindingProc*(obj: EventHandler, target: typed, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
+macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
   bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProc)
 
 
 macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
   bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProperty)
 
-macro bindingValue*[T: HasEventHandler](obj: T, target: typed, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
+macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
   bindingImpl(obj, target, body, afterUpdate, redraw, init, bindValue)
 
-macro bindingProperty*[T: HasEventHandler](obj: T, target: typed, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindOtherProperty)
-
-macro bindingProc*[T: HasEventHandler](obj: T, target: typed, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
+macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
   bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProc)
 
 
-template buildIt*[T](obj: T, body: untyped): T =
-  ## for situations like:
-  ## 
-  ## .. code-block:: nim
-  ##   this.font[] = newFont(typeface).buildIt:
-  ##     it.size = 14
-  ## 
-  ## use buildIt instead of:
-  ## 
-  ## .. code-block:: nim
-  ##   this.font[] = block:
-  ##     let font = newFont(typeface)
-  ##     font.size = 14
-  ##     font
-  block:
-    var it {.inject.} = obj
-    body
-    it
+proc withSize*(typeface: Typeface, size: float): Font =
+  result = newFont(typeface)
+  result.size = size
 
 
 template withWindow*(obj: UiObj, winVar: untyped, body: untyped) =
@@ -1785,6 +1769,7 @@ proc invokeReflection(refl: NimNode, filter: NimNode, t: NimNode): NimNode =
         filter.replaceTree(ident"T", t).replaceTree(ident"t", newLit t.repr)
         stmtList:
           call(refl, t)
+
 
 macro registerComponent*(t: type) =
   registredComponents.add t

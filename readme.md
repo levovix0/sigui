@@ -155,7 +155,7 @@ var eh: EventHandler
 x.changed.connectTo eh:
   echo "x changes observed by event handler"
 
-eh.bindingProperty y: x[]
+eh.bindingValue y[]: x[]
 
 x[] = 10  # both "x changes observed by event handler" and "10"
 ```
@@ -178,7 +178,6 @@ type AnyProperty[T] = concept a, var v
 
 There is:
 - `uiobj.binding prop: ...`: binds property that is field named `prop` inside `uiobj`
-- `eh.bindingProperty otherobj.prop: ...` binds any var property. Useful for properties declared as variables inside makeLayout.
 - `eh.bindingValue val: ...` binds to assignment to `val`
 - `eh.bindingProc f: ...` bind to call f(eh, body). Useful for nim-like properties (image=, len=, etc.)
 
@@ -421,8 +420,7 @@ let typeface = parseTtf(typefaceFile)
 
 - TextArea():
   this.text[] = "start text"
-  this.textObj[].font[] = newFont(typeface).buildIt:
-    it.size = 24
+  this.textObj[].font[] = typeface.withSize(24)
 
   # note: create your own UiText to make tip/hint
 ```

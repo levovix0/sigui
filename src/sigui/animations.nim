@@ -98,15 +98,15 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
         elif time > a.duration[]:
           if not a.loop[]:
             a.running[] = false
-            a.ended.emit()
             a.duration[]
           else:
-            a.ended.emit()
             initDuration(
               seconds = if a.duration.inSeconds != 0: time.inSeconds mod a.duration.inSeconds else: 0,
               nanoseconds = if a.duration.inNanoseconds != 0: time.inNanoseconds mod a.duration.inNanoseconds mod 1_000_000_000 else: 0,
             )
         else: time
+      if time > a.duration[]:
+        a.ended.emit()
   
   a.currentTime.changed.connectTo a: act()
   a.enabled.changed.connectTo a: act()

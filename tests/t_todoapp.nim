@@ -28,8 +28,7 @@ test "todo app":
     - UiText() as text:
       this.centerX = parent.center
       this.y[] = 20
-      this.font[] = newFont(typeface).buildIt:
-        it.size = 72
+      this.font[] = typeface.withSize(72)
       this.color[] = color(0.5, 0.5, 0.5)
       this.text[] = "todos"
     
@@ -43,14 +42,12 @@ test "todo app":
       # - UiTextArea():
       #   this.fill(parent, 4, 2)
       #   this.text[] = "sample task"
-      #   this.textObj[].font[] = newFont(typeface).buildIt:
-      #     it.size = 32
+      #   this.textObj[].font[] = typeface.withSize(32)
       - UiText() as taskName:
         this.centerY = parent.center
         this.left = parent.left + 10
         this.text[] = "sample task"
-        this.font[] = newFont(typeface).buildIt:
-          it.size = 32
+        this.font[] = typeface.withSize(32)
       
       - UiRect() as addTask:
         this.right = parent.right - 5
@@ -68,8 +65,7 @@ test "todo app":
         - UiText():
           this.centerIn parent
           this.text[] = "+"
-          this.font[] = newFont(typeface).buildIt:
-            it.size = 32
+          this.font[] = typeface.withSize(32)
           this.color[] = color(1, 1, 1)
 
         - MouseArea() as mouse:
@@ -95,9 +91,9 @@ test "todo app":
               this.text[] = task.name
               
               this.binding font:
-                newFont(typeface).buildIt:
-                  it.size = 24
-                  it.strikethrough = task.complete[]
+                let it = typeface.withSize(24)
+                it.strikethrough = task.complete[]
+                it
               
               this.binding color:
                 if mouse.pressed[]: color(0.2, 0.2, 0.2)
@@ -115,7 +111,7 @@ test "todo app":
                 this.color[] = color(0.43, 0.15, 0.76)
                 
                 this.binding isOn: task.complete[]
-                this.bindingProperty task.complete: this.isOn[]
+                this.bindingValue task.complete[]: this.isOn[]
     
     app.tasksChanged.connectTo app:
       app.layout[] = Layout()
