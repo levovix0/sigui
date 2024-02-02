@@ -23,28 +23,28 @@ test "anchors":
       result.text[] = s
       result.font[] = typeface.withSize(16)
 
-    - UiRectStroke() as rect_tl:
+    - UiRectBorder() as rect_tl:
       this.left = parent.left + margin
       this.top = parent.top + margin
 
       - text "right = parent.right":
         this.right = parent.right
     
-    - UiRectStroke() as rect_tm:
+    - UiRectBorder() as rect_tm:
       this.left = rect_tl.right + margin
       this.top = parent.top + margin
 
       - text "top = parent.bottom":
         this.top = parent.bottom
     
-    - UiRectStroke() as rect_tr:
+    - UiRectBorder() as rect_tr:
       this.right = parent.right - margin
       this.top = parent.top + margin
 
       - text "bottom = parent.top":
         this.bottom = parent.top
 
-    - UiRectStroke() as rect_ml:
+    - UiRectBorder() as rect_ml:
       this.left = parent.left + margin
       this.top = rect_tl.bottom + margin
 
@@ -53,21 +53,21 @@ test "anchors":
         this.left = parent.left
         this.right = parent.right
     
-    - UiRectStroke() as rect_mm:
+    - UiRectBorder() as rect_mm:
       this.left = rect_ml.right + margin
       this.top = rect_tl.bottom + margin
 
       - text "centerIn parent":
         this.centerIn parent
     
-    - UiRectStroke() as rect_mr:
+    - UiRectBorder() as rect_mr:
       this.right = parent.right - margin
       this.top = rect_tl.bottom + margin
 
       - text "centerY = parent.center":
         this.centerY = parent.center
     
-    - UiRectStroke() as rect_bl:
+    - UiRectBorder() as rect_bl:
       this.left = parent.left + margin
       this.bottom = parent.bottom - margin
 
@@ -76,14 +76,14 @@ test "anchors":
         this.centerY = parent.top
         this.right = parent.right
     
-    - UiRectStroke() as rect_bm:
+    - UiRectBorder() as rect_bm:
       this.left = rect_bl.right + margin
       this.bottom = parent.bottom - margin
 
       - text "bottom = parent.bottom - 10":
         this.bottom = parent.bottom - 10
     
-    - UiRectStroke() as rect_br:
+    - UiRectBorder() as rect_br:
       this.right = parent.right - margin
       this.bottom = parent.bottom - margin
 

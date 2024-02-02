@@ -32,7 +32,7 @@ test "todo app":
       this.color[] = color(0.5, 0.5, 0.5)
       this.text[] = "todos"
     
-    - UiRectStroke() as taskAdder:
+    - UiRectBorder() as taskAdder:
       this.fillHorizontal(parent, 20)
       this.h[] = 40
       this.top = text.bottom + 20

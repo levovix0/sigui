@@ -144,12 +144,14 @@ type
     color*: Property[Col] = color(0, 0, 0).property
     tex: Textures
 
-  UiRectStroke* = ref object of UiRect
+  UiRectBorder* = ref object of UiRect
     borderWidth*: Property[float32] = 1'f32.property
     tiled*: Property[bool]
     tileSize*: Property[Vec2] = vec2(4, 4).property
     tileSecondSize*: Property[Vec2] = vec2(2, 2).property
     secondColor*: Property[Col]
+
+  UiRectStroke* {.deprecated: "renamed to UiRectBorder".} = UiRectBorder
 
   RectShadow* = ref object of UiRect
     blurRadius*: Property[float32]
@@ -1269,7 +1271,7 @@ method draw*(text: UiText, ctx: DrawContext) =
   text.drawAfter(ctx)
 
 
-method draw*(rect: UiRectStroke, ctx: DrawContext) =
+method draw*(rect: UiRectBorder, ctx: DrawContext) =
   rect.drawBefore(ctx)
   if rect.visibility[] == visible:
     ctx.drawRectStroke((rect.xy[].posToGlobal(rect.parent) + ctx.offset).round, rect.wh[], rect.color.vec4, rect.radius, true, rect.angle, rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4)
@@ -1409,7 +1411,8 @@ proc newUiIcon*(): UiIcon = new result
 proc newUiSvgImage*(): UiSvgImage = new result
 proc newUiText*(): UiText = new result
 proc newUiRect*(): UiRect = new result
-proc newUiRectStroke*(): UiRectStroke = new result
+proc newUiRectStroke*(): UiRectBorder {.deprecated: "renamed to newUiRectBorder".} = new result
+proc newUiRectBorder*(): UiRectBorder = new result
 proc newClipRect*(): ClipRect = new result
 proc newRectShadow*(): RectShadow = new result
 
@@ -1791,7 +1794,7 @@ registerComponent UiRect
 registerComponent UiImage
 registerComponent UiIcon
 registerComponent UiSvgImage
-registerComponent UiRectStroke
+registerComponent UiRectBorder
 registerComponent RectShadow
 registerComponent ClipRect
 registerComponent UiText
