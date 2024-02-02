@@ -115,11 +115,18 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
   a.interpolation.changed.connectTo a: act()
   a.duration.changed.connectTo a: act()
 
-  obj.withWindow win:
-    win.onTick.connectTo a, args: tick(args.deltaTime)
+  var hasAnimator = false
 
   obj.withAnimator anim:
+    if hasAnimator: return
+    hasAnimator = true
     anim.onTick.connectTo a, args: tick(args)
+
+  obj.withWindow win:
+    if hasAnimator: return
+    hasAnimator = true
+    win.onTick.connectTo a, args: tick(args.deltaTime)
+
 
 proc start*(a: Animation) =
   a.currentTime[] = DurationZero
