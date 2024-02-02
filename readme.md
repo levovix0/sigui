@@ -93,11 +93,11 @@ method init*(this: Switch) =
         if root.enabled[]:
           root.isOn[] = not root.isOn[]
 
-      - UiRectStroke():
+      - UiRectBorder():
         this.fill(parent)
         this.binding radius: min(this.w[], this.h[]) / 2 - 2
         this.borderWidth[] = 2
-        this.color[] = color(0.7, 0.7, 0.7)
+        this.color[] = "aaa"
 
         - UiRect():
           this.centerY = parent.center

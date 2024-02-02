@@ -9,7 +9,7 @@ test "anchors":
   let typeface = parseTtf(typefaceFile)
 
   window.makeLayout:
-    this.clearColor = color(1, 1, 1)
+    this.clearColor = "fff"
     const margin = 40
     
     var w = 0'f32.property
@@ -95,7 +95,7 @@ test "anchors":
         this.binding w: w[]
         this.binding h: h[]
         this.borderWidth[] = 2
-        this.color[] = color(0.2, 0.2, 0.2)
+        this.color[] = "333"
 
 
   run window.siwinWindow

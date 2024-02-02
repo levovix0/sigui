@@ -31,6 +31,16 @@ method formatFields*(this: Uiobj): seq[string] {.base.} =
 
 proc `$`*(this: Uiobj): string
 
+
+proc `$`*(x: Color): string =
+  result.add '"'
+  if x.a == 1:
+    result.add x.toHex
+  else:
+    result.add x.toHexAlpha
+  result.add '"'
+
+
 proc formatChilds(this: Uiobj): string =
   for x in this.childs:
     if result != "": result.add "\n\n"
