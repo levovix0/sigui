@@ -12,10 +12,10 @@ type
 
   AnyProperty*[T] = concept a, var v
     a[] is T
-    a[] = T
+    v[] = T
     a.changed is Event[T]
     a{} is T
-    a{} = T
+    v{} = T
 
 
 #* ------------- Property ------------- *#

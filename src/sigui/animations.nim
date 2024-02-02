@@ -1,6 +1,7 @@
-import times, std/importutils, strutils
+import times, strutils
 import siwin
 import ./uibase
+import ./events {.all.}
 export times
 
 let
@@ -136,11 +137,6 @@ template animation*[T](val: T): Animation[T] =
   Animation[T](action: proc(x: T) = val = x)
 
 
-proc transitionImpl*[T](a: Animation[T], prop: var AnyProperty[T], dur: Duration) =
-  privateAccess Event
-  prop.changed.emitCurrIdx[] = prop.changed.connected[].len
-
-
 proc `'s`*(lit: cstring): Duration =
   let lit = ($lit).parseFloat
   initDuration(seconds = lit.int64, nanoseconds = ((lit - lit.int64.float) * 1_000_000_000).int64)
@@ -150,21 +146,20 @@ proc `'ms`*(lit: cstring): Duration =
 
 
 template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
-  bind transitionImpl
   let a = Animation[T](
     action: (proc(x: T) =
       prop{} = x
-      prop.changed.emit(x, 1)
+      prop.changed.emit(x, {EventConnectionFlag.transition})
     ),
     duration: dur.property
   )
   a.a{} = prop.unsafeVal
   a.b{} = prop.unsafeVal
-  prop.changed.insertConnection a.eventHandler, proc(v: T) =
+  prop.changed.connect(a.eventHandler, proc(v: T) =
     a.a{} = a.currentValue
     a.b{} = v
-    transitionImpl(a, prop, dur)
     start a
+  , flags = {EventConnectionFlag.transition})
   a
 
 

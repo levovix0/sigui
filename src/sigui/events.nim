@@ -1,149 +1,134 @@
 
-type
-  EventBase = object
-    connected: seq[(EventHandlerCursor, proc(v: int) {.closure.})]
-  
-  EventHandler* = ref object
+type  
+  EventHandler* = object  # pointer is wrapped to an object to attach custom destructor
+    p: ptr EventHandlerObj
+  EventHandlerObj = object
     connected: seq[ptr EventBase]
 
+  EventConnectionFlag = enum
+    transition
 
-  EventHandlerCursor = object
-    eh {.cursor.}: EventHandler
+  EventConnection[T] = tuple
+    eh: ptr EventHandlerObj
+    f: proc(v: T) {.closure.}
+    flags: set[EventConnectionFlag]
 
-  Event*[T] = object
+  EventBase = object
+    connected: seq[EventConnection[int]]  # type of function argument does not matter for this
+
+  Event*[T] = object  # pointer is wrapped to an object to attach custom destructor
+    p: ptr EventObj[T]
+  EventObj*[T] = object
     ## only EventHandler can be connected to event
     ## one event can be connected to multiple components
     ## one EventHandler can connect to multiple events
     ## one event can be connected to one EventHandler multiple times
     ## connection can be removed, but if EventHandler connected to event multiple times, they all will be removed
-    connected: ref seq[(EventHandlerCursor, proc(v: T) {.closure.})]
-    emitCurrIdx: ref int
-      # change if you adding/deleting events at the time it is emitting
-      # yes, it is not exported, use std/importutils.privateAccess to access it
-      # ref int because we should be able to emit event from non-var location
+    connected: seq[EventConnection[T]]
 
 
 
 #* ------------- Event ------------- *#
 
-proc destroyEvent(s: ptr EventBase)
-proc destroyEventHandler(c: EventHandler)
+proc destroyEvent(s: ptr EventBase) {.raises: [].}
+proc destroyEventHandler(handler: ptr EventHandlerObj) {.raises: [].}
 
 
 proc `=destroy`[T](s: Event[T]) =
-  if s.connected != nil:
-    destroyEvent(cast[ptr EventBase](s.connected[].addr))
+  if s.p != nil:
+    destroyEvent(cast[ptr EventBase](s.p))
+
+proc `=destroy`(s: EventHandler) =
+  if s.p != nil:
+    destroyEventHandler(s.p)
+
 
 proc initIfNeeded[T](s: var Event[T]) =
-  if s.connected == nil:
-    new s.connected
-    new s.emitCurrIdx
+  if s.p == nil:
+    s.p = cast[ptr EventObj[T]](alloc0(sizeof(EventObj[T])))
 
-
-proc initIfNeeded(c: var EventHandler) =
-  if c == nil:
-    {.push, warning[Deprecated]: off.}
-    new c, destroyEventHandler
-    {.pop.}
+proc initIfNeeded(s: var EventHandler) =
+  if s.p == nil:
+    s.p = cast[ptr EventHandlerObj](alloc0(sizeof(EventHandlerObj)))
 
 
 proc destroyEvent(s: ptr EventBase) =
-  for (c, _) in s[].connected:
+  for (handler, _, _) in s[].connected:
     var i = 0
-    while i < c.eh.connected.len:
-      if c.eh.connected[i] == s:
-        c.eh.connected.del i
+    while i < handler[].connected.len:
+      if handler[].connected[i] == s:
+        handler[].connected.del i
       else:
         inc i
+  dealloc s
 
-proc destroyEventHandler(c: EventHandler) =
-  for s in c.connected:
+proc destroyEventHandler(handler: ptr EventHandlerObj) =
+  for s in handler[].connected:
     var i = 0
     while i < s[].connected.len:
-      if s[].connected[i][0].eh == c:
+      if s[].connected[i][0] == handler:
         s[].connected.del i
       else:
         inc i
+  dealloc handler
 
 
-proc disconnect*[T](s: var Event[T]) =
-  if s == nil: return
-  for (c, _) in s.connected[]:
-    var i = 0
-    while i < c.eh.connected.len:
-      if c.eh.connected[i] == cast[ptr EventBase](s.connected[].addr):
-        c.eh.connected.del i
-      else:
-        inc i
-  s.connected[] = @[]
+proc disconnect*[T](x: var Event[T]) =
+  if x.p == nil: return
+  destroyEvent cast[ptr EventBase](x.p)
+  x.p = nil
 
-proc disconnect*(c: var EventHandler) =
-  if c == nil: return
-  for s in c.connected:
-    var i = 0
-    while i < s[].connected.len:
-      if s[].connected[i][0].eh == c:
-        s[].connected.del i
-      else:
-        inc i
-  c.connected = @[]
+proc disconnect*(x: var EventHandler) =
+  if x.p == nil: return
+  destroyEventHandler x.p
+  x.p = nil
+
 
 proc disconnect*[T](s: var Event[T], c: var EventHandler) =
-  if s.connected == nil or c == nil: return
+  if s.p == nil or c.p == nil: return
   var i = 0
-  while i < c.connected.len:
-    if c.connected[i] == cast[ptr EventBase](s.connected[].addr):
-      c.connected.del i
+  while i < c.p[].connected.len:
+    if c.p[].connected[i] == cast[ptr EventBase](s.p):
+      c.p[].connected.del i
     else:
       inc i
   
   i = 0
-  while i < s.connected[].len:
-    if s.connected[][i][0].eh == c:
-      s.connected[].del i
+  while i < s.p[].connected.len:
+    if s.p[].connected[i].eh == c.p:
+      s.p[].connected.del i
     else:
       inc i
 
 
-proc emit*[T](s: Event[T], v: T, startIndex = 0) =
-  if s.connected == nil: return
-  s.emitCurrIdx[] = startIndex
-  while s.emitCurrIdx[] < s.connected[].len:
-    s.connected[][s.emitCurrIdx[]][1](v)
-    inc s.emitCurrIdx[]
+proc emit*[T](s: Event[T], v: T, disableFlags: set[EventConnectionFlag] = {}) =
+  if s.p == nil: return
+  var i = 0
+  while i < s.p[].connected.len:
+    if (disableFlags * s.p[].connected[i].flags).len == 0:
+      s.p[].connected[i].f(v)
+    inc i
 
-proc emit*(s: Event[void], startIndex = 0) =
-  if s.connected == nil: return
-  s.emitCurrIdx[] = startIndex
-  while s.emitCurrIdx[] < s.connected[].len:
-    s.connected[][s.emitCurrIdx[]][1]()
-    inc s.emitCurrIdx[]
+proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
+  if s.p == nil: return
+  var i = 0
+  while i < s.p[].connected.len:
+    if (disableFlags * s.p[].connected[i].flags).len == 0:
+      s.p[].connected[i].f()
+    inc i
 
 
-proc connect*[T](s: var Event[T], c: var EventHandler, f: proc(v: T)) =
+proc connect*[T](s: var Event[T], c: var EventHandler, f: proc(v: T), flags: set[EventConnectionFlag] = {}) =
   initIfNeeded s
   initIfNeeded c
-  s.connected[].add (EventHandlerCursor(eh: c), f)
-  c.connected.add cast[ptr EventBase](s.connected[].addr)
+  s.p[].connected.add (c.p, f, flags)
+  c.p[].connected.add cast[ptr EventBase](s.p)
 
-proc connect*(s: var Event[void], c: var EventHandler, f: proc()) =
+proc connect*(s: var Event[void], c: var EventHandler, f: proc(), flags: set[EventConnectionFlag] = {}) =
   initIfNeeded s
   initIfNeeded c
-  s.connected[].add (EventHandlerCursor(eh: c), f)
-  c.connected.add cast[ptr EventBase](s.connected[].addr)
-
-
-proc insertConnection*[T](s: var Event[T], c: var EventHandler, f: proc(v: T), i = 0) =
-  initIfNeeded s
-  initIfNeeded c
-  s.connected[].insert (EventHandlerCursor(eh: c), f), i
-  c.connected.add cast[ptr EventBase](s.connected[].addr)
-
-proc insertConnection*(s: var Event[void], c: var EventHandler, f: proc(), i = 0) =
-  initIfNeeded s
-  initIfNeeded c
-  s.connected[].insert (EventHandlerCursor(eh: c), f), i
-  c.connected.add cast[ptr EventBase](s.connected[].addr)
+  s.p[].connected.add (c.p, f, flags)
+  c.p[].connected.add cast[ptr EventBase](s.p)
 
 
 template connectTo*[T](s: var Event[T], obj: var EventHandler, body: untyped) =
@@ -164,5 +149,5 @@ template connectTo*(s: var Event[void], obj: var EventHandler, argname: untyped,
 
 
 proc hasHandlers*(e: Event): bool =
-  if e.connected == nil: return false
-  e.connected[].len > 0
+  if e.p == nil: return false
+  e.p.connected.len > 0
