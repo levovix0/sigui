@@ -24,5 +24,6 @@ win.makeLayout:
       this.fill(parent)
       this.mouseDownAndUpInside.connectTo root:
         state[] = (state[] + 1) mod 3
+      this.cursor = (ref Cursor)(kind: builtin, builtin: BuiltinCursor.pointingHand)
 
 run win.siwinWindow

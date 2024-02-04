@@ -5,19 +5,27 @@ export MouseButton, MouseMoveEvent
 type
   MouseArea* = ref object of Uiobj
     acceptedButtons*: Property[set[MouseButton]] = {MouseButton.left}.property
+      ## handle only events of these buttons
     ignoreHandling*: Property[bool]
       ## don't stop propogating signals even they are handled
     
     pressed*: Property[bool]
+      ## is mouse button pressed inside this area (or was pressed inside) and is pressed now
     hovered*: Property[bool]
+      ## is mouse button pressed inside this area now
+
+    mouseButton*: Event[MouseButtonEvent]
 
     mouseX*, mouseY*: Property[float32]
+      ## current mouse position, relative to this area (see also: mouseXy)
     clicked*: Event[ClickEvent]
-    mouseButton*: Event[MouseButtonEvent]
+      ## mouse pressed and released without movement
     mouseDownAndUpInside*: Event[void]
+      ## mouse button pressed and released inside this area (also if pressed, leaved, re-entered and released)
     dragged*: Event[IVec2]
-    cursor*: ref Cursor
       ## mouse moved while in this area (or outside this area but pressed)
+    cursor*: ref Cursor
+      ## cursor for mouse when inside this area
     pressedButtons: set[MouseButton]
     pressedPos: IVec2
     dragStarted: bool
@@ -59,8 +67,9 @@ method recieve*(this: MouseArea, signal: Signal) =
     case signal
     of of WindowEvent(event: @ea is of MouseMoveEvent()):
       let e = (ref MouseMoveEvent)ea
-      this.mouseX[] = e.window.mouse.pos.x.float32 - this.parent.x[]
-      this.mouseY[] = e.window.mouse.pos.y.float32 - this.parent.y[]
+      let d = vec2().posToGlobal(this)
+      this.mouseX[] = e.window.mouse.pos.x.float32 - d.x
+      this.mouseY[] = e.window.mouse.pos.y.float32 - d.y
 
     case signal
 
@@ -89,6 +98,10 @@ method recieve*(this: MouseArea, signal: Signal) =
                 this.dragStarted = false
                 if this.hovered[] and not e.generated:
                   this.mouseDownAndUpInside.emit()
+    
+    if signal of GetActiveCursor:
+      if signal.GetActiveCursor.cursor == nil and this.hovered[]:
+        signal.GetActiveCursor.cursor = this.cursor
   
   case signal
   of of VisibilityChanged(visibility: @e):

@@ -1373,7 +1373,16 @@ proc setupEventsHandling*(win: UiWindow) =
 
   win.siwinWindow.eventsHandler = WindowEventsHandler(
     onClose:       proc(e: CloseEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
-    onRender:      proc(e: RenderEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
+    onRender:      proc(e: RenderEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+      
+      var cursor = GetActiveCursor()
+      win.recieve(cursor)
+      if cursor.cursor == nil:
+        win.siwinWindow.cursor = Cursor()
+      else:
+        win.siwinWindow.cursor = cursor.cursor[]
+    ,
     onTick:        proc(e: TickEvent) = win.onTick.emit(e),
     onResize:      proc(e: ResizeEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onWindowMove:  proc(e: WindowMoveEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
@@ -1382,7 +1391,16 @@ proc setupEventsHandling*(win: UiWindow) =
     onFullscreenChanged:  proc(e: FullscreenChangedEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onMaximizedChanged:   proc(e: MaximizedChangedEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
 
-    onMouseMove:    proc(e: MouseMoveEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
+    onMouseMove:    proc(e: MouseMoveEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    
+      var cursor = GetActiveCursor()
+      win.recieve(cursor)
+      if cursor.cursor == nil:
+        win.siwinWindow.cursor = Cursor()
+      else:
+        win.siwinWindow.cursor = cursor.cursor[]
+    ,
     onMouseButton:  proc(e: MouseButtonEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onScroll:       proc(e: ScrollEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onClick:        proc(e: ClickEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
