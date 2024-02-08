@@ -68,6 +68,8 @@ type
     visibility*: Property[Visibility]
     globalTransform*: Property[bool]
     
+    globalX*, globalY*: Property[float32]
+    
     onSignal*: Event[Signal]
     
     newChildsObject*: Uiobj
@@ -95,6 +97,10 @@ type
 
   ParentChanged* = ref object of SubtreeSignal
     newParentInTree*: Uiobj
+
+  ParentPositionChanged* = ref object of SubtreeSignal
+    parent*: Uiobj
+    position*: Vec2
   
   WindowEvent* = ref object of SubtreeSignal
     event*: ref AnyWindowEvent
@@ -399,15 +405,25 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
 
 
 proc xy*(obj: Uiobj): CustomProperty[Vec2] =
+  ##! never emits changed event
   CustomProperty[Vec2](
     get: proc(): Vec2 = vec2(obj.x[], obj.y[]),
     set: proc(v: Vec2) = obj.x[] = v.x; obj.y[] = v.y,
   )
 
 proc wh*(obj: Uiobj): CustomProperty[Vec2] =
+  ##! never emits changed event
   CustomProperty[Vec2](
     get: proc(): Vec2 = vec2(obj.w[], obj.h[]),
     set: proc(v: Vec2) = obj.w[] = v.x; obj.h[] = v.y,
+  )
+
+
+proc globalXy*(obj: Uiobj): CustomProperty[Vec2] =
+  ##! never emits changed event
+  CustomProperty[Vec2](
+    get: proc(): Vec2 = vec2(obj.globalX[], obj.globalY[]),
+    set: proc(v: Vec2) = obj.globalX[] = v.x; obj.globalY[] = v.y,
   )
 
 
@@ -480,16 +496,8 @@ proc posToGlobal*(pos: Vec2, obj: Uiobj): Vec2 =
 proc posToObject*(fromObj, toObj: Uiobj, pos: Vec2): Vec2 =
   pos.posToGlobal(fromObj).posToLocal(toObj)
 
-
-method recieve*(obj: Uiobj, signal: Signal) {.base.} =
-  if signal of AttachedToWindow:
-    obj.attachedToWindow = true
-
-  obj.onSignal.emit signal
-
-  if signal of SubtreeSignal:
-    for x in obj.childs:
-      x.recieve(signal)
+proc posToObject*(pos: Vec2, fromObj, toObj: Uiobj): Vec2 =
+  pos.posToGlobal(fromObj).posToLocal(toObj)
 
 
 proc pos*(anchor: Anchor, isY: bool): Vec2 =
@@ -643,12 +651,37 @@ anchorAssign centerX, false
 anchorAssign centerY, true
 
 
+method recieve*(obj: Uiobj, signal: Signal) {.base.} =
+  if signal of AttachedToWindow:
+    obj.attachedToWindow = true
+
+  let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
+  obj.globalX[] = p.x
+  obj.globalY[] = p.y
+
+  if signal of ParentPositionChanged:
+    let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
+    obj.globalX[] = p.x
+    obj.globalY[] = p.y
+
+  obj.onSignal.emit signal
+
+  if signal of SubtreeSignal:
+    for x in obj.childs:
+      x.recieve(signal)
+
+
 method init*(obj: Uiobj) {.base.} =
   obj.visibility.changed.connectTo obj:
     obj.recieve(VisibilityChanged(sender: obj, visibility: obj.visibility))
   
   obj.w.changed.connectTo obj: obj.applyAnchors()
   obj.h.changed.connectTo obj: obj.applyAnchors()
+
+  obj.x.changed.connectTo obj:
+    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy[]))
+  obj.y.changed.connectTo obj:
+    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy[]))
   
   if not obj.attachedToWindow:
     let win = obj.parentUiWindow
