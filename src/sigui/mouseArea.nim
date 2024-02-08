@@ -22,13 +22,17 @@ type
       ## mouse pressed and released without movement
     mouseDownAndUpInside*: Event[void]
       ## mouse button pressed and released inside this area (also if pressed, leaved, re-entered and released)
-    dragged*: Event[IVec2]
-      ## mouse moved while in this area (or outside this area but pressed)
+    dragged* {.deprecated #[use grabbed instead]#.}: Event[IVec2]
+    grabbed*: Event[IVec2]
+      ## mouse pressed and started moving while in this area
+      ## emits start position (relative to screen)
+      ## see mouseX and mouseY for current position
     cursor*: ref Cursor
       ## cursor for mouse when inside this area
+    
     pressedButtons: set[MouseButton]
     pressedPos: IVec2
-    dragStarted: bool
+    grabStarted: bool
 
 registerComponent MouseArea
 
@@ -75,11 +79,11 @@ method recieve*(this: MouseArea, signal: Signal) =
 
     of of WindowEvent(event: @ea is of MouseMoveEvent(), handled: false, fake: false):
       if this.pressed[]:
-        if not this.dragStarted:
-          this.dragStarted = true
-          if this.dragged.hasHandlers:
+        if not this.grabStarted:
+          this.grabStarted = true
+          if this.grabbed.hasHandlers:
             signal.WindowEvent.handled = true
-          this.dragged.emit(this.pressedPos)
+          this.grabbed.emit(this.pressedPos)
 
     of of WindowEvent(event: @ea is of MouseButtonEvent(), handled: false):
       if this.visibility != collapsed:
@@ -95,7 +99,7 @@ method recieve*(this: MouseArea, signal: Signal) =
             if this.pressedButtons == {}:
               if this.pressed[]:
                 this.pressed[] = false
-                this.dragStarted = false
+                this.grabStarted = false
                 if this.hovered[] and not e.generated:
                   this.mouseDownAndUpInside.emit()
     
