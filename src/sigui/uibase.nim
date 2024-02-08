@@ -618,22 +618,22 @@ proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
   if not isY:
     case anchor.offsetFrom:
     of start:
-      anchor.obj.x.changed.connectTo anchor: this.applyAnchors()
+      anchor.obj.globalX.changed.connectTo anchor: this.applyAnchors()
     of `end`:
-      anchor.obj.x.changed.connectTo anchor: this.applyAnchors()
+      anchor.obj.globalX.changed.connectTo anchor: this.applyAnchors()
       anchor.obj.w.changed.connectTo anchor: this.applyAnchors()
     of center:
-      anchor.obj.x.changed.connectTo anchor: this.applyAnchors()
+      anchor.obj.globalX.changed.connectTo anchor: this.applyAnchors()
       anchor.obj.w.changed.connectTo anchor: this.applyAnchors()
   else:
     case anchor.offsetFrom:
     of start:
-      anchor.obj.y.changed.connectTo anchor: this.applyAnchors()
+      anchor.obj.globalY.changed.connectTo anchor: this.applyAnchors()
     of `end`:
-      anchor.obj.y.changed.connectTo anchor: this.applyAnchors()
+      anchor.obj.globalY.changed.connectTo anchor: this.applyAnchors()
       anchor.obj.h.changed.connectTo anchor: this.applyAnchors()
     of center:
-      anchor.obj.y.changed.connectTo anchor: this.applyAnchors()
+      anchor.obj.globalY.changed.connectTo anchor: this.applyAnchors()
       anchor.obj.h.changed.connectTo anchor: this.applyAnchors()
   anchor.obj.visibility.changed.connectTo anchor: this.applyAnchors()
 
