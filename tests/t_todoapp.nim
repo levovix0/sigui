@@ -1,6 +1,6 @@
 # note: incomplete
 
-import unittest, sugar
+import unittest
 import siwin
 import sigui
 import t_customComponent
@@ -82,36 +82,34 @@ test "todo app":
       orientation = vertical
       spacing = 0
 
-      for i in 0..app.tasks.high:  # todo: better loops support
-        capture i, app, this:
-          template task: auto = app.tasks[i]
+      for i in 0..app.tasks.high:
+        template task: auto = app.tasks[i]
 
-          this.makeLayout:
-            - UiText():
-              this.text[] = task.name
-              
-              this.binding font:
-                let it = typeface.withSize(24)
-                it.strikethrough = task.complete[]
-                it
-              
-              this.binding color:
-                if mouse.pressed[]: color(0.2, 0.2, 0.2)
-                elif mouse.hovered[]: color(0.4, 0.4, 0.4)
-                else: color(0, 0, 0)
+        - UiText():
+          this.text[] = task.name
+          
+          this.binding font:
+            let it = typeface.withSize(24)
+            it.strikethrough = task.complete[]
+            it
+          
+          this.binding color:
+            if mouse.pressed[]: color(0.2, 0.2, 0.2)
+            elif mouse.hovered[]: color(0.4, 0.4, 0.4)
+            else: color(0, 0, 0)
 
-              - MouseArea() as mouse:
-                this.fill parent
-                this.mouseDownAndUpInside.connectTo this:
-                  task.complete[] = not task.complete[]
-              
-              - Switch():
-                left = parent.right + 10
-                centerY = parent.center
-                color = color(0.43, 0.15, 0.76)
-                
-                this.binding isOn: task.complete[]
-                this.bindingValue task.complete[]: this.isOn[]
+          - MouseArea() as mouse:
+            this.fill parent
+            this.mouseDownAndUpInside.connectTo this:
+              task.complete[] = not task.complete[]
+          
+          - Switch():
+            left = parent.right + 10
+            centerY = parent.center
+            color = color(0.43, 0.15, 0.76)
+            
+            this.binding isOn: task.complete[]
+            this.bindingValue task.complete[]: this.isOn[]
     
     app.tasksChanged.connectTo app:
       app.layout[] = Layout()

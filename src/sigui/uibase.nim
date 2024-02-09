@@ -1651,14 +1651,31 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               
               of ForStmt():
                 forStmt:
-                  x[0]
-                  for cond in x[1..^2]: cond
-                  stmtList:
-                    letSection:
-                      var fwd: seq[NimNode]
-                      (implFwd(x[^1], fwd))
-                      for x in fwd: x
-                    impl(ident "parent", ident "this", x[^1])
+                  for y in x[0..^2]: y
+                  call:
+                    par:
+                      lambda:
+                        empty()
+                        empty(); empty()
+                        formalParams:
+                          empty()
+                          for param in x[0..^3]:
+                            identDefs:
+                              param
+                              call:
+                                ident("typeof")
+                                param
+                              empty()
+                        empty(); empty()
+                        stmtList:
+                          letSection:
+                            var fwd: seq[NimNode]
+                            (implFwd(x[^1], fwd))
+                            for x in fwd: x
+                          impl(ident "parent", ident "this", x[^1])
+                    
+                    for param in x[0..^3]:
+                      param
               
               of IfStmt[all @branches]:
                 ifStmt:
