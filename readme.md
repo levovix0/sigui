@@ -113,7 +113,7 @@ method init*(this: Switch) =
           this.binding color: root.color[]
 
           - this.x.transition(0.4's):
-            this.interpolation[] = outCubicInterpolation
+            this.easing[] = outCubicEasing
 
     this.newChildsObject = mouse
 
@@ -193,7 +193,6 @@ registerComponent MyComponent
 
 
 method init*(this: MyComponent) =
-  if this.initialized: return
   procCall this.super.init()
 
   this.myState.changed.connectTo this, val:

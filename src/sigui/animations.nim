@@ -5,13 +5,21 @@ import ./events {.all.}
 export times
 
 let
-  linearInterpolation* = proc(x: float): float = x
-  inSquareInterpolation* = proc(x: float): float = x * x
-  inCubicInterpolation* = proc(x: float): float = x * x * x
-  outSquareInterpolation* = proc(x: float): float = 1 - (x - 1) * (x - 1)
-  outCubicInterpolation* = proc(x: float): float = 1 + (x - 1) * (x - 1) * (x - 1)
-  outBounceInterpolation* = proc(x: float): float = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
-  inBounceInterpolation* = proc(x: float): float = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
+  linearEasing* = proc(x: float): float = x
+  inSquareEasing* = proc(x: float): float = x * x
+  inCubicEasing* = proc(x: float): float = x * x * x
+  outSquareEasing* = proc(x: float): float = 1 - (x - 1) * (x - 1)
+  outCubicEasing* = proc(x: float): float = 1 + (x - 1) * (x - 1) * (x - 1)
+  outBounceEasing* = proc(x: float): float = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
+  inBounceEasing* = proc(x: float): float = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
+
+  linearInterpolation* {.deprecated: "renamed to linearEasing".} = linearEasing
+  inSquareInterpolation* {.deprecated: "renamed to inSquareEasing".} = inSquareEasing
+  inCubicInterpolation* {.deprecated: "renamed to inCubicEasing".} = inCubicEasing
+  outSquareInterpolation* {.deprecated: "renamed to outSquareEasing".} = outSquareEasing
+  outCubicInterpolation* {.deprecated: "renamed to outCubicEasing".} = outCubicEasing
+  outBounceInterpolation* {.deprecated: "renamed to outBounceEasing".} = outBounceEasing
+  inBounceInterpolation* {.deprecated: "renamed to inBounceEasing".} = inBounceEasing
 
 type
   Animation*[T] = ref object
@@ -20,7 +28,8 @@ type
     running*: Property[bool]
     duration*: Property[Duration]
     action*: proc(x: T)
-    interpolation*: Property[proc(x: float): float]
+    interpolation* {.deprecated #[renamed to easing]#.}: Property[proc(x: float): float]
+    easing*: Property[proc(x: float): float]
     a*, b*: Property[T]
     loop*: Property[bool]
     ended*: Event[void]
@@ -79,8 +88,8 @@ proc initIfNeeded*(a: Animation) = discard
 proc currentValue*[T](a: Animation[T]): T =
   if a.duration != DurationZero:
     let f =
-      if a.interpolation[] == nil: linearInterpolation
-      else: a.interpolation[]
+      if a.easing[] == nil: linearEasing
+      else: a.easing[]
     interpolate(a.a[], a.b[], f(a.currentTime[].inMicroseconds.float / a.duration.inMicroseconds.float))
   else:
     a.a[]
@@ -113,7 +122,7 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
   a.enabled.changed.connectTo a: act()
   a.a.changed.connectTo a: act()
   a.b.changed.connectTo a: act()
-  a.interpolation.changed.connectTo a: act()
+  a.easing.changed.connectTo a: act()
   a.duration.changed.connectTo a: act()
 
   var hasAnimator = false
@@ -169,16 +178,16 @@ when isMainModule:
   let animator = newOpenglWindow(size = ivec2(300, 40)).newUiWindow
   animator.makeLayout:
     - newUiRect() as rect:
-      this.w[] = 40
-      this.h[] = 40
-      this.x[] = 10
-      this.color[] = color(1, 1, 1)
+      w = 40
+      h = 40
+      x = 10
+      color = color(1, 1, 1)
 
       - this.x.transition(0.4's):
-        this.interpolation[] = outCubicInterpolation
+        easing = outCubicEasing
 
       - this.color.transition(0.4's):
-        this.interpolation[] = outCubicInterpolation
+        easing = outCubicEasing
 
       - globalShortcut({Key.a}, exact=false):
         this.activated.connectTo root:

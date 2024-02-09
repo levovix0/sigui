@@ -206,7 +206,6 @@ method init*(this: TextArea) =
     this.withWindow win:
       win.onTick.connectTo this:
         this.blinking.time[] = (this.blinking.time + e.deltaTime) mod (this.blinking.period[] * 2)
-      defer: this.newChildsObject = clip
 
     - MouseArea():
       this.fill parent
@@ -283,6 +282,8 @@ method init*(this: TextArea) =
             
             this.x.changed.connectTo root: followCursor()
             root.followCursorOffset.changed.connectTo root: followCursor()
+    
+    this.newChildsObject = clip
 
 
 when isMainModule:
@@ -298,7 +299,7 @@ when isMainModule:
       this.w[] = 400
       this.h[] = this.textObj[].h[]
       this.makeLayout:
-        - UiRectStroke():
+        - UiRectBorder():
           this.fill(parent, -1)
       this
   )

@@ -11,22 +11,36 @@ type
     
     pressed*: Property[bool]
       ## is mouse button pressed inside this area (or was pressed inside) and is pressed now
+    
     hovered*: Property[bool]
       ## is mouse button pressed inside this area now
 
-    mouseButton*: Event[MouseButtonEvent]
-
     mouseX*, mouseY*: Property[float32]
       ## current mouse position, relative to this area (see also: mouseXy)
+
+    mouseButton* {.deprecated #[don't use it]#.}: Event[MouseButtonEvent]
+
     clicked*: Event[ClickEvent]
       ## mouse pressed and released without movement
+
     mouseDownAndUpInside*: Event[void]
       ## mouse button pressed and released inside this area (also if pressed, leaved, re-entered and released)
+
     dragged* {.deprecated #[use grabbed instead]#.}: Event[IVec2]
     grabbed*: Event[IVec2]
       ## mouse pressed and started moving while in this area
       ## emits start position (relative to screen)
       ## see mouseX and mouseY for current position
+    
+    scrolled*: Event[Vec2]
+      ## mouse scrolled inside this area
+      ## emits scroll delta (both x and y)
+      ## y > 0 - scroll down (clockwise on default mouse wheel, looking from left side)
+      ## y < 0 - scroll up (anti-clockwise on default mouse wheel, looking from left side)
+      ## x > 0 - scroll right
+      ## x < 0 - scroll left
+      ## scroll delta is usualy -1, 0, or 1
+
     cursor*: ref Cursor
       ## cursor for mouse when inside this area
     
@@ -55,7 +69,9 @@ method recieve*(this: MouseArea, signal: Signal) =
         this.ev2.emit e[]
     
     if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent:
+      {.push, warning[Deprecated]: off.}
       handlePositionalEvent MouseButtonEvent, mouseButton
+      {.pop.}
     
     elif signal of WindowEvent and signal.WindowEvent.event of ClickEvent:
       handlePositionalEvent ClickEvent, clicked
@@ -102,6 +118,12 @@ method recieve*(this: MouseArea, signal: Signal) =
                 this.grabStarted = false
                 if this.hovered[] and not e.generated:
                   this.mouseDownAndUpInside.emit()
+
+    of of WindowEvent(event: @ea is of ScrollEvent(), handled: false):
+      if this.visibility != collapsed:
+        let e = (ref ScrollEvent)ea
+        if this.hovered[]:
+          this.scrolled.emit(vec2(e.deltaX, e.delta))
     
     if signal of GetActiveCursor:
       if signal.GetActiveCursor.cursor == nil and this.hovered[]:

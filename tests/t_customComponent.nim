@@ -10,7 +10,6 @@ registerComponent Switch
 
 
 method init*(this: Switch) =
-  if this.initialized: return
   procCall this.super.init()
   
   this.isOn.changed.connectTo this, val:
@@ -33,7 +32,7 @@ method init*(this: Switch) =
         color = color(0.7, 0.7, 0.7)
 
         - UiRect():
-          this.centerY = parent.center
+          centerY = parent.center
           this.binding w: min(parent.w[], parent.h[]) - 8
           this.binding h: this.w[]
           this.binding radius: this.w[] / 2
@@ -45,7 +44,7 @@ method init*(this: Switch) =
           this.binding color: root.color[]
 
           - this.x.transition(0.4's):
-            this.interpolation[] = outCubicInterpolation
+            easing = outCubicEasing
 
     this.newChildsObject = mouse
 

@@ -655,10 +655,6 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
   if signal of AttachedToWindow:
     obj.attachedToWindow = true
 
-  let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
-  obj.globalX[] = p.x
-  obj.globalY[] = p.y
-
   if signal of ParentPositionChanged:
     let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
     obj.globalX[] = p.x
@@ -682,6 +678,10 @@ method init*(obj: Uiobj) {.base.} =
     obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy[]))
   obj.y.changed.connectTo obj:
     obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy[]))
+
+  let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
+  obj.globalX[] = p.x
+  obj.globalY[] = p.y
   
   if not obj.attachedToWindow:
     let win = obj.parentUiWindow

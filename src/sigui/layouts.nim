@@ -154,9 +154,15 @@ proc reposition(this: Layout) =
       y += h + this.wrapSpacing[] + (if rows.len > 1: freeYSpace / (rows.len.float32 - 1) else: 0)
   
   if this.hugContent[]:
-    this.set_w(rows.mapit(it.childs[^1].get_x + it.childs[^1].get_w).foldl(max(a, b), 0'f32))
+    if this.childs.len > 0:
+      this.set_w(rows.mapit(it.childs[^1].get_x + it.childs[^1].get_w).foldl(max(a, b), 0'f32))
+    else:
+      this.set_w(0)
   if this.wrapHugContent[]:
-    this.set_h(rows[^1].childs.mapit(it.get_y + it.get_h).foldl(max(a, b), 0'f32))
+    if this.childs.len > 0:
+      this.set_h(rows[^1].childs.mapit(it.get_y + it.get_h).foldl(max(a, b), 0'f32))
+    else:
+      this.set_w(0)
 
 
 method addChild*(this: Layout, child: Uiobj) =
