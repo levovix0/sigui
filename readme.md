@@ -38,7 +38,7 @@ let win = newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindo
 win.makeLayout:
   - UiRect():
     this.centerIn(parent)
-    this.w[] = 100
+    w = 100  # same as this.w[] = 100
     this.binding h: this.w[]
 
     var state = 0.property
@@ -85,8 +85,8 @@ method init*(this: Switch) =
     echo this
 
   this.makeLayout:
-    this.w[] = 40
-    this.h[] = 20
+    w = 40
+    h = 20
 
     - MouseArea() as mouse:
       this.fill(parent)
@@ -97,11 +97,11 @@ method init*(this: Switch) =
       - UiRectBorder():
         this.fill(parent)
         this.binding radius: min(this.w[], this.h[]) / 2 - 2
-        this.borderWidth[] = 2
-        this.color[] = "aaa"
+        borderWidth = 2
+        color = "aaa"
 
         - UiRect():
-          this.centerY = parent.center
+          centerY = parent.center
           this.binding w: min(parent.w[], parent.h[]) - 8
           this.binding h: this.w[]
           this.binding radius: this.w[] / 2
@@ -262,31 +262,31 @@ Built-in interpolation modifiers:
 *not to be confused with makeLayout macro*
 ```nim
 - Layout():
-  this.h[] = 720
-  this.spacing[] = 10
-  this.wrapSpacing[] = 20
-  this.orientation[] = vertical
-  this.wrapHugContent[] = true
-  this.fillWithSpaces[] = true
-  this.consistentSpacing[] = true
-  this.wrap[] = true
-  this.elementsBeforeWrap[] = 3
+  h = 720
+  spacing = 10
+  wrapSpacing = 20
+  orientation = vertical
+  wrapHugContent = true
+  fillWithSpaces = true
+  consistentSpacing = true
+  wrap = true
+  elementsBeforeWrap = 3
   this.binding lengthBeforeWrap: this.w[]
 
   - UiRect():
-    this.w[] = 20
-    this.w[] = 30
+    w = 20
+    h = 30
   
   - InLayout():
-    this.alignment[] = center
+    alignment = center
 
     - UiRect():
-      this.w[] = 10
-      this.h[] = 10
+      w = 10
+      h = 10
 
   - UiRect():
-    this.w[] = 30
-    this.w[] = 20
+    w = 30
+    w = 20
 ```
 
 ## makeLayout
@@ -305,9 +305,9 @@ x.makeLayout:
     this.binding color: rect2.color[].darken(0.5)  # objects created and aliased using `as` can be referenced before declaration
 
     - UiRect() as rect2:
-      this.w[] = 20
-      this.w[] = 30
-      this.color[] = color(1, 1, 1)
+      w = 20
+      h = 30
+      color = color(1, 1, 1)
     
       root.changableChild --- UiRect():
         # actions in this body will be executed when root.changableChild is changed
@@ -320,18 +320,18 @@ x.makeLayout:
 ```nim
 - UiRect():
   this.fill parent
-  this.color[] = color(0, 1, 0)
+  color = color(0, 1, 0)
 
   - UiRect() as rect:
-    this.left = parent.center
-    this.right = parent.right
-    this.bottom = parent.bottom - 10  # -i always means up/left and +i means down/right, even if theese all are bottom anchors
-    this.color[] = color(1, 0, 0)
+    left = parent.center  # same as this.left = parent.center
+    right = parent.right
+    bottom = parent.bottom - 10  # -i always means up/left and +i means down/right, even if theese all are bottom anchors
+    color = color(1, 0, 0)
   
   - UiRect():
-    this.centerX = rect.left
-    this.centerY = parent.center + 1
-    this.color[] = color(0, 0, 1)
+    centerX = rect.left
+    centerY = parent.center + 1
+    color = color(0, 0, 1)
 ```
 
 ## Layers
@@ -342,10 +342,10 @@ Unlike other ui libs, sigui don't have z-indices. Instead, you can directly spec
   #...
 
   - UiRect() as rect:
-    this.drawLayer = before parent
+    drawLayer = before parent
   
 - UiRect():
-  this.drawLayer = after rect
+  drawLayer = after rect
 ```
 
 ## Custom shaders
@@ -420,7 +420,7 @@ const typefaceFile = staticRead "../../tests/Roboto-Regular.ttf"
 let typeface = parseTtf(typefaceFile)
 
 - TextArea():
-  this.text[] = "start text"
+  text = "start text"
   this.textObj[].font[] = typeface.withSize(24)
 
   # note: create your own UiText to make tip/hint

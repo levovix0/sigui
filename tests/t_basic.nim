@@ -5,7 +5,7 @@ let win = newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindo
 win.makeLayout:
   - UiRect():
     this.centerIn(parent)
-    this.w[] = 100
+    w = 100
     this.binding h: this.w[]
 
     var state = 0.property

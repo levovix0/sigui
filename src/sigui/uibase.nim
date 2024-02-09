@@ -1629,6 +1629,26 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   to
                   changableImpl(ctor, body)
               
+              of Asgn[@name is Ident(), @val]:
+                whenStmt:
+                  elifBranch:
+                    call bindSym"compiles":
+                      call ident"[]=":
+                        dotExpr(ident "this", name)
+                        val
+                    call ident"[]=":
+                      dotExpr(ident "this", name)
+                      val
+                  elifBranch:
+                    call bindSym"compiles":
+                      call ident($name & "="):
+                        ident "this"
+                        val
+                    call ident($name & "="):
+                      ident "this"
+                      val
+                  Else: asgn(name, val)
+              
               of ForStmt():
                 forStmt:
                   x[0]

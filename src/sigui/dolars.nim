@@ -5,25 +5,34 @@ import ./uibase {.all.}
 method componentTypeName*(this: Uiobj): string {.base.} = "Uiobj"
 
 proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] =
+  {.push, warning[Deprecated]: off.}
   result.add "box: " & $rect(this.x, this.y, this.w, this.h)
+  
   for k, v in this.fieldPairs:
     when k in ["eventHandler", "parent", "childs", "x", "y", "w", "h", "initialized", "attachedToWindow", "anchors", "drawLayering"] or k.startsWith("m_"):
       discard
+    
     elif k == "visibility":
       if v[] != visible:
         result.add k & ": " & $v[]
+    
     elif v is Uiobj:
       ## todo
+    
     elif v is Event:
       ## todo
+    
     elif v is Property or v is CustomProperty:
       if v[] != typeof(v[]).default or v.changed.hasHandlers:
         when compiles($v[]):
           result.add k & ": " & $v[]
+    
     else:
       if (v is bool) or (v is enum) or (v != typeof(v).default):
         when compiles($v):
           result.add k & ": " & $v
+  
+  {.pop.}
 
 method formatFields*(this: Uiobj): seq[string] {.base.} =
   formatFieldsStatic(this[])

@@ -17,8 +17,8 @@ method init*(this: Switch) =
     echo this
 
   this.makeLayout:
-    this.w[] = 40
-    this.h[] = 20
+    w = 40
+    h = 20
 
     - MouseArea() as mouse:
       this.fill(parent)
@@ -29,8 +29,8 @@ method init*(this: Switch) =
       - UiRectBorder():
         this.fill(parent)
         this.binding radius: min(this.w[], this.h[]) / 2 - 2
-        this.borderWidth[] = 2
-        this.color[] = color(0.7, 0.7, 0.7)
+        borderWidth = 2
+        color = color(0.7, 0.7, 0.7)
 
         - UiRect():
           this.centerY = parent.center

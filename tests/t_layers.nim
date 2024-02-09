@@ -13,141 +13,141 @@ test "layers":
     this.clearColor = color(1, 1, 1)
 
     - UiText() as nonClipped_text:
-      this.centerX = nonClipped_rect.center
-      this.top = parent.top + 20
-      this.text[] = "non-clipped"
+      centerX = nonClipped_rect.center
+      top = parent.top + 20
+      text = "non-clipped"
       this.fontSize = 32
 
     - UiText() as clipped_text:
-      this.centerX = clipped_rect.center
-      this.top = parent.top + 20
-      this.text[] = "clipped"
+      centerX = clipped_rect.center
+      top = parent.top + 20
+      text = "clipped"
       this.fontSize = 32
     
     - UiText():
-      this.left = parent.left + 20
-      this.bottom = parent.bottom - 10
-      this.text[] = "*not exacly parent, since object is in larger hierarchy: [ ClipRect ] > UiRect > Layout > this"
+      left = parent.left + 20
+      bottom = parent.bottom - 10
+      text = "*not exacly parent, since object is in larger hierarchy: [ ClipRect ] > UiRect > Layout > this"
       this.fontSize = 16
 
     - Layout():
-      this.left = parent.left + 20
-      this.right = parent.right - 20
-      this.top = nonClipped_text.bottom + 20
-      this.bottom = parent.bottom - 40
-      this.fillWithSpaces[] = true
+      left = parent.left + 20
+      right = parent.right - 20
+      top = nonClipped_text.bottom + 20
+      bottom = parent.bottom - 40
+      fillWithSpaces = true
       
       - UiRect() as nonClipped_rect:
-        this.w[] = 300
+        w = 300
         this.binding h: parent.h[]
         
-        this.radius[] = 10
-        this.color[] = color(0.7, 0.7, 0.7)
+        radius = 10
+        color = color(0.7, 0.7, 0.7)
       
         - Layout():
           this.fillVertical(parent, 20)
-          this.left = parent.left + 20
-          this.orientation[] = vertical
-          this.fillWithSpaces[] = true
+          left = parent.left + 20
+          orientation = vertical
+          fillWithSpaces = true
 
           - UiRect() as ncr_a:
-            this.h[] = 80
-            this.w[] = 500
+            h = 80
+            w = 500
 
-            this.radius[] = 10
-            this.color[] = color(0.3, 0.3, 1)
+            radius = 10
+            color = color(0.3, 0.3, 1)
 
             - UiText():
-              this.centerY = parent.center
-              this.left = parent.left + 20
-              this.color[] = color(1, 1, 1)
-              this.text[] = "no modifications"
+              centerY = parent.center
+              left = parent.left + 20
+              color = color(1, 1, 1)
+              text = "no modifications"
           
           - UiRect():
-            this.drawLayer = after nonClipped_rect
+            drawLayer = after nonClipped_rect
 
-            this.h[] = 80
-            this.w[] = 500
+            h = 80
+            w = 500
 
-            this.radius[] = 10
-            this.color[] = color(0.3, 0.3, 1)
+            radius = 10
+            color = color(0.3, 0.3, 1)
 
             - UiText():
-              this.centerY = parent.center
-              this.left = parent.left + 20
-              this.color[] = color(1, 1, 1)
-              this.text[] = "after parent*"
+              centerY = parent.center
+              left = parent.left + 20
+              color = color(1, 1, 1)
+              text = "after parent*"
           
           - UiRect():
-            this.drawLayer = before nonClipped_rect
+            drawLayer = before nonClipped_rect
 
-            this.h[] = 80
-            this.w[] = 500
+            h = 80
+            w = 500
 
-            this.radius[] = 10
-            this.color[] = color(0.3, 0.3, 1)
+            radius = 10
+            color = color(0.3, 0.3, 1)
 
             - UiText():
-              this.centerY = parent.center
-              this.right = parent.right - 20
-              this.color[] = color(1, 1, 1)
-              this.text[] = "before parent*"
+              centerY = parent.center
+              right = parent.right - 20
+              color = color(1, 1, 1)
+              text = "before parent*"
 
       - ClipRect() as clipped_rect:
-        this.w[] = 300
+        w = 300
         this.binding h: parent.h[]
         
-        this.radius[] = 10
+        radius = 10
 
         - UiRect():
           this.fill parent
-          this.color[] = color(0.7, 0.7, 0.7)
+          color = color(0.7, 0.7, 0.7)
         
           - Layout():
-            this.top = parent.top + 30
-            this.bottom = parent.bottom - 10
-            this.left = parent.left - 220
-            this.orientation[] = vertical
-            this.fillWithSpaces[] = true
+            top = parent.top + 30
+            bottom = parent.bottom - 10
+            left = parent.left - 220
+            orientation = vertical
+            fillWithSpaces = true
 
             - UiRect():
-              this.h[] = 80
-              this.w[] = 500
+              h = 80
+              w = 500
 
-              this.radius[] = 10
-              this.color[] = color(0.3, 1, 0.3)
+              radius = 10
+              color = color(0.3, 1, 0.3)
 
               - UiText():
-                this.centerY = parent.center
-                this.right = parent.right - 20
-                this.text[] = "no modifications"
+                centerY = parent.center
+                right = parent.right - 20
+                text = "no modifications"
             
             - UiRect():
-              this.drawLayer = after clipped_rect
+              drawLayer = after clipped_rect
 
-              this.h[] = 80
-              this.w[] = 500
+              h = 80
+              w = 500
 
-              this.radius[] = 10
-              this.color[] = color(0.3, 1, 0.3)
+              radius = 10
+              color = color(0.3, 1, 0.3)
 
               - UiText():
-                this.centerY = parent.center
-                this.left = parent.left + 20
-                this.text[] = "after parent*"
+                centerY = parent.center
+                left = parent.left + 20
+                text = "after parent*"
             
             - UiRect():
-              this.drawLayer = before clipped_rect
+              drawLayer = before clipped_rect
 
-              this.h[] = 80
-              this.w[] = 500
+              h = 80
+              w = 500
 
               this.radius[] = 10
               this.color[] = color(0.3, 1, 0.3)
 
               - UiText():
-                this.centerY = parent.center
-                this.left = parent.left + 20
-                this.text[] = "before parent*"
+                centerY = parent.center
+                left = parent.left + 20
+                text = "before parent*"
 
   run window.siwinWindow
