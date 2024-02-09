@@ -717,6 +717,27 @@ proc fill*(this: Uiobj, obj: Uiobj, marginX: float32, marginY: float32) =
   this.fillVertical(obj, marginY)
 
 
+method deteach*(this: UiObj) {.base.}
+
+proc deteachStatic[T: UiObj](this: T) =
+  if this == nil: return
+
+  disconnect this.eventHandler
+  for x in this.childs: deteach(x)
+
+  {.push, warning[Deprecated]: off.}
+  for x in this[].fields:
+    when x is Property[T] or x is CustomProperty[T]:
+      disconnect x.changed
+    else: discard
+  {.pop.}
+
+
+method deteach*(this: UiObj) {.base.} =
+  ## disconnect all events
+  deteachStatic(this)
+
+
 method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
   assert child.parent == nil
   if parent.newChildsObject != nil:
@@ -752,6 +773,7 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Ui
       get: proc(): Uiobj = parent.childs[i],
       set: (proc(v: Uiobj) =
         parent.childs[i].parent = nil
+        deteach parent.childs[i]
         parent.childs[i] = v
         v.parent = parent
         v.recieve(ParentChanged(newParentInTree: parent))
@@ -1886,6 +1908,35 @@ registerComponent UiRectBorder
 registerComponent RectShadow
 registerComponent ClipRect
 registerComponent UiText
+
+
+macro generateDeteachMethod(t: typed) =
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(
+      ident("*"),
+      ident("deteach")
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkFormalParams.newTree(
+      newEmptyNode(),
+      nnkIdentDefs.newTree(
+        ident("this"),
+        t,
+        newEmptyNode()
+      )
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkStmtList.newTree(
+      nnkCall.newTree(
+        bindSym("deteachStatic"),
+        ident("this")
+      )
+    )
+  )
+
+registerReflection generateDeteachMethod, T is Uiobj and t != "Uiobj"
 
 
 converter toColor*(s: string{lit}): chroma.Color =
