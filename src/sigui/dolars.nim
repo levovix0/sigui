@@ -23,10 +23,13 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] =
       ## todo
     
     elif v is Property or v is CustomProperty:
-      if v[] != typeof(v[]).default or v.changed.hasHandlers:
+      if (
+        (when v is CustomProperty: v.get != nil else: true) and
+        (v[] != typeof(v[]).default or v.changed.hasHandlers)
+      ):
         when compiles($v[]):
           result.add k & ": " & $v[]
-    
+
     else:
       if (v is bool) or (v is enum) or (v != typeof(v).default):
         when compiles($v):
