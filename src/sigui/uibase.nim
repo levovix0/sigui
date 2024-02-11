@@ -476,16 +476,28 @@ proc parentWindow*(obj: Uiobj): Window =
 
 
 when defined(sigui_debug_redrawInitiatedBy):
-  var sigui_debug_redrawInitiatedBy_formatFunction: proc(obj: Uiobj): string = proc(obj: Uiobj): string =
-    "redraw initiated"
+  import std/importutils
+  privateAccess Window
+  var sigui_debug_redrawInitiatedBy_formatFunction: proc(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
+    proc(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
+      if alreadyRedrawing:
+        "redraw initiated (already redrawing)"
+      else:
+        "redraw initiated"
 
 proc redraw*(obj: Uiobj) =
-  when defined(sigui_debug_redrawInitiatedBy):
-    when defined(sigui_debug_useLogging):
-      info(sigui_debug_redrawInitiatedBy_formatFunction(obj))
-    else:
-      echo sigui_debug_redrawInitiatedBy_formatFunction(obj)
   let win = obj.parentWindow
+
+  when defined(sigui_debug_redrawInitiatedBy):
+    let alreadyRedrawing =
+      if win != nil: win.redrawRequested
+      else: false
+
+    when defined(sigui_debug_useLogging):
+      info(sigui_debug_redrawInitiatedBy_formatFunction(obj, alreadyRedrawing, win != nil))
+    else:
+      echo sigui_debug_redrawInitiatedBy_formatFunction(obj, alreadyRedrawing, win != nil)
+  
   if win != nil: redraw win
 
 

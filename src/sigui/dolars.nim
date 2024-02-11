@@ -141,12 +141,24 @@ when isMainModule:
 
 
 when defined(sigui_debug_redrawInitiatedBy):
-  sigui_debug_redrawInitiatedBy_formatFunction = proc(obj: Uiobj): string =
-    result.add "redraw initiated:\n"
+  sigui_debug_redrawInitiatedBy_formatFunction = proc(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
+    when defined(sigui_debug_redrawInitiatedBy_all):
+      if alreadyRedrawing: result.add "redraw initiated (already redrawing):\n"
+      elif not hasWindow: result.add "redraw initiated (no window):\n"
+      else: result.add "redraw initiated:\n"
+    else:
+      if alreadyRedrawing: return "redraw initiated (already redrawing)"
+      elif not hasWindow: return "redraw initiated (no window)"
+      result.add "redraw initiated:\n"
+  
     var hierarchy = obj.componentTypeName
     var parent = obj.parent
     while parent != nil:
       hierarchy = parent.componentTypeName & " > " & hierarchy
       parent = parent.parent
     result.add "  hierarchy: " & hierarchy & "\n"
+
+    when defined(sigui_debug_redrawInitiatedBy_includeStacktrace):
+      result.add "  stacktrace:\n" & getStackTrace().indent(4)
+  
     result.add ($obj).indent(2)
