@@ -61,6 +61,15 @@ proc mouseXy*(this: MouseArea): CustomProperty[Vec2] =
   )
 
 
+method init*(this: MouseArea) =
+  procCall this.super.init()
+
+  this.visibility.changed.connectTo this:
+    if this.visibility[] == collapsed:
+      this.pressed[] = false
+      this.hovered[] = false
+
+
 method recieve*(this: MouseArea, signal: Signal) =
   procCall this.super.recieve(signal)
 
