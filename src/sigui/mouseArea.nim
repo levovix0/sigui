@@ -48,6 +48,9 @@ type
     pressedPos: IVec2
     grabStarted: bool
 
+proc initRedrawWhenPropertyChanged_ignore(t: type MouseArea, name: string): bool =
+  true # MouseArea doesn't draw anything
+
 registerComponent MouseArea
 
 

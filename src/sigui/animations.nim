@@ -1,5 +1,4 @@
 import times, strutils
-import siwin
 import ./uibase
 import ./events {.all.}
 export times
@@ -98,7 +97,6 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
   proc act =
     if a.enabled[] and a.action != nil and a.duration != DurationZero:
       a.action(a.currentValue)
-      redraw obj
 
   proc tick(deltaTime: Duration) =
     if a.enabled[] and a.running[]:
@@ -173,6 +171,7 @@ template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
 
 
 when isMainModule:
+  import siwin
   import ./globalShortcut
 
   let animator = newOpenglWindow(size = ivec2(300, 40)).newUiWindow

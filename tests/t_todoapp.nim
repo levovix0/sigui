@@ -89,7 +89,6 @@ test "todo app":
 
           parent.scrolled.connectTo this, delta:
             targetY[] = (targetY[] - delta.y * 56).min(0).max(-(app.layout[].h[] - 56).max(0))
-            redraw this
 
           app.layout --- Layout():
             this.binding w: parent.w[]

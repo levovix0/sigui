@@ -187,7 +187,6 @@ method recieve*(this: TextArea, signal: Signal) =
 
 
 method init*(this: TextArea) =
-  if this.initialized: return
   procCall this.super.init()
 
   this.cursorPos = CustomProperty[int](
@@ -240,13 +239,13 @@ method init*(this: TextArea) =
           this.binding x: root.offset[]
 
           root.textObj --- newUiText():
-            this.centerY = parent.center
+            centerY = parent.center
             this.binding text: root.text[]
-            this.x[] = 1
+            x = 1
 
           root.cursorObj --- newUiRect().UiObj:
             this.fillVertical parent
-            this.w[] = 2
+            w = 2
             this.binding visibility:
               if root.active[]:
                 if root.blinking.enabled[]:
@@ -256,11 +255,6 @@ method init*(this: TextArea) =
                     Visibility.hiddenTree
                 else: Visibility.visible
               else: Visibility.hiddenTree
-            do: discard
-            do: false  # redraw
-
-            this.visibility.changed.connectTo this:
-              redraw this
 
             this.binding x: root.cursorX[]
             root.binding cursorX:
@@ -293,12 +287,12 @@ when isMainModule:
   preview(clearColor = color(1, 1, 1), margin = 20,
     withWindow = proc: Uiobj =
       let this = TextArea()
-      init this
-      this.text[] = "start text"
-      this.textObj[].font[] = typeface.withSize(24)
-      this.w[] = 400
-      this.h[] = this.textObj[].h[]
       this.makeLayout:
+        text = "start text"
+        this.textObj[].font[] = typeface.withSize(24)
+        w = 400
+        h = this.textObj[].h[]
+
         - UiRectBorder():
           this.fill(parent, -1)
       this

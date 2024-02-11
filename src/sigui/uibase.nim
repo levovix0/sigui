@@ -694,7 +694,35 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
       x.recieve(signal)
 
 
+proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
+  {.push, warning[Deprecated]: off.}
+  for name, x in this[].fieldPairs:
+    when name == "visibility":
+      x.changed.connectTo this: redraw this
+    
+    elif name == "globalX" or name == "globalY":
+      discard  # will anyway be handled in parent
+
+    elif x is Property or x is CustomProperty:
+      when compiles(initRedrawWhenPropertyChanged_ignore(T, name)):
+        when not initRedrawWhenPropertyChanged_ignore(T, name):
+          x.changed.connectTo this:
+            if this.visibility[] == visible:
+              redraw this
+      else:
+        x.changed.connectTo this:
+          if this.visibility[] == visible:
+            redraw this
+  {.pop.}
+
+
+method initRedrawWhenPropertyChanged*(obj: Uiobj) {.base.} =
+  initRedrawWhenPropertyChangedStatic(obj)
+
+
 method init*(obj: Uiobj) {.base.} =
+  initRedrawWhenPropertyChanged(obj)
+
   obj.visibility.changed.connectTo obj:
     obj.recieve(VisibilityChanged(sender: obj, visibility: obj.visibility))
   
@@ -754,9 +782,8 @@ proc deteachStatic[T: UiObj](this: T) =
 
   {.push, warning[Deprecated]: off.}
   for x in this[].fields:
-    when x is Property[T] or x is CustomProperty[T]:
+    when x is Property or x is CustomProperty:
       disconnect x.changed
-    else: discard
   {.pop.}
 
 
@@ -1754,7 +1781,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       impl(nnkDotExpr.newTree(ident "root", ident "parent"), ident "root", if body.kind == nnkStmtList: body else: newStmtList(body))
 
 
-proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: NimNode, redraw: bool, init: bool, kind: BindingKind): NimNode =
+proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: NimNode, init: bool, kind: BindingKind): NimNode =
   ## connects update proc to every `x[]` property changed, and invokes update proc instantly
   ## 
   ## .. code-block:: nim
@@ -1830,42 +1857,53 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
           case afterUpdate
           of Call[Sym(strVal: "newStmtList"), HiddenStdConv[Empty(), Bracket()]]: discard
           else: afterUpdate
-          
-          if redraw and kind != bindProperty: call bindSym "redraw", thisInProc
       
       var stmts: seq[NimNode]
       (impl(stmts, body))
       for x in stmts: x
 
-      if redraw and kind == bindProperty:
-        call:
-          ident "connectTo"
-          dotExpr(dotExpr(objCursor, target), ident "changed")
-          objCursor
-          call bindSym "redraw", objCursor
-
       if init:
         call updateProc, objCursor
 
 
-macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProperty)
+macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
 
-macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindValue)
+macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
 
-macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProc)
+macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
 
 
-macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProperty)
+macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
 
-macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindValue)
+macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
 
-macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool = true, init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, redraw, init, bindProc)
+macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+
+
+macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+
+macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+
+macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+
+
+macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+
+macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+
+macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
 
 
 proc withSize*(typeface: Typeface, size: float): Font =
@@ -1972,6 +2010,35 @@ macro generateDeteachMethod(t: typed) =
   )
 
 registerReflection generateDeteachMethod, T is Uiobj and t != "Uiobj"
+
+
+macro generateInitRedrawWhenPropertyChangedMethod(t: typed) =
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(
+      ident("*"),
+      ident("initRedrawWhenPropertyChanged")
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkFormalParams.newTree(
+      newEmptyNode(),
+      nnkIdentDefs.newTree(
+        ident("this"),
+        t,
+        newEmptyNode()
+      )
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkStmtList.newTree(
+      nnkCall.newTree(
+        bindSym("initRedrawWhenPropertyChangedStatic"),
+        ident("this")
+      )
+    )
+  )
+
+registerReflection generateInitRedrawWhenPropertyChangedMethod, T is Uiobj and t != "Uiobj"
 
 
 converter toColor*(s: string{lit}): chroma.Color =
