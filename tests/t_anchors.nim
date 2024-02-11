@@ -48,7 +48,7 @@ test "anchors":
       this.left = parent.left + margin
       this.top = rect_tl.bottom + margin
 
-      - text "left = parent.left\nright = parent.right\n(fillHorisontal parent)":
+      - text "left = parent.left\nright = parent.right\n(fillHorizontal parent)":
         # this.hAlign[] = CenterAlign
         this.left = parent.left
         this.right = parent.right

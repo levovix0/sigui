@@ -3,7 +3,7 @@ import uibase
 
 type
   LayoutOrientation* = enum
-    horisontal
+    horizontal
     vertical
 
   LayoutAlignment* = enum
@@ -45,12 +45,12 @@ proc reposition(this: Layout) =
   template makeGetAndSet(get, set, horz, vert) =
     proc get(child: Uiobj): float32 =
       case this.orientation[]
-      of horisontal: child.horz[]
+      of horizontal: child.horz[]
       of vertical: child.vert[]
 
     proc set(child: Uiobj, v: float32) =
       case this.orientation[]
-      of horisontal: child.horz[] = v
+      of horizontal: child.horz[] = v
       of vertical: child.vert[] = v
 
   makeGetAndSet(get_x, set_x, x, y)
