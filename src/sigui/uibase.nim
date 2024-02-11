@@ -3,7 +3,12 @@ import vmath, bumpy, siwin, shady, fusion/[matching, astdsl], pixie, pixie/filef
 import gl, events, properties
 when hasImageman:
   import imageman except Rect, color, Color
+
 export vmath, bumpy, gl, pixie, events, properties, tables
+
+when defined(sigui_debug_useLogging):
+  import logging
+
 
 type
   Col* = pixie.Color
@@ -469,7 +474,17 @@ proc parentWindow*(obj: Uiobj): Window =
   if uiWin != nil: uiWin.siwinWindow
   else: nil
 
+
+when defined(sigui_debug_redrawInitiatedBy):
+  var sigui_debug_redrawInitiatedBy_formatFunction: proc(obj: Uiobj): string = proc(obj: Uiobj): string =
+    "redraw initiated"
+
 proc redraw*(obj: Uiobj) =
+  when defined(sigui_debug_redrawInitiatedBy):
+    when defined(sigui_debug_useLogging):
+      info(sigui_debug_redrawInitiatedBy_formatFunction(obj))
+    else:
+      echo sigui_debug_redrawInitiatedBy_formatFunction(obj)
   let win = obj.parentWindow
   if win != nil: redraw win
 

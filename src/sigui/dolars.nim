@@ -135,3 +135,15 @@ when isMainModule:
         discard
 
   echo x
+
+
+when defined(sigui_debug_redrawInitiatedBy):
+  sigui_debug_redrawInitiatedBy_formatFunction = proc(obj: Uiobj): string =
+    result.add "redraw initiated:\n"
+    var hierarchy = obj.componentTypeName
+    var parent = obj.parent
+    while parent != nil:
+      hierarchy = parent.componentTypeName & " > " & hierarchy
+      parent = parent.parent
+    result.add "  hierarchy: " & hierarchy & "\n"
+    result.add ($obj).indent(2)
