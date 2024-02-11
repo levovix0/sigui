@@ -1819,11 +1819,19 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
           of Call[Sym(strVal: "newStmtList"), HiddenStdConv[Empty(), Bracket()]]: discard
           else: afterUpdate
           
-          if redraw: call bindSym "redraw", thisInProc
+          if redraw and kind != bindProperty: call bindSym "redraw", thisInProc
       
       var stmts: seq[NimNode]
       (impl(stmts, body))
       for x in stmts: x
+
+      if redraw and kind == bindProperty:
+        call:
+          ident "connectTo"
+          dotExpr(dotExpr(objCursor, target), ident "changed")
+          objCursor
+          call bindSym "redraw", objCursor
+
       if init:
         call updateProc, objCursor
 
