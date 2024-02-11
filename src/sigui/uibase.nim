@@ -485,8 +485,19 @@ when defined(sigui_debug_redrawInitiatedBy):
       else:
         "redraw initiated"
 
-proc redraw*(obj: Uiobj) =
-  let win = obj.parentWindow
+proc redraw*(obj: Uiobj, ifVisible = true) =
+  if ifVisible and obj.visibility[] != visible: return
+  
+  var win: Window
+
+  var objp {.cursor.} = obj
+  while true:
+    if objp == nil: break
+    if ifVisible and objp != obj and objp.visibility[] notin {visible, hidden}: return
+    if objp of UiWindow:
+      win = objp.UiWindow.siwinWindow
+      break
+    objp = objp.parent
 
   when defined(sigui_debug_redrawInitiatedBy):
     let alreadyRedrawing =
@@ -698,7 +709,7 @@ proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
   {.push, warning[Deprecated]: off.}
   for name, x in this[].fieldPairs:
     when name == "visibility":
-      x.changed.connectTo this: redraw this
+      x.changed.connectTo this: redraw(this, ifVisible=false)
     
     elif name == "globalX" or name == "globalY":
       discard  # will anyway be handled in parent
@@ -707,12 +718,10 @@ proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
       when compiles(initRedrawWhenPropertyChanged_ignore(T, name)):
         when not initRedrawWhenPropertyChanged_ignore(T, name):
           x.changed.connectTo this:
-            if this.visibility[] == visible:
-              redraw this
+            redraw this
       else:
         x.changed.connectTo this:
-          if this.visibility[] == visible:
-            redraw this
+          redraw this
   {.pop.}
 
 

@@ -49,7 +49,7 @@ type
     grabStarted: bool
 
 proc initRedrawWhenPropertyChanged_ignore(t: type MouseArea, name: string): bool =
-  true # MouseArea doesn't draw anything
+  name notin ["x", "y"]  # MouseArea doesn't draw anything
 
 registerComponent MouseArea
 
