@@ -474,6 +474,12 @@ proc parentWindow*(obj: Uiobj): Window =
   if uiWin != nil: uiWin.siwinWindow
   else: nil
 
+proc lastParent*(obj: Uiobj): Uiobj =
+  result = obj
+  while true:
+    if result.parent == nil: return
+    result = result.parent
+
 
 when defined(sigui_debug_redrawInitiatedBy):
   import std/importutils
@@ -1449,8 +1455,12 @@ method draw*(this: ClipRect, ctx: DrawContext) =
       ctx.offset += offset
 
       glBindFramebuffer(GlFramebuffer, if ctx.frameBufferHierarchy.len == 0: 0.GlUint else: ctx.frameBufferHierarchy[^1].fbo)
-      
-      let size = if ctx.frameBufferHierarchy.len == 0: this.parentWindow.size else: ctx.frameBufferHierarchy[^1].size
+
+      let size =
+        if ctx.frameBufferHierarchy.len == 0:
+          let win = this.parentWindow
+          if win == nil: this.lastParent.wh[].ivec2 else: win.size
+        else: ctx.frameBufferHierarchy[^1].size
       glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
       ctx.updateSizeRender(size)
       
