@@ -1,4 +1,4 @@
-version       = "0.1.2"
+version       = "0.1.3"
 author        = "levovix0"
 description   = "Flexieble gui framework"
 license       = "MIT"
