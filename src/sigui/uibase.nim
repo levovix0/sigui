@@ -140,9 +140,11 @@ type
     tex: Textures
     imageWh*: Property[IVec2]
     angle*: Property[float32]
+    color*: Property[Col] = color(1, 1, 1).property
+    colorOverlay*: Property[bool]
+      ## if true, image will have flat color, with image alpha working like a mask (useful for icons)
 
-  UiIcon* = ref object of UiImage
-    color*: Property[Col] = color(0, 0, 0).property
+  UiIcon* {.deprecated: "use UiImage with .colorOverlay[]=true instead".} = ref object of UiImage
 
   UiSvgImage* = ref object of Uiobj
     ## pixel-perfect svg image
@@ -171,6 +173,7 @@ type
   ClipRect* = ref object of Uiobj
     radius*: Property[float32]
     angle*: Property[float32]
+    color*: Property[Col] = color(1, 1, 1).property
     fbo: FrameBuffers
     tex: Textures
     prevSize: IVec2
@@ -1119,7 +1122,7 @@ proc drawRectStroke*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
   if blend: glDisable(GlBlend)
 
 
-proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, radius: float32, blend: bool, angle: float32, flipY = false) =
+proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, color: Vec4, radius: float32, blend: bool, angle: float32, flipY = false) =
   let shader = ctx.makeShader:
     proc vert(
       gl_Position: var Vec4,
@@ -1139,9 +1142,10 @@ proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, radius: fl
       uv: Vec2,
       radius: Uniform[float],
       size: Uniform[Vec2],
+      color: Uniform[Vec4],
     ) =
-      let color = gltex.texture(uv)
-      glCol = vec4(color.rgb, color.a) * roundRect(pos, size, radius)
+      let c = gltex.texture(uv)
+      glCol = vec4(c.rgb, c.a) * roundRect(pos, size, radius) * vec4(color.rgb * color.a, color.a)
 
   if blend:
     glEnable(GlBlend)
@@ -1150,6 +1154,7 @@ proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, radius: fl
   use shader.shader
   ctx.passTransform(shader, pos=pos, size=size, angle=angle, flipY=flipY)
   shader.radius.uniform = radius
+  shader.color.uniform = color
   glBindTexture(GlTexture2d, tex)
   draw ctx.rect
   glBindTexture(GlTexture2d, 0)
@@ -1268,6 +1273,14 @@ proc drawShadowRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
 
 #----- Basic Components -----
 
+{.push, warning[Deprecated]: off.}
+
+method init*(this: UiIcon) =
+  procCall this.super.init
+  this.colorOverlay[] = true
+
+{.pop.}
+
 
 proc `image=`*(obj: UiImage, img: pixie.Image) =
   if img != nil:
@@ -1293,18 +1306,20 @@ method draw*(rect: UiRect, ctx: DrawContext) =
   rect.drawAfter(ctx)
 
 
-method draw*(img: UiImage, ctx: DrawContext) =
-  img.drawBefore(ctx)
-  if img.visibility[] == visible and img.tex != nil:
-    ctx.drawImage((img.xy[].posToGlobal(img.parent) + ctx.offset).round, img.wh[], img.tex[0], img.radius, img.blend or img.radius != 0, img.angle)
-  img.drawAfter(ctx)
-
-
-method draw*(ico: UiIcon, ctx: DrawContext) =
-  ico.drawBefore(ctx)
-  if ico.visibility[] == visible and ico.tex != nil:
-    ctx.drawIcon((ico.xy[].posToGlobal(ico.parent) + ctx.offset).round, ico.wh[], ico.tex[0], ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
-  ico.drawAfter(ctx)
+method draw*(this: UiImage, ctx: DrawContext) =
+  this.drawBefore(ctx)
+  if this.visibility[] == visible and this.tex != nil:
+    if this.colorOverlay[]:
+      ctx.drawIcon(
+        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0],
+        this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
+      )
+    else:
+      ctx.drawImage(
+        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0],
+        this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
+      )
+  this.drawAfter(ctx)
 
 
 method init*(this: UiSvgImage) =
@@ -1464,7 +1479,7 @@ method draw*(this: ClipRect, ctx: DrawContext) =
       glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
       ctx.updateSizeRender(size)
       
-      ctx.drawImage((this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0], this.radius, true, this.angle, flipY=true)
+      ctx.drawImage((this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0], this.color.vec4, this.radius, true, this.angle, flipY=true)
   else:
     this.drawBeforeChilds(ctx)
     this.drawChilds(ctx)
@@ -1553,7 +1568,9 @@ method addChild*(this: UiWindow, child: Uiobj) =
 proc newUiobj*(): Uiobj = new result
 proc newUiWindow*(): UiWindow = new result
 proc newUiImage*(): UiImage = new result
-proc newUiIcon*(): UiIcon = new result
+proc newUiIcon*(): UiImage {.deprecated: "use UiImage with .colorOverlay[]=true instead".} =
+  new result
+  result.colorOverlay[] = true
 proc newUiSvgImage*(): UiSvgImage = new result
 proc newUiText*(): UiText = new result
 proc newUiRect*(): UiRect = new result
@@ -1994,7 +2011,6 @@ registerComponent Uiobj
 registerComponent UiWindow
 registerComponent UiRect
 registerComponent UiImage
-registerComponent UiIcon
 registerComponent UiSvgImage
 registerComponent UiRectBorder
 registerComponent RectShadow
