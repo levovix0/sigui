@@ -8,6 +8,8 @@
 
 Sigui is inspired by QtQuick.
 
+Libraries to see also: [siwin](https://github.com/levovix0/siwin), [localize](https://github.com/levovix0/localize)
+
 ## Table of contents
 1. [Examples](#Examples)
     * [Basic](#Basic)
@@ -24,6 +26,8 @@ Sigui is inspired by QtQuick.
     * [Layers](#Layers)
 3. [Builtin components](#Builtin-components)
     * [Text Area](#Text-Area)
+4. [Interaction with other libraries](#Interaction-with-other-libraries)
+    * [localize](#localize)
 
 # Examples
 see also: [tests](https://github.com/levovix0/sigui/tree/main/tests)
@@ -423,4 +427,28 @@ let typeface = parseTtf(typefaceFile)
   this.textObj[].font[] = typeface.withSize(24)
 
   # note: create your own UiText to make tip/hint
+```
+
+
+# Interaction with other libraries
+## localize
+
+To make sigui react to language change, create LangVar property, and bind using it
+```nim
+import localize
+requireLocalesToBeTranslated ("ru", "")
+
+# ...
+
+var locale = locale("ru").property
+
+# ...
+
+textobj.makeLayout:
+  text := locale[].tr "text to be translated"
+
+# ...
+
+when isMainModule:
+  updateTranslations()
 ```
