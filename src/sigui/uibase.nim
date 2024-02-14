@@ -1584,6 +1584,132 @@ proc newRectShadow*(): RectShadow = new result
 
 
 
+proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: NimNode, init: bool, kind: BindingKind): NimNode =
+  ## connects update proc to every `x[]` property changed, and invokes update proc instantly
+  ## 
+  ## .. code-block:: nim
+  ##   type MyObj = ref object of Uiobj
+  ##     c: Property[int]
+  ##   
+  ##   let obj = MyObj()
+  ##   obj.binding c:
+  ##     if config.csd[]: parent[].b else: 10[]
+  ##
+  ## convers to (roughly):
+  ## 
+  ## .. code-block:: nim
+  ##   block bindingBlock:
+  ##     let o {.cursor.} = obj
+  ##     proc updateC(this: MyObj) =
+  ##       this.c[] = if config.csd[]: parent[].b else: 10[]
+  ##   
+  ##     config.csd.changed.connectTo o: updateC(this)
+  ##     parent.changed.connectTo o: updateC(this)
+  ##     10.changed.connectTo o: updateC(this)  # yes, 10[] will considered property too
+  ##     updateC(o)
+  
+  let updateProc = genSym(nskProc)
+  let objCursor = genSym(nskLet)
+  let thisInProc = genSym(nskParam)
+  var alreadyBinded: seq[NimNode]
+
+  proc impl(stmts: var seq[NimNode], body: NimNode) =
+    case body
+    of in alreadyBinded: return
+    of Call[Sym(strVal: "[]"), @exp]:
+      stmts.add: buildAst(call):
+        ident "connectTo"
+        dotExpr(exp, ident "changed")
+        objCursor
+        call updateProc:
+          objCursor
+      alreadyBinded.add body
+      impl(stmts, exp)
+
+    else:
+      for x in body: impl(stmts, x)
+  
+  result = buildAst(blockStmt):
+    ident "bindingBlock"
+    stmtList:
+      letSection:
+        identDefs(objCursor, empty(), obj)
+      
+      procDef updateProc:
+        empty(); empty()
+        formalParams:
+          empty()
+          identDefs(thisInProc, obj.getType, empty())
+        empty(); empty()
+        stmtList:
+          case kind
+          of bindProperty:
+            asgn:
+              bracketExpr dotExpr(thisInProc, target)
+              body
+          of bindValue:
+            asgn:
+              target
+              body
+          of bindProc:
+            call:
+              target
+              thisInProc
+              body
+          
+          case afterUpdate
+          of Call[Sym(strVal: "newStmtList"), HiddenStdConv[Empty(), Bracket()]]: discard
+          else: afterUpdate
+      
+      var stmts: seq[NimNode]
+      (impl(stmts, body))
+      for x in stmts: x
+
+      if init:
+        call updateProc, objCursor
+
+
+macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+
+macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+
+macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+
+
+macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+
+macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+
+macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+
+
+macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+
+macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+
+macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+
+
+macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+
+macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+
+macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
+  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+
+
+
 macro makeLayout*(obj: Uiobj, body: untyped) =
   ## tip: use a.makeLauyout(-soMeFuN()) instead of (let b = soMeFuN(); a.addChild(b); init b)
   runnableExamples:
@@ -1752,13 +1878,13 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       call ident"[]=":
                         dotExpr(ident "this", name)
                         val
-                    call ident"bindingValue":
+                    call bindSym"bindingValue":
                       ident "this"
                       bracketExpr:
                         dotExpr(ident "this", name)
                       val
                   Else:
-                    call ident"bindingValue":
+                    call bindSym"bindingValue":
                       ident "this"
                       name
                       val
@@ -1837,131 +1963,6 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
         for x in fwd: x
       
       impl(nnkDotExpr.newTree(ident "root", ident "parent"), ident "root", if body.kind == nnkStmtList: body else: newStmtList(body))
-
-
-proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: NimNode, init: bool, kind: BindingKind): NimNode =
-  ## connects update proc to every `x[]` property changed, and invokes update proc instantly
-  ## 
-  ## .. code-block:: nim
-  ##   type MyObj = ref object of Uiobj
-  ##     c: Property[int]
-  ##   
-  ##   let obj = MyObj()
-  ##   obj.binding c:
-  ##     if config.csd[]: parent[].b else: 10[]
-  ##
-  ## convers to (roughly):
-  ## 
-  ## .. code-block:: nim
-  ##   block bindingBlock:
-  ##     let o {.cursor.} = obj
-  ##     proc updateC(this: MyObj) =
-  ##       this.c[] = if config.csd[]: parent[].b else: 10[]
-  ##   
-  ##     config.csd.changed.connectTo o: updateC(this)
-  ##     parent.changed.connectTo o: updateC(this)
-  ##     10.changed.connectTo o: updateC(this)  # yes, 10[] will considered property too
-  ##     updateC(o)
-  
-  let updateProc = genSym(nskProc)
-  let objCursor = genSym(nskLet)
-  let thisInProc = genSym(nskParam)
-  var alreadyBinded: seq[NimNode]
-
-  proc impl(stmts: var seq[NimNode], body: NimNode) =
-    case body
-    of in alreadyBinded: return
-    of Call[Sym(strVal: "[]"), @exp]:
-      stmts.add: buildAst(call):
-        ident "connectTo"
-        dotExpr(exp, ident "changed")
-        objCursor
-        call updateProc:
-          objCursor
-      alreadyBinded.add body
-      impl(stmts, exp)
-
-    else:
-      for x in body: impl(stmts, x)
-  
-  result = buildAst(blockStmt):
-    ident "bindingBlock"
-    stmtList:
-      letSection:
-        identDefs(objCursor, empty(), obj)
-      
-      procDef updateProc:
-        empty(); empty()
-        formalParams:
-          empty()
-          identDefs(thisInProc, obj.getType, empty())
-        empty(); empty()
-        stmtList:
-          case kind
-          of bindProperty:
-            asgn:
-              bracketExpr dotExpr(thisInProc, target)
-              body
-          of bindValue:
-            asgn:
-              target
-              body
-          of bindProc:
-            call:
-              target
-              thisInProc
-              body
-          
-          case afterUpdate
-          of Call[Sym(strVal: "newStmtList"), HiddenStdConv[Empty(), Bracket()]]: discard
-          else: afterUpdate
-      
-      var stmts: seq[NimNode]
-      (impl(stmts, body))
-      for x in stmts: x
-
-      if init:
-        call updateProc, objCursor
-
-
-macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
-
-macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
-
-macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
-
-
-macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
-
-macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
-
-macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
-
-
-macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
-
-macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
-
-macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
-
-
-macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
-
-macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
-
-macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
 
 
 proc withSize*(typeface: Typeface, size: float): Font =
