@@ -39,11 +39,11 @@ win.makeLayout:
   - UiRect():
     this.centerIn(parent)
     w = 100  # same as this.w[] = 100
-    this.binding h: this.w[]
+    h := this.w[]  # same as this.bindingValue this.h[]: this.w[]
 
     var state = 0.property
 
-    this.binding color:
+    color = binding:  # same as this.bindingValue this.color[]:
       (
         case state[]
         of 0: color(1, 0, 0)
@@ -102,18 +102,18 @@ method init*(this: Switch) =
 
         - UiRect():
           centerY = parent.center
-          this.binding w: min(parent.w[], parent.h[]) - 8
-          this.binding h: this.w[]
-          this.binding radius: this.w[] / 2
-          this.binding x:
+          w := min(parent.w[], parent.h[]) - 8
+          h := this.w[]
+          radius := this.w[] / 2
+          x = binding:
             if root.isOn[]:
               parent.w[] - this.w[] - 4
             else:
               4'f32
-          this.binding color: root.color[]
+          color := root.color[]
 
           - this.x.transition(0.4's):
-            this.easing[] = outCubicEasing
+            easing = outCubicEasing
 
     this.newChildsObject = mouse
 

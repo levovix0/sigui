@@ -1,4 +1,4 @@
-import unittest, sugar
+import unittest
 import siwin
 import sigui
 
@@ -19,83 +19,82 @@ test "anchors":
 
     proc text(s: string): UiText =
       result = UiText()
-      init result
+      initIfNeeded result
       result.text[] = s
       result.font[] = typeface.withSize(16)
 
     - UiRectBorder() as rect_tl:
-      this.left = parent.left + margin
-      this.top = parent.top + margin
+      left = parent.left + margin
+      top = parent.top + margin
 
       - text "right = parent.right":
-        this.right = parent.right
+        right = parent.right
     
     - UiRectBorder() as rect_tm:
-      this.left = rect_tl.right + margin
-      this.top = parent.top + margin
+      left = rect_tl.right + margin
+      top = parent.top + margin
 
       - text "top = parent.bottom":
-        this.top = parent.bottom
+        top = parent.bottom
     
     - UiRectBorder() as rect_tr:
-      this.right = parent.right - margin
-      this.top = parent.top + margin
+      right = parent.right - margin
+      top = parent.top + margin
 
       - text "bottom = parent.top":
-        this.bottom = parent.top
+        bottom = parent.top
 
     - UiRectBorder() as rect_ml:
-      this.left = parent.left + margin
-      this.top = rect_tl.bottom + margin
+      left = parent.left + margin
+      top = rect_tl.bottom + margin
 
       - text "left = parent.left\nright = parent.right\n(fillHorizontal parent)":
-        # this.hAlign[] = CenterAlign
-        this.left = parent.left
-        this.right = parent.right
+        # hAlign = CenterAlign
+        left = parent.left
+        right = parent.right
     
     - UiRectBorder() as rect_mm:
-      this.left = rect_ml.right + margin
-      this.top = rect_tl.bottom + margin
+      left = rect_ml.right + margin
+      top = rect_tl.bottom + margin
 
       - text "centerIn parent":
         this.centerIn parent
     
     - UiRectBorder() as rect_mr:
-      this.right = parent.right - margin
-      this.top = rect_tl.bottom + margin
+      right = parent.right - margin
+      top = rect_tl.bottom + margin
 
       - text "centerY = parent.center":
-        this.centerY = parent.center
+        centerY = parent.center
     
     - UiRectBorder() as rect_bl:
-      this.left = parent.left + margin
-      this.bottom = parent.bottom - margin
+      left = parent.left + margin
+      bottom = parent.bottom - margin
 
       - text "centerY = parent.top\nright = parent.right":
         # this.hAlign[] = CenterAlign
-        this.centerY = parent.top
-        this.right = parent.right
+        centerY = parent.top
+        right = parent.right
     
     - UiRectBorder() as rect_bm:
-      this.left = rect_bl.right + margin
-      this.bottom = parent.bottom - margin
+      left = rect_bl.right + margin
+      bottom = parent.bottom - margin
 
       - text "bottom = parent.bottom - 10":
-        this.bottom = parent.bottom - 10
+        bottom = parent.bottom - 10
     
     - UiRectBorder() as rect_br:
-      this.right = parent.right - margin
-      this.bottom = parent.bottom - margin
+      right = parent.right - margin
+      bottom = parent.bottom - margin
 
       - text "left = parent.left + 10":
-        this.left = parent.left + 10
+        left = parent.left + 10
     
     for this in [rect_tl, rect_tm, rect_tr, rect_ml, rect_mm, rect_mr, rect_bl, rect_bm, rect_br]:
-      capture this:
-        this.binding w: w[]
-        this.binding h: h[]
-        this.borderWidth[] = 2
-        this.color[] = "333"
+      w := w[]
+      h := h[]
+      borderWidth = 2
+      color = "333"
 
 
   run window.siwinWindow

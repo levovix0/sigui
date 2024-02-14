@@ -29,19 +29,19 @@ method init*(this: Switch) =
         this.fill(parent)
         this.binding radius: min(this.w[], this.h[]) / 2 - 2
         borderWidth = 2
-        color = color(0.7, 0.7, 0.7)
+        color = "aaa"
 
         - UiRect():
           centerY = parent.center
-          this.binding w: min(parent.w[], parent.h[]) - 8
-          this.binding h: this.w[]
-          this.binding radius: this.w[] / 2
-          this.binding x:
+          w := min(parent.w[], parent.h[]) - 8
+          h := this.w[]
+          radius := this.w[] / 2
+          x = binding:
             if root.isOn[]:
               parent.w[] - this.w[] - 4
             else:
               4'f32
-          this.binding color: root.color[]
+          color := root.color[]
 
           - this.x.transition(0.4's):
             easing = outCubicEasing

@@ -1741,6 +1741,28 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   to
                   changableImpl(ctor, body)
               
+              of
+                Infix[Ident(strVal: ":="), @name, @val],
+                Asgn[@name is Ident(), Command[Ident(strVal: "binding"), @val]],
+                Asgn[@name is Ident(), Call[Ident(strVal: "binding"), @val]]:
+
+                whenStmt:
+                  elifBranch:
+                    call bindSym"compiles":
+                      call ident"[]=":
+                        dotExpr(ident "this", name)
+                        val
+                    call ident"bindingValue":
+                      ident "this"
+                      bracketExpr:
+                        dotExpr(ident "this", name)
+                      val
+                  Else:
+                    call ident"bindingValue":
+                      ident "this"
+                      name
+                      val
+              
               of Asgn[@name is Ident(), @val]:
                 whenStmt:
                   elifBranch:

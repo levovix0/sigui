@@ -6,11 +6,11 @@ win.makeLayout:
   - UiRect():
     this.centerIn(parent)
     w = 100
-    this.binding h: this.w[]
+    h := this.w[]  # same as this.bindingValue this.h[]: this.w[]
 
     var state = 0.property
 
-    this.binding color:
+    color = binding:  # same as this.bindingValue this.color[]:
       (
         case state[]
         of 0: color(1, 0, 0)

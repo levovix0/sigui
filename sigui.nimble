@@ -6,7 +6,7 @@ srcDir        = "src"
 
 requires "nim >= 2.0.0"
 requires "fusion"  # to write macros using pattern matching
-requires "siwin >= 0.8.4.5"  # to make window
+requires "siwin >= 0.8.4.6"  # to make window
 # optional: requires "imageman"  # to decode png
 requires "bumpy"  # for rects
 requires "opengl"  # for graphics
