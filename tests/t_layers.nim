@@ -70,7 +70,7 @@ test "layers":
             w = 500
 
             radius = 10
-            color = color(0.3, 0.3, 1)
+            color = color(0.25, 0.25, 0.85)
 
             - UiText():
               centerY = parent.center
@@ -85,7 +85,7 @@ test "layers":
             w = 500
 
             radius = 10
-            color = color(0.3, 0.3, 1)
+            color = color(0.2, 0.2, 0.7)
 
             - UiText():
               centerY = parent.center
@@ -129,7 +129,7 @@ test "layers":
               w = 500
 
               radius = 10
-              color = color(0.3, 1, 0.3)
+              color = color(0.25, 0.85, 0.25)
 
               - UiText():
                 centerY = parent.center
@@ -143,7 +143,7 @@ test "layers":
               w = 500
 
               this.radius[] = 10
-              this.color[] = color(0.3, 1, 0.3)
+              this.color[] = color(0.2, 0.7, 0.2)
 
               - UiText():
                 centerY = parent.center
