@@ -118,7 +118,14 @@ type
   
   VisibilityChanged* = ref object of SubtreeSignal
     visibility*: Visibility
+
   
+  UptreeSignal* = ref object of Signal
+    ## signal sends to all parents recursively (by default)
+  
+  ChildAdded* = ref object of UptreeSignal
+    child*: Uiobj
+
   
   #--- Basic Components ---
 
@@ -203,8 +210,7 @@ type
     x.eventHandler is EventHandler
 
 
-var globalDefaultFont*: Font
-  ## note: on init, if not nil, copied to UiText's font, if it is nil
+var globalDefaultFont* {.deprecated: "use styles instead".}: Font
 
 var registredComponents {.compileTime.}: seq[NimNode]
   # type syms
@@ -532,6 +538,10 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
   if signal of SubtreeSignal:
     for x in obj.childs:
       x.recieve(signal)
+  
+  if signal of UptreeSignal:
+    if obj.parent != nil:
+      obj.parent.recieve(signal)
 
 
 proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
@@ -642,6 +652,7 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
       if win != nil:
         child.recieve(AttachedToWindow(window: win))
     child.recieve(ParentChanged(newParentInTree: parent))
+    parent.recieve(ChildAdded(child: child))
 
 
 method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Uiobj] {.base.} =
@@ -659,6 +670,7 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Ui
       if win != nil:
         child.recieve(AttachedToWindow(window: win))
     child.recieve(ParentChanged(newParentInTree: parent))
+    parent.recieve(ChildAdded(child: child))
 
     let i = parent.childs.high
     result = CustomProperty[Uiobj](
@@ -669,6 +681,7 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Ui
         parent.childs[i] = v
         v.parent = parent
         v.recieve(ParentChanged(newParentInTree: parent))
+        parent.recieve(ChildAdded(child: child))
       ),
     )
 
@@ -1167,11 +1180,6 @@ method init*(this: UiText) =
   this.hAlign.changed.connectTo this: this.arrangement[] = newArrangement
   this.vAlign.changed.connectTo this: this.arrangement[] = newArrangement
   this.wrap.changed.connectTo this: this.arrangement[] = newArrangement
-
-  if this.font == nil and globalDefaultFont != nil:
-    new this.font{}
-    this.font{}[] = globalDefaultFont[]
-    this.font.changed.emit(this.font[])
 
 
 method draw*(text: UiText, ctx: DrawContext) =

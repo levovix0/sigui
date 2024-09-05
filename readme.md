@@ -319,7 +319,7 @@ x.makeLayout:
 
 ## Anchors
 ![image](http://levovix.ru:8000/docs/sigui/anchors%20example.png)
-*yes, centering component is just `this.centerIn parent`, is it so hard, html?*
+*centering component is `this.centerIn parent`*
 ```nim
 - UiRect():
   this.fill parent
@@ -408,6 +408,54 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
     glDisable(GlBlend)
   this.drawAfter(ctx)
 ```
+
+## Styles
+![image](http://levovix.ru:8000/docs/sigui/example%20images/styles.png)
+```nim
+const typefaceFile = staticRead "Roboto-Regular.ttf"
+let typeface = parseTtf(typefaceFile)
+
+- Styler():
+  this.fill parent
+  style = makeStyle:
+    UiText:
+      font = typeface.withSize(24)
+      color = "ffffff"
+    
+    UiRect:
+      color = "303030"
+      radius = 5
+
+      - UiText():
+        this.centerIn parent
+        text = "rect"
+        color = "808080"
+  
+
+  - UiRect():
+    x = 20
+    y = 20
+    w = 200
+    h = 100
+
+    - UiRect():
+      this.centerIn root
+      w = 50
+      h = 50
+  
+  - UiText():
+      bottom = parent.bottom
+      text = "text with changed font"
+      font = typeface.withSize(16)
+
+# rect outside styler
+- UiRect():
+  right = parent.right
+  bottom = parent.bottom
+  w = 100
+  h = 50
+```
+
 
 # Builtin components
 ## Text Area
