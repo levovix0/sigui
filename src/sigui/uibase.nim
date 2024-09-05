@@ -138,7 +138,7 @@ type
   UiImage* = ref object of Uiobj
     radius*: Property[float32]
     blend*: Property[bool] = true.property
-    tex: Textures
+    tex: Texture
     imageWh*: Property[IVec2]
     angle*: Property[float32]
     color*: Property[Col] = color(1, 1, 1).property
@@ -156,7 +156,7 @@ type
     imageWh*: Property[IVec2]
     angle*: Property[float32]
     color*: Property[Col] = color(0, 0, 0).property
-    tex: Textures
+    tex: Texture
 
   UiRectBorder* = ref object of UiRect
     borderWidth*: Property[float32] = 1'f32.property
@@ -176,7 +176,7 @@ type
     angle*: Property[float32]
     color*: Property[Col] = color(1, 1, 1).property
     fbo: FrameBuffers
-    tex: Textures
+    tex: Texture
     prevSize: IVec2
   
 
@@ -192,7 +192,7 @@ type
 
     arrangement*: Property[Arrangement]
     roundPositionOnDraw*: Property[bool] = true.property
-    tex: Textures
+    tex: Texture
   
   BindingKind = enum
     bindProperty
@@ -1061,16 +1061,16 @@ method init*(this: UiIcon) =
 
 proc `image=`*(obj: UiImage, img: pixie.Image) =
   if img != nil:
-    if obj.tex == nil: obj.tex = newTextures(1)
-    loadTexture(obj.tex[0], img)
+    if obj.tex == nil: obj.tex = newTexture()
+    obj.tex.load(img)
     if obj.wh[] == vec2():
       obj.wh[] = vec2(img.width.float32, img.height.float32)
     obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
 
 when hasImageman:
   proc `image=`*(obj: UiImage, img: imageman.Image[ColorRGBAU]) =
-    if obj.tex == nil: obj.tex = newTextures(1)
-    loadTexture(obj.tex[0], img)
+    if obj.tex == nil: obj.tex = newTexture()
+    obj.tex.load(img)
     if obj.wh[] == vec2():
       obj.wh[] = vec2(img.width.float32, img.height.float32)
     obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
@@ -1088,12 +1088,12 @@ method draw*(this: UiImage, ctx: DrawContext) =
   if this.visibility[] == visible and this.tex != nil:
     if this.colorOverlay[]:
       ctx.drawIcon(
-        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0],
+        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex.raw,
         this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
       )
     else:
       ctx.drawImage(
-        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0],
+        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex.raw,
         this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
       )
   this.drawAfter(ctx)
@@ -1115,8 +1115,8 @@ method init*(this: UiSvgImage) =
       
       var img = this.image[].parseSvg(sz.x, sz.y).newImage
       
-      if this.tex == nil: this.tex = newTextures(1)
-      loadTexture(this.tex[0], img)
+      if this.tex == nil: this.tex = newTexture()
+      this.tex.load(img)
       if this.wh[] == vec2():
         this.wh[] = vec2(img.width.float32, img.height.float32)
       if size == ivec2():
@@ -1132,7 +1132,7 @@ method init*(this: UiSvgImage) =
 method draw*(ico: UiSvgImage, ctx: DrawContext) =
   ico.drawBefore(ctx)
   if ico.visibility[] == visible and ico.tex != nil:
-    ctx.drawIcon((ico.xy[].posToGlobal(ico.parent) + ctx.offset).round, ico.wh[].ceil, ico.tex[0], ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
+    ctx.drawIcon((ico.xy[].posToGlobal(ico.parent) + ctx.offset).round, ico.wh[].ceil, ico.tex.raw, ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
   ico.drawAfter(ctx)
 
 
@@ -1144,14 +1144,14 @@ method init*(this: UiText) =
   procCall this.super.init
 
   this.arrangement.changed.connectTo this:
-    if this.tex == nil: this.tex = newTextures(1)
+    if this.tex == nil: this.tex = newTexture()
     if e != nil:
       let bounds = this.arrangement[].layoutBounds
       this.wh[] = bounds
       if bounds.x == 0 or bounds.y == 0: return
       let image = newImage(bounds.x.ceil.int32, bounds.y.ceil.int32)
       image.fillText(this.arrangement[])
-      loadTexture(this.tex[0], image)
+      this.tex.load(image)
       # todo: reposition
     else:
       this.wh[] = vec2()
@@ -1183,7 +1183,7 @@ method draw*(text: UiText, ctx: DrawContext) =
       text.xy[].posToGlobal(text.parent) + ctx.offset
 
   if text.visibility[] == visible and text.tex != nil:
-    ctx.drawIcon(pos, text.wh[], text.tex[0], text.color.vec4, 0, true, text.angle)
+    ctx.drawIcon(pos, text.wh[], text.tex.raw, text.color.vec4, 0, true, text.angle)
   text.drawAfter(ctx)
 
 
@@ -1214,20 +1214,20 @@ method draw*(this: ClipRect, ctx: DrawContext) =
     
     if this.prevSize != size or this.tex == nil:
       this.prevSize = size
-      this.tex = newTextures(1)
-      glBindTexture(GlTexture2d, this.tex[0])
+      this.tex = newTexture()
+      glBindTexture(GlTexture2d, this.tex.raw)
       glTexImage2D(GlTexture2d, 0, GlRgba.Glint, size.x, size.y, 0, GlRgba, GlUnsignedByte, nil)
       glTexParameteri(GlTexture2d, GlTextureMinFilter, GlNearest)
       glTexParameteri(GlTexture2d, GlTextureMagFilter, GlNearest)
-      glFramebufferTexture2D(GlFramebuffer, GlColorAttachment0, GlTexture2d, this.tex[0], 0)
+      glFramebufferTexture2D(GlFramebuffer, GlColorAttachment0, GlTexture2d, this.tex.raw, 0)
     else:
-      glBindTexture(GlTexture2d, this.tex[0])
+      glBindTexture(GlTexture2d, this.tex.raw)
     
     glClearColor(0, 0, 0, 0)
     glClear(GlColorBufferBit)
     
     glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
-    ctx.updateSizeRender(size)
+    ctx.updateDrawingAreaSize(size)
 
     let offset = block:
       var xy = this.xy[]
@@ -1254,9 +1254,9 @@ method draw*(this: ClipRect, ctx: DrawContext) =
           if win == nil: this.lastParent.wh[].ivec2 else: win.size
         else: ctx.frameBufferHierarchy[^1].size
       glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
-      ctx.updateSizeRender(size)
+      ctx.updateDrawingAreaSize(size)
       
-      ctx.drawImage((this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex[0], this.color.vec4, this.radius, true, this.angle, flipY=true)
+      ctx.drawImage((this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex.raw, this.color.vec4, this.radius, true, this.angle, flipY=true)
   else:
     this.drawBeforeChilds(ctx)
     this.drawChilds(ctx)
@@ -1275,7 +1275,7 @@ method recieve*(this: UiWindow, signal: Signal) =
     let e = (ref ResizeEvent)signal.WindowEvent.event
     this.wh[] = e.size.vec2
     glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
-    this.ctx.updateSizeRender(e.size)
+    this.ctx.updateDrawingAreaSize(e.size)
 
   elif signal of WindowEvent and signal.WindowEvent.event of RenderEvent:
     draw(this, this.ctx)
@@ -1361,23 +1361,23 @@ proc newRectShadow*(): RectShadow = new result
 
 proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: NimNode, init: bool, kind: BindingKind): NimNode =
   ## connects update proc to every `x[]` property changed, and invokes update proc instantly
-  ## 
+  ##
   ## .. code-block:: nim
   ##   type MyObj = ref object of Uiobj
   ##     c: Property[int]
-  ##   
+  ##
   ##   let obj = MyObj()
   ##   obj.binding c:
   ##     if config.csd[]: parent[].b else: 10[]
   ##
   ## convers to (roughly):
-  ## 
+  ##
   ## .. code-block:: nim
   ##   block bindingBlock:
   ##     let o {.cursor.} = obj
   ##     proc updateC(this: MyObj) =
   ##       this.c[] = if config.csd[]: parent[].b else: 10[]
-  ##   
+  ##
   ##     config.csd.changed.connectTo o: updateC(this)
   ##     parent.changed.connectTo o: updateC(this)
   ##     10.changed.connectTo o: updateC(this)  # yes, 10[] will considered property too

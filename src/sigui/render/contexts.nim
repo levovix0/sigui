@@ -1,24 +1,85 @@
-import std/[tables, macros, sequtils]
-import pkg/[shady]
+import std/[tables, macros, sequtils, sets]
+import pkg/[shady, pixie]
 import pkg/fusion/[matching, astdsl]
 import ./[gl]
 
+when hasImageman:
+  import pkg/imageman
+
+
 type
+  Texture* = ref TextureObj
+  TextureObj = object
+    glid: GlUint
+
+
   DrawContext* = ref object
     rect*: Shape
-    shaders*: Table[int, RootRef]
 
-    px, wh: Vec2
+    shaders*: Table[int, RootRef]
+    
+    px*: Vec2  ## size of a pixel
+    wh*: Vec2  ## size of the drawing area in pixels
+
     frameBufferHierarchy*: seq[tuple[fbo: GlUint, size: IVec2]]
     offset*: Vec2
 
 
+var freeTextures*: HashSet[GlUint]
+
+
+#* ------------- textures ------------- *#
+
+const sigui_render_texturesToAllocateIfNoFree {.intdefine.} = 8
+
+proc `=destroy`(texture: TextureObj) =
+  freeTextures.incl texture.glid
+  try:
+    texture.glid.loadTexture(pixie.newImage(1, 1))  # load empty image to force opengl use less memory
+  except GlError, PixieError:
+    discard
+
+
+proc raw*(texture: Texture): GlUint =
+  texture.glid
+
+
+proc newTexture*(): Texture =
+  if freeTextures.len == 0:
+    var newTextureGlUids: array[sigui_render_texturesToAllocateIfNoFree, GlUint]
+    glGenTextures(sigui_render_texturesToAllocateIfNoFree, newTextureGlUids[0].addr)
+    for i in 0..<sigui_render_texturesToAllocateIfNoFree:
+      freeTextures.incl newTextureGlUids[i]
+  
+  new result
+  result.glid = freeTextures.pop
+
+
+proc load*(texture: Texture, image: pixie.Image) =
+  texture.raw.loadTexture(image)
+
+proc newTexture*(image: pixie.Image): Texture =
+  result = newTexture()
+  result.load(image)
+
+
+when hasImageman:
+  proc load*(texture: Texture, image: imageman.Image[imageman.ColorRgbau]) =
+    texture.raw.loadTexture(image)
+
+  proc newTexture*(image: imageman.Image[imageman.ColorRgbau]): Texture =
+    result = newTexture()
+    result.load(image)
+
+
+
 #* ------------- makeShader macros ------------- *#
+
 var newShaderId {.compileTime.}: int = 1
 
 
 macro makeShader*(ctx: DrawContext, body: untyped): auto =
-  ## 
+  ##
   ## .. code-block:: nim
   ##   let solid = ctx.makeShader:
   ##     {.version: "330 core".}
@@ -31,7 +92,7 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
   ##       px: Uniform[Vec2],
   ##     ) =
   ##       transformation(gl_Position, pos, size, px, ipos, transform)
-  ##    
+  ##
   ##     proc frag(
   ##       glCol: var Vec4,
   ##       pos: Vec2,
@@ -42,7 +103,7 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
   ##       glCol = vec4(color.rgb * color.a, color.a) * roundRect(pos, size, radius)
   ##
   ## convers to (roughly):
-  ## 
+  ##
   ## .. code-block:: nim
   ##   proc vert(
   ##     gl_Position: var Vec4,
@@ -53,7 +114,7 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
   ##     px: Uniform[Vec2],
   ##   ) =
   ##     transformation(gl_Position, pos, size, px, ipos, transform)
-  ##  
+  ##
   ##   proc frag(
   ##     glCol: var Vec4,
   ##     pos: Vec2,
@@ -62,7 +123,7 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
   ##     color: Uniform[Vec4],
   ##   ) =
   ##     glCol = vec4(color.rgb * color.a, color.a) * roundRect(pos, size, radius)
-  ##   
+  ##
   ##   type MyShader = ref object of RootObj
   ##     shader: Shader
   ##     transform: OpenglUniform[Mat4]
@@ -70,7 +131,7 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
   ##     px: OpenglUniform[Vec2]
   ##     radius: OpenglUniform[float]
   ##     color: OpenglUniform[Vec4]
-  ##   
+  ##
   ##   if not ctx.shaders.hasKey(1):
   ##     let x = MyShader()
   ##     x.shader = newShader {GlVertexShader: vert.toGLSL("330 core"), GlFragmentShader: frag.toGLSL("330 core")}
@@ -80,7 +141,7 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
   ##     x.radius = OpenglUniform[float](result.solid.shader["radius"])
   ##     x.color = OpenglUniform[Vec4](result.solid.shader["color"])
   ##     ctx.shaders[1] = RootRef(x)
-  ##   
+  ##
   ##   MyShader(ctx.shaders[1])
   let id = newShaderId
   inc newShaderId
@@ -189,8 +250,14 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
 
 #* ------------- utils ------------- *#
 
-proc mat4(x: Mat2): Mat4 = discard
+proc mat4*(x: Mat2): Mat4 =
   ## note: this function exists in Glsl, but do not in vmath
+  mat4(
+    x[0, 0], x[0, 1], 0, 0,
+    x[1, 0], x[1, 1], 0, 0,
+    0,       0,       1, 0,
+    0,       0,       0, 1,
+  )
 
 
 proc passTransform*(ctx: DrawContext, shader: tuple|object|ref object, pos = vec2(), size = vec2(10, 10), angle: float32 = 0, flipY = false) =
@@ -226,7 +293,7 @@ proc newDrawContext*: DrawContext =
   )
 
 
-proc updateSizeRender*(ctx: DrawContext, size: IVec2) =
+proc updateDrawingAreaSize*(ctx: DrawContext, size: IVec2) =
   # update size
   ctx.px = vec2(2'f32 / size.x.float32, 2'f32 / size.y.float32)
   ctx.wh = ivec2(size.x, -size.y).vec2 / 2
