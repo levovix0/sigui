@@ -17,10 +17,12 @@ type
     deactivatingUsingEsc
     navigationUsingArrows
     navigationUsingMouse
-    # selecting
+    selectingUsingMouse
+    selectingUsingKeyboard
     # selectingWordsByDobleClick
     # selectingAllTextByDobleClick
     # selectingAllTextByTripleClick
+    selectingAllTextByCtrlA
     # # note: implement selecting all text on activation by yourself if you need it
     # copyingUsingCtrlC
     # copyingUsingSelection
@@ -37,11 +39,13 @@ type
     text*: Property[string]
     cursorPos*: CustomProperty[int]
     blinking*: Blinking
+    selectionStart*, selectionEnd*: CustomProperty[int]
+    followCursorOffset*: Property[float32]  # in pixels
 
     cursorX*: Property[float32]  # in pixels
     offset*: Property[float32]  # in pixels
-    # note: cursorX and offset is provided in case if you want to animate them
-    followCursorOffset*: Property[float32]  # in pixels
+    selectionStartX*, selectionEndX*: Property[float32]  # in pixels
+    # note: provided in case if you want to animate them
     
     allowedInteractions*: set[TextAreaInteraction] = {
       TextAreaInteraction.textInput,
@@ -50,9 +54,11 @@ type
       deactivatingUsingEsc,
       navigationUsingArrows,
       navigationUsingMouse,
-      # selecting,
+      selectingUsingMouse,
+      selectingUsingKeyboard,
       # selectingWordsByDobleClick,
       # selectingAllTextByTripleClick,
+      selectingAllTextByCtrlA,
       # copyingUsingCtrlC,
       # copyingUsingSelection,
       # pastingUsingCtrlV,
@@ -61,6 +67,7 @@ type
     }
     
     m_cursorPos: int
+    m_selectionStart, m_selectionEnd: int
 
 registerComponent TextArea
 
@@ -69,6 +76,23 @@ proc `mod`(a, b: Duration): Duration =
   result = a
   while result > b:
     result -= b
+
+
+proc eraseSelectedText*(this: TextArea) =
+  if this.selectionStart[] == this.selectionEnd[]: return
+
+  let selStart = min(this.selectionStart[], this.selectionEnd[])
+  let selEnd = max(this.selectionStart[], this.selectionEnd[])
+
+  let startOffset = this.text[].runeOffset(selStart)
+  let endOffset = this.text[].runeOffset(selEnd)
+  
+  this.text{}.delete startOffset..<(if endOffset == -1: this.text[].len else: endOffset)
+  this.text.changed.emit(this.text[])
+  
+  this.selectionStart[] = selStart
+  this.selectionEnd[] = selStart
+  this.cursorPos[] = selStart
 
 
 method recieve*(this: TextArea, signal: Signal) =
@@ -93,31 +117,54 @@ method recieve*(this: TextArea, signal: Signal) =
         break
       elif this.text[].runeAtPos(i).isAlpha:
         fondLetter = true
-
+  
   case signal
   of of WindowEvent(event: @ea is of KeyEvent(), handled: false):
     let e = (ref KeyEvent)ea
     if navigationUsingArrows in this.allowedInteractions and this.active[]:
       case e
       of (window: @window, key: @key, pressed: true, generated: false):
+        proc handleSelection =
+          if selectingUsingKeyboard in this.allowedInteractions:
+            if Key.lshift in window.keyboard.pressed or Key.rshift in window.keyboard.pressed:
+              this.selectionEnd[] = this.cursorPos[]
+            else:
+              this.selectionStart[] = this.cursorPos[]
+              this.selectionEnd[] = this.cursorPos[]
+        
         case key
         of Key.left:
           if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
             this.cursorPos[] = findLeftCtrlWord()
           else:
             this.cursorPos[] = this.cursorPos[] - 1
+          handleSelection()
 
         of Key.right:
           if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
             this.cursorPos[] = findRightCtrlWord()
           else:
             this.cursorPos[] = this.cursorPos[] + 1
-        
+          handleSelection()
+
         of Key.up:
           this.cursorPos[] = 0
-        
+          handleSelection()
+
         of Key.down:
           this.cursorPos[] = this.text[].runeLen
+          handleSelection()
+
+        else: discard
+
+    if selectingAllTextByCtrlA in this.allowedInteractions and this.active[]:
+      case e
+      of (window: @window, key: @key, pressed: true, generated: false):
+        case key
+        of Key.a:
+          if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
+            this.selectionStart[] = 0
+            this.selectionEnd[] = this.text[].runeLen
 
         else: discard
 
@@ -126,7 +173,9 @@ method recieve*(this: TextArea, signal: Signal) =
       of (window: @window, key: @key, pressed: true, generated: false):
         case key
         of Key.backspace:
-          if this.cursorPos[] > 0:
+          if this.selectionStart[] != this.selectionEnd[]:
+            this.eraseSelectedText()
+          elif this.cursorPos[] > 0:
             if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
               let i = findLeftCtrlWord()
               let offset = this.text[].runeOffset(i)
@@ -146,7 +195,9 @@ method recieve*(this: TextArea, signal: Signal) =
               this.cursorPos[] = i
 
         of Key.del:
-          if this.cursorPos[] < this.text[].runeLen:
+          if this.selectionStart[] != this.selectionEnd[]:
+            this.eraseSelectedText()
+          elif this.cursorPos[] < this.text[].runeLen:
             if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
               let i = findRightCtrlWord()
               let offset = this.text[].runeOffset(this.cursorPos[])
@@ -177,13 +228,20 @@ method recieve*(this: TextArea, signal: Signal) =
       if e.text in ["\8", "\13", "\127"]:
         ## ignore backspace, enter and delete  # todo: in siwin
       else:
+        this.eraseSelectedText()
+        
         if this.cursorPos[] == this.text[].runeLen:
           this.text[] = this.text[] & e.text
         else:
           this.text{}.insert e.text, this.text[].runeOffset(this.cursorPos[])
           this.text.changed.emit(this.text[])
+        
         this.cursorPos[] = this.cursorPos[] + e.text.runeLen
         signal.WindowEvent.handled = true
+        
+        if selectingUsingKeyboard in this.allowedInteractions:
+          this.selectionStart[] = this.cursorPos[]
+          this.selectionEnd[] = this.cursorPos[]
 
 
 method init*(this: TextArea) =
@@ -193,14 +251,45 @@ method init*(this: TextArea) =
     get: proc(): int = this.m_cursorPos,
     set: proc(x: int) = this.m_cursorPos = x.max(0).min(this.text[].runeLen),
   )
+
+  this.selectionStart = CustomProperty[int](
+    get: proc(): int = this.m_selectionStart,
+    set: proc(x: int) = this.m_selectionStart = x.max(0).min(this.text[].runeLen),
+  )
+
+  this.selectionEnd = CustomProperty[int](
+    get: proc(): int = this.m_selectionEnd,
+    set: proc(x: int) = this.m_selectionEnd = x.max(0).min(this.text[].runeLen),
+  )
+
   
+  proc positionOfCharacter(arrangement: Arrangement, pos: int): float =
+    if arrangement != nil:
+      if pos > arrangement.positions.high:
+        arrangement.layoutBounds.x
+      else:
+        arrangement.positions[pos].x
+    else: 0
+  
+  proc characterAtPosition(arrangement: Arrangement, pos: float): int =
+    if arrangement != nil:
+      while true:
+        if result > arrangement.selectionRects.high: break
+        if arrangement.selectionRects[result].x + arrangement.selectionRects[result].w / 2 > pos: break
+        inc result
+  
+
   this.text.changed.connectTo this:
-    this.cursorPos[] = this.cursorPos[].max(0).min(this.text[].runeLen)
+    this.cursorPos[] = this.cursorPos[]
+    this.selectionStart[] = this.selectionStart[]
+    this.selectionEnd[] = this.selectionEnd[]
     this.blinking.time[] = DurationZero
   
+
   this.cursorPos.changed.connectTo this:
     this.blinking.time[] = DurationZero
 
+  
   this.makeLayout:
     this.withWindow win:
       win.onTick.connectTo this:
@@ -220,15 +309,19 @@ method init*(this: TextArea) =
         if activatingUsingMouse in root.allowedInteractions and pressed:
           root.active[] = true
         if navigationUsingMouse in root.allowedInteractions and pressed:
-          let arrangement = root.textObj{}.arrangement[]
-          if arrangement != nil:
-            var i = 0
-            while true:
-              if i > arrangement.selectionRects.high: break
-              if arrangement.selectionRects[i].x + arrangement.selectionRects[i].w / 2 > this.mouseX[]: break
-              inc i
-            root.cursorPos[] = i
-          
+          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[])
+
+          if selectingUsingMouse in root.allowedInteractions:
+            root.selectionStart[] = root.cursorPos[]
+            root.selectionEnd[] = root.cursorPos[]
+      
+      this.mouseX.changed.connectTo root, mouseX:
+        if navigationUsingMouse in root.allowedInteractions and this.pressed[]:
+          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[])
+
+          if selectingUsingMouse in root.allowedInteractions:
+            root.selectionEnd[] = root.cursorPos[]
+
 
       - ClipRect() as clip:
         this.fill parent
@@ -238,12 +331,25 @@ method init*(this: TextArea) =
           # this.binding w: root.textObj[].w[]
           this.binding x: root.offset[]
 
-          root.textObj --- newUiText():
+
+          root.textObj --- UiText():
             centerY = parent.center
             this.binding text: root.text[]
             x = 1
+          
 
-          root.cursorObj --- newUiRect().UiObj:
+          root.selectionObj --- (let r = UiRect(); r.color[] = "78A7FF"; r.UiObj):
+            drawLayer = beforeChilds parent
+            this.fillVertical parent
+
+            root.binding selectionStartX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionStart[])
+            root.binding selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
+
+            x := min(root.selectionStartX[], root.selectionEndX[])
+            w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
+          
+
+          root.cursorObj --- UiRect().UiObj:
             this.fillVertical parent
             w = 2
             this.binding visibility:
@@ -257,15 +363,7 @@ method init*(this: TextArea) =
               else: Visibility.hiddenTree
 
             this.binding x: root.cursorX[]
-            root.binding cursorX:
-              let arrangement = root.textObj{}.arrangement[]
-              if arrangement != nil:
-                let pos = root.cursorPos[]
-                if pos > arrangement.positions.high:
-                  arrangement.layoutBounds.x
-                else:
-                  arrangement.positions[pos].x
-              else: 0
+            root.binding cursorX: positionOfCharacter(root.textObj{}.arrangement[], root.cursorPos[])
             
             proc followCursor =
               let x = this.x[] + offset.x[]
