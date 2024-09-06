@@ -309,7 +309,7 @@ method init*(this: TextArea) =
         if activatingUsingMouse in root.allowedInteractions and pressed:
           root.active[] = true
         if navigationUsingMouse in root.allowedInteractions and pressed:
-          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[])
+          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
 
           if selectingUsingMouse in root.allowedInteractions:
             root.selectionStart[] = root.cursorPos[]
@@ -317,7 +317,7 @@ method init*(this: TextArea) =
       
       this.mouseX.changed.connectTo root, mouseX:
         if navigationUsingMouse in root.allowedInteractions and this.pressed[]:
-          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[])
+          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
 
           if selectingUsingMouse in root.allowedInteractions:
             root.selectionEnd[] = root.cursorPos[]
@@ -368,9 +368,9 @@ method init*(this: TextArea) =
             proc followCursor =
               let x = this.x[] + offset.x[]
               if x > clip.w[] - root.followCursorOffset[] - 2:
-                offset.x[] = -this.x[] + clip.w[] - root.followCursorOffset[] - 2
+                root.offset[] = -this.x[] + clip.w[] - root.followCursorOffset[] - 2
               elif x < root.followCursorOffset[]:
-                offset.x[] = -this.x[] + root.followCursorOffset[]
+                root.offset[] = -this.x[] + root.followCursorOffset[]
             
             this.x.changed.connectTo root: followCursor()
             root.followCursorOffset.changed.connectTo root: followCursor()
