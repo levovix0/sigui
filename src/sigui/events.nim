@@ -1,5 +1,5 @@
 
-type  
+type
   EventHandler* = object  # pointer is wrapped to an object to attach custom destructor
     p: ptr EventHandlerObj
   EventHandlerObj = object
@@ -47,9 +47,9 @@ proc initIfNeeded[T](s: var Event[T]) =
   if s.p == nil:
     s.p = cast[ptr EventObj[T]](alloc0(sizeof(EventObj[T])))
 
-proc initIfNeeded(s: var EventHandler) =
-  if s.p == nil:
-    s.p = cast[ptr EventHandlerObj](alloc0(sizeof(EventHandlerObj)))
+proc initIfNeeded(c: var EventHandler) =
+  if c.p == nil:
+    c.p = cast[ptr EventHandlerObj](alloc0(sizeof(EventHandlerObj)))
 
 
 proc destroyEvent(s: ptr EventBase) =

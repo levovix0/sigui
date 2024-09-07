@@ -12,23 +12,34 @@ type
 
   TextAreaInteraction* = enum
     textInput
+    
     activatingUsingMouse
     deactivatingUsingMouse
     deactivatingUsingEsc
+    
     navigationUsingArrows
     navigationUsingMouse
+    
     selectingUsingMouse
     selectingUsingKeyboard
     # selectingWordsByDobleClick
     # selectingAllTextByDobleClick
     # selectingAllTextByTripleClick
     selectingAllTextByCtrlA
-    # # note: implement selecting all text on activation by yourself if you need it
-    # copyingUsingCtrlC
+    # note: implement selecting all text on activation by yourself if you need it
+    
+    copyingUsingCtrlC
+    cuttingUsingCtrlX
+    pastingUsingCtrlV
+
+    savingUndoStates  # automatically push states to undo buffer before handling cenrtain interactions
+    undoingUsingCtrlZ
+    redoingUsingCtrlShiftZ
+    
     # copyingUsingSelection
-    # pastingUsingCtrlV
     # pastingUsingMiddleMouseButton
     # deactivatingAndActivatingUsingMiddleMouseButton
+
 
   TextArea* = ref object of Uiobj
     cursorObj*: CustomProperty[UiObj]
@@ -47,24 +58,11 @@ type
     selectionStartX*, selectionEndX*: Property[float32]  # in pixels
     # note: provided in case if you want to animate them
     
-    allowedInteractions*: set[TextAreaInteraction] = {
-      TextAreaInteraction.textInput,
-      activatingUsingMouse,
-      deactivatingUsingMouse,
-      deactivatingUsingEsc,
-      navigationUsingArrows,
-      navigationUsingMouse,
-      selectingUsingMouse,
-      selectingUsingKeyboard,
-      # selectingWordsByDobleClick,
-      # selectingAllTextByTripleClick,
-      selectingAllTextByCtrlA,
-      # copyingUsingCtrlC,
-      # copyingUsingSelection,
-      # pastingUsingCtrlV,
-      # pastingUsingMiddleMouseButton,
-      # deactivatingAndActivatingUsingMiddleMouseButton,
-    }
+    allowedInteractions*: set[TextAreaInteraction] = {TextAreaInteraction.low..TextAreaInteraction.high}
+
+    undoBuffer*: seq[tuple[text: string, cursorPos: int, selectionStart, selectionEnd: int]]
+    undoBufferLimit*: int = 200
+    redoIndex*: int
     
     m_cursorPos: int
     m_selectionStart, m_selectionEnd: int
@@ -76,6 +74,19 @@ proc `mod`(a, b: Duration): Duration =
   result = a
   while result > b:
     result -= b
+
+
+proc containsShift*(keyboardPressed: set[Key]): bool =
+  Key.lshift in keyboardPressed or Key.rshift in keyboardPressed
+
+proc containsControl*(keyboardPressed: set[Key]): bool =
+  Key.lcontrol in keyboardPressed or Key.rcontrol in keyboardPressed
+
+proc containsAlt*(keyboardPressed: set[Key]): bool =
+  Key.lalt in keyboardPressed or Key.ralt in keyboardPressed
+
+proc containsSystem*(keyboardPressed: set[Key]): bool =
+  Key.lsystem in keyboardPressed or Key.rsystem in keyboardPressed
 
 
 proc eraseSelectedText*(this: TextArea) =
@@ -93,6 +104,55 @@ proc eraseSelectedText*(this: TextArea) =
   this.selectionStart[] = selStart
   this.selectionEnd[] = selStart
   this.cursorPos[] = selStart
+
+
+proc selectedText*(this: TextArea): string =
+  if this.selectionStart[] == this.selectionEnd[]: return ""
+
+  let selStart = min(this.selectionStart[], this.selectionEnd[])
+  let selEnd = max(this.selectionStart[], this.selectionEnd[])
+
+  let startOffset = this.text[].runeOffset(selStart)
+  let endOffset = this.text[].runeOffset(selEnd)
+
+  result = this.text[][startOffset..<(if endOffset == -1: this.text[].len else: endOffset)]
+
+
+proc pushState*(this: TextArea) =
+  if this.redoIndex != this.undoBuffer.len:
+    this.undoBuffer.setLen(this.redoIndex+1)
+
+  if this.undoBufferLimit > 0 and this.undoBuffer.len >= this.undoBufferLimit:
+    this.undoBuffer.delete(0)
+
+  this.undoBuffer.add (this.text[], this.cursorPos[], this.selectionStart[], this.selectionEnd[])
+  this.redoIndex = this.undoBuffer.len
+
+
+proc restoreState(this: TextArea, state: tuple[text: string, cursorPos: int, selectionStart, selectionEnd: int]) =
+  this.text[] = state.text
+  this.cursorPos[] = state.cursorPos
+  this.selectionStart[] = state.selectionStart
+  this.selectionEnd[] = state.selectionEnd
+
+
+proc undo*(this: TextArea) =
+  if this.redoIndex - 1 notin 0..this.undoBuffer.high: return
+
+  if this.redoIndex == this.undoBuffer.len:
+    this.pushState()
+    this.redoIndex = this.undoBuffer.high-1
+    this.restoreState(this.undoBuffer[this.redoIndex])
+  else:
+    this.redoIndex -= 1
+    this.restoreState(this.undoBuffer[this.redoIndex])
+
+
+proc redo*(this: TextArea) =
+  if this.redoIndex + 1 notin 0..this.undoBuffer.high: return
+
+  this.redoIndex += 1
+  this.restoreState(this.undoBuffer[this.redoIndex])
 
 
 method recieve*(this: TextArea, signal: Signal) =
@@ -147,24 +207,68 @@ method recieve*(this: TextArea, signal: Signal) =
             this.cursorPos[] = this.cursorPos[] + 1
           handleSelection()
 
-        of Key.up:
+        of Key.up, Key.home:
           this.cursorPos[] = 0
           handleSelection()
 
-        of Key.down:
+        of Key.down, Key.End:
           this.cursorPos[] = this.text[].runeLen
           handleSelection()
 
         else: discard
 
-    if selectingAllTextByCtrlA in this.allowedInteractions and this.active[]:
+    if this.active[]:
       case e
       of (window: @window, key: @key, pressed: true, generated: false):
         case key
         of Key.a:
-          if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
-            this.selectionStart[] = 0
-            this.selectionEnd[] = this.text[].runeLen
+          if selectingAllTextByCtrlA in this.allowedInteractions:
+            if window.keyboard.pressed.containsControl():   # when crl+a pressed and selectingAllTextByCtrlA enabled
+              # select all text
+              this.selectionStart[] = 0
+              this.selectionEnd[] = this.text[].runeLen
+        
+        of Key.c:
+          if copyingUsingCtrlC in this.allowedInteractions:
+            if window.keyboard.pressed.containsControl():  # when crl+c pressed and copyingUsingCtrlC enabled
+              # copy selected text
+              if this.selectionStart[] != this.selectionEnd[]:
+                globalClipboard.text = this.selectedText
+              else:
+                globalClipboard.text = this.text[]
+        
+        of Key.v:
+          if pastingUsingCtrlV in this.allowedInteractions:
+            if window.keyboard.pressed.containsControl():  # when crl+v pressed and pastingUsingCtrlV enabled
+              # paste selected text
+              if savingUndoStates in this.allowedInteractions:
+                this.pushState()
+              this.eraseSelectedText()
+
+              let ct = globalClipboard.text
+              this.text{}.insert(ct, this.cursorPos[])
+              this.text.changed.emit(this.text[])
+              this.cursorPos[] = this.cursorPos[] + ct.runeLen
+              this.selectionStart[] = this.cursorPos[]
+              this.selectionEnd[] = this.cursorPos[]
+
+        of Key.x:
+          if cuttingUsingCtrlX in this.allowedInteractions:
+            if window.keyboard.pressed.containsControl():  # when crl+x pressed and cuttingUsingCtrlX enabled
+              # cut selected text
+              if this.selectionStart[] != this.selectionEnd[]:
+                if savingUndoStates in this.allowedInteractions:
+                  this.pushState()
+                globalClipboard.text = this.selectedText
+                this.eraseSelectedText()
+        
+        of Key.z:
+          if undoingUsingCtrlZ in this.allowedInteractions:
+            if window.keyboard.pressed.containsControl():  # when crl+z pressed and undoingUsingCtrlZ enabled
+              if redoingUsingCtrlShiftZ in this.allowedInteractions and window.keyboard.pressed.containsShift():
+                this.redo()
+              else:
+                this.undo()
 
         else: discard
 
@@ -173,10 +277,15 @@ method recieve*(this: TextArea, signal: Signal) =
       of (window: @window, key: @key, pressed: true, generated: false):
         case key
         of Key.backspace:
+          if savingUndoStates in this.allowedInteractions:
+            this.pushState()
+
           if this.selectionStart[] != this.selectionEnd[]:
             this.eraseSelectedText()
+
           elif this.cursorPos[] > 0:
-            if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
+            if window.keyboard.pressed.containsControl():
+              # delete whole word
               let i = findLeftCtrlWord()
               let offset = this.text[].runeOffset(i)
               let offset2 =
@@ -187,7 +296,9 @@ method recieve*(this: TextArea, signal: Signal) =
               this.text{}.delete offset..(offset2 - 1)
               this.text.changed.emit(this.text[])
               this.cursorPos[] = i
+
             else:
+              # delete single letter
               let i = this.cursorPos[] - 1
               let offset = this.text[].runeOffset(this.cursorPos[] - 1)
               this.text{}.delete offset..(offset + this.text[].runeLenAt(offset) - 1)
@@ -195,10 +306,15 @@ method recieve*(this: TextArea, signal: Signal) =
               this.cursorPos[] = i
 
         of Key.del:
+          if savingUndoStates in this.allowedInteractions:
+            this.pushState()
+
           if this.selectionStart[] != this.selectionEnd[]:
             this.eraseSelectedText()
+
           elif this.cursorPos[] < this.text[].runeLen:
-            if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
+            if window.keyboard.pressed.containsControl():
+              # delete whole word
               let i = findRightCtrlWord()
               let offset = this.text[].runeOffset(this.cursorPos[])
               let offset2 =
@@ -208,7 +324,9 @@ method recieve*(this: TextArea, signal: Signal) =
                   this.text[].runeOffset(i)
               this.text{}.delete offset..(offset2 - 1)
               this.text.changed.emit(this.text[])
+
             else:
+              # delete single letter
               let offset = this.text[].runeOffset(this.cursorPos[])
               this.text{}.delete offset..(offset + this.text[].runeLenAt(offset) - 1)
               this.text.changed.emit(this.text[])
@@ -228,6 +346,9 @@ method recieve*(this: TextArea, signal: Signal) =
       if e.text in ["\8", "\13", "\127"]:
         ## ignore backspace, enter and delete  # todo: in siwin
       else:
+        if savingUndoStates in this.allowedInteractions:
+          this.pushState()
+
         this.eraseSelectedText()
         
         if this.cursorPos[] == this.text[].runeLen:
@@ -312,8 +433,11 @@ method init*(this: TextArea) =
           root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
 
           if selectingUsingMouse in root.allowedInteractions:
-            root.selectionStart[] = root.cursorPos[]
-            root.selectionEnd[] = root.cursorPos[]
+            if root.parentWindow.keyboard.pressed.containsShift():
+              root.selectionEnd[] = root.cursorPos[]
+            else:
+              root.selectionStart[] = root.cursorPos[]
+              root.selectionEnd[] = root.cursorPos[]
       
       this.mouseX.changed.connectTo root, mouseX:
         if navigationUsingMouse in root.allowedInteractions and this.pressed[]:
@@ -328,31 +452,32 @@ method init*(this: TextArea) =
 
         - Uiobj() as offset:
           this.fillVertical parent
-          # this.binding w: root.textObj[].w[]
-          this.binding x: root.offset[]
+          # w := root.textObj[].w[]
+          x := root.offset[]
+          
+
+          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF"; r.fillVertical root; r.UiObj):
+            x := min(root.selectionStartX[], root.selectionEndX[])
+            w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
 
 
           root.textObj --- UiText():
             centerY = parent.center
-            this.binding text: root.text[]
+            text = binding:
+              if root.text[].len == 0: ""  # workaround https://github.com/nim-lang/Nim/issues/24080
+              else: root.text[]
             x = 1
+
+
+          root.binding selectionStartX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionStart[])
+          root.binding selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
           
 
-          root.selectionObj --- (let r = UiRect(); r.color[] = "78A7FF"; r.UiObj):
-            drawLayer = beforeChilds parent
-            this.fillVertical parent
-
-            root.binding selectionStartX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionStart[])
-            root.binding selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
-
-            x := min(root.selectionStartX[], root.selectionEndX[])
-            w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
-          
-
-          root.cursorObj --- UiRect().UiObj:
-            this.fillVertical parent
+          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.fillVertical root; r.UiObj):
             w = 2
-            this.binding visibility:
+            x := root.cursorX[]
+
+            visibility = binding:
               if root.active[]:
                 if root.blinking.enabled[]:
                   if root.blinking.time[] <= root.blinking.period[]:
@@ -362,7 +487,6 @@ method init*(this: TextArea) =
                 else: Visibility.visible
               else: Visibility.hiddenTree
 
-            this.binding x: root.cursorX[]
             root.binding cursorX: positionOfCharacter(root.textObj{}.arrangement[], root.cursorPos[])
             
             proc followCursor =
@@ -389,7 +513,7 @@ when isMainModule:
         text = "start text"
         this.textObj[].font[] = typeface.withSize(24)
         w = 400
-        h = this.textObj[].h[]
+        h = this.textObj[].h[].max(24)
 
         - UiRectBorder():
           this.fill(parent, -1)

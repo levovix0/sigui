@@ -25,7 +25,7 @@ proc property*[T](v: T): Property[T] =
 
 
 proc `val=`*[T](p: var Property[T], v: T) =
-  ## note: p.changed will be emitted even if new value is same as previous value
+  ## note: p.changed will not be emitted if new value is same as previous value
   if v == p.unsafeVal: return
   p.unsafeVal = v
   emit p.changed, p.unsafeVal
