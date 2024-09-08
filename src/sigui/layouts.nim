@@ -178,7 +178,7 @@ proc reposition(this: Layout) =
     if this.childs.len > 0:
       this.set_h(rows[^1].childs.mapit(it.get_y + it.get_h).foldl(max(a, b), 0'f32))
     else:
-      this.set_w(0)
+      this.set_h(0)
 
 
 template spacing*(this: Layout): Property[float32] = this.gap

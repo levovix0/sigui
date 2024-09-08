@@ -266,22 +266,23 @@ Built-in interpolation modifiers:
 ```nim
 - Layout():
   h = 720
-  spacing = 10
-  wrapSpacing = 20
+  gap = 10
+  wrapGap = 20
   orientation = vertical
+  hugContent = false
   wrapHugContent = true
   fillWithSpaces = true
   consistentSpacing = true
   wrap = true
   elementsBeforeWrap = 3
-  this.binding lengthBeforeWrap: this.w[]
+  lengthBeforeWrap := this.w[]
 
   - UiRect():
     w = 20
     h = 30
   
   - InLayout():
-    alignment = center
+    align = center
 
     - UiRect():
       w = 10
@@ -295,13 +296,13 @@ Built-in interpolation modifiers:
 ## makeLayout
 ```nim
 type
-  MyLayout = ref object of Uiobj
+  MyComponent = ref object of Uiobj
     changableChild: CustomProperty[UiRect]
 
-registerComponent MyLayout
+registerComponent MyComponent
 
 
-let x = MyLayout()
+let x = MyComponent()
 x.makeLayout:
   - UiRect():
     this.fill parent
@@ -316,6 +317,41 @@ x.makeLayout:
         # actions in this body will be executed when root.changableChild is changed
         this.fill(parent, 2, 4)
 ```
+
+### changable childs
+Changable childs could be used to re-build component tree on any event.
+```nim
+# ...in makeLaout macro...
+
+var elements = ["first", "second"]
+var elementsObj: CustomProperty[Layout]
+
+elementsObj --- Layout():
+  orientation = vertical
+  gap = 10
+
+  for i, element in elements:
+    - TextArea():
+      text = element
+
+      this.text.changed.connectTo this:
+        elements[i] = this.text[]
+  
+  - InLayout():
+    fillContainer = true
+
+    - MouseArea():
+      h = 20
+
+      this.mouseDownAndUpInside.connectTo this:
+        elements.add "new"
+        elementsObj[] = Layout()  # re-build tree
+
+      - UiText():
+        this.centerIn parent
+        text = "+"
+```
+
 
 ## Anchors
 ![image](http://levovix.ru:8000/docs/sigui/anchors%20example.png)
