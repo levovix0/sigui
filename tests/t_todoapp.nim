@@ -44,16 +44,20 @@ test "todo app":
         right = addTask.left - 10
         text = "sample task"
         this.textObj[].font[] = typeface.withSize(32)
+
+        this.onKeyDown enter:
+          mouse.mouseDownAndUpInside.emit()
       
       - UiRect() as addTask:
         right = parent.right - 5
         this.fillVertical(parent, 4)
-        this.binding w: this.h[]
-        this.binding color:
+        w := this.h[]
+        
+        radius = 5
+        color = binding:
           if mouse.pressed[]: color(0.43, 0.15, 0.76).lighten(0.1)
           elif mouse.hovered[]: color(0.43, 0.15, 0.76).lighten(0.2)
           else: color(0.43, 0.15, 0.76)
-        radius = 5
 
         - this.color.transition(0.4's):
           easing = outCubicEasing
@@ -66,9 +70,13 @@ test "todo app":
 
         - MouseArea() as mouse:
           this.fill parent
+
           this.mouseDownAndUpInside.connectTo this:
+            if taskName.text[] == "": return
             app.tasks.add((name: taskName.text[], complete: false.property))
             app.tasksChanged.emit()
+            taskName.pushState()
+            taskName.text[] = ""
 
     - ClipRect():
       this.fillHorizontal(parent, 20)
@@ -79,7 +87,7 @@ test "todo app":
         this.fill parent
 
         - Uiobj():
-          this.binding w: parent.w[]
+          w := parent.w[]
 
           - this.y.transition(0.2's):
             easing = outSquareEasing
@@ -94,37 +102,38 @@ test "todo app":
             this.binding w: parent.w[]
 
             orientation = vertical
-            spacing = 0
-            hugContent = true
+            gap = 10
 
             for i in 0..app.tasks.high:
               template task: auto = app.tasks[i]
 
-              - UiText():
-                this.text[] = task.name
-                
-                this.binding font:
-                  let it = typeface.withSize(24)
-                  it.strikethrough = task.complete[]
-                  it
-                
-                this.binding color:
-                  if mouse.pressed[]: color(0.2, 0.2, 0.2)
-                  elif mouse.hovered[]: color(0.4, 0.4, 0.4)
-                  else: color(0, 0, 0)
-
-                - MouseArea() as mouse:
-                  this.fill parent
-                  this.mouseDownAndUpInside.connectTo this:
-                    task.complete[] = not task.complete[]
+              - Layout():
+                gap = 10
+                align = center
                 
                 - Switch(isOn: task.complete[].property):
-                  left = parent.right + 10
-                  centerY = parent.center
                   color = color(0.43, 0.15, 0.76)
                   
-                  this.binding isOn: task.complete[]
+                  isOn := task.complete[]
                   this.bindingValue task.complete[]: this.isOn[]
+
+                - UiText():
+                  text = task.name
+                  
+                  this.binding font:
+                    let it = typeface.withSize(24)
+                    it.strikethrough = task.complete[]
+                    it
+                  
+                  this.binding color:
+                    if mouse.pressed[]: color(0.2, 0.2, 0.2)
+                    elif mouse.hovered[]: color(0.4, 0.4, 0.4)
+                    else: color(0, 0, 0)
+
+                  - MouseArea() as mouse:
+                    this.fill parent
+                    this.mouseDownAndUpInside.connectTo this:
+                      task.complete[] = not task.complete[]
       
     app.tasksChanged.connectTo app:
       app.layout[] = Layout()
