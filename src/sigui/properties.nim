@@ -48,8 +48,9 @@ proc `=copy`*[T](p: var Property[T], v: Property[T]) {.error.}
 
 proc `val=`*[T](p: CustomProperty[T], v: T) =
   ## note: p.changed will not be emitted if new value is same as previous value
-  if v == p.get(): return
+  let oldV = p.get()
   p.set(v)
+  if oldV == p.get(): return
   emit p.changed, p.get()
 
 proc `[]=`*[T](p: CustomProperty[T], v: T) = p.val = v
