@@ -53,6 +53,8 @@ type
     selectionStart*, selectionEnd*: CustomProperty[int]
     followCursorOffset*: Property[float32]  # in pixels
 
+    keyDown*: Event[KeyEvent]
+
     cursorX*: Property[float32]  # in pixels
     offset*: Property[float32]  # in pixels
     selectionStartX*, selectionEndX*: Property[float32]  # in pixels
@@ -155,6 +157,11 @@ proc redo*(this: TextArea) =
   this.restoreState(this.undoBuffer[this.redoIndex])
 
 
+template onKeyDown*(this: TextArea, expectedKey: Key, body: untyped) =
+  this.keyDown.connectTo this, event:
+    if event.key == expectedKey: body
+
+
 method recieve*(this: TextArea, signal: Signal) =
   procCall this.super.recieve(signal)
 
@@ -181,6 +188,12 @@ method recieve*(this: TextArea, signal: Signal) =
   case signal
   of of WindowEvent(event: @ea is of KeyEvent(), handled: false):
     let e = (ref KeyEvent)ea
+
+    if this.active[]:
+      case e
+      of (pressed: true, generated: false):
+        this.keyDown.emit(e[])
+
     if navigationUsingArrows in this.allowedInteractions and this.active[]:
       case e
       of (window: @window, key: @key, pressed: true, generated: false):
@@ -246,7 +259,8 @@ method recieve*(this: TextArea, signal: Signal) =
               this.eraseSelectedText()
 
               let ct = globalClipboard.text
-              this.text{}.insert(ct, this.cursorPos[])
+              let offset = this.text.runeOffset(this.cursorPos[])
+              this.text{}.insert(ct, offset)
               this.text.changed.emit(this.text[])
               this.cursorPos[] = this.cursorPos[] + ct.runeLen
               this.selectionStart[] = this.cursorPos[]
