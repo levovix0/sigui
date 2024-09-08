@@ -22,9 +22,9 @@ type
     
     selectingUsingMouse
     selectingUsingKeyboard
-    # selectingWordsByDobleClick
-    # selectingAllTextByDobleClick
-    # selectingAllTextByTripleClick
+    selectingWordsByDobleClick
+    selectingAllTextByDobleClick
+    selectingAllTextByTripleClick
     selectingAllTextByCtrlA
     # note: implement selecting all text on activation by yourself if you need it
     
@@ -60,11 +60,16 @@ type
     selectionStartX*, selectionEndX*: Property[float32]  # in pixels
     # note: provided in case if you want to animate them
     
-    allowedInteractions*: set[TextAreaInteraction] = {TextAreaInteraction.low..TextAreaInteraction.high}
+    allowedInteractions*: set[TextAreaInteraction] =
+      {TextAreaInteraction.low..TextAreaInteraction.high} -
+      {TextAreaInteraction.selectingAllTextByDobleClick}
 
     undoBuffer*: seq[tuple[text: string, cursorPos: int, selectionStart, selectionEnd: int]]
     undoBufferLimit*: int = 200
     redoIndex*: int
+
+    doubleClick: bool
+    lastDoubleClickTime: Time
     
     m_cursorPos: int
     m_selectionStart, m_selectionEnd: int
@@ -162,28 +167,29 @@ template onKeyDown*(this: TextArea, expectedKey: Key, body: untyped) =
     if event.key == expectedKey: body
 
 
+proc findLeftCtrlWord(this: TextArea, inBorders: bool = false): int =
+  var fondLetter = inBorders
+  result = 0
+  for i in countdown(this.cursorPos[].min(this.text[].runeLen) - 1, 0):
+    if fondLetter and not this.text[].runeAtPos(i).isAlpha:
+      result = i + 1
+      break
+    elif this.text[].runeAtPos(i).isAlpha:
+      fondLetter = true
+
+proc findRightCtrlWord(this: TextArea, inBorders: bool = false): int =
+  var fondLetter = inBorders
+  result = this.text[].runeLen
+  for i in countup(this.cursorPos[].max(0), this.text[].runeLen - 1):
+    if fondLetter and not this.text[].runeAtPos(i).isAlpha:
+      result = i
+      break
+    elif this.text[].runeAtPos(i).isAlpha:
+      fondLetter = true
+
+
 method recieve*(this: TextArea, signal: Signal) =
   procCall this.super.recieve(signal)
-
-  proc findLeftCtrlWord(): int =
-    var fondLetter = false
-    result = 0
-    for i in countdown(this.cursorPos[].min(this.text[].runeLen) - 1, 0):
-      if fondLetter and not this.text[].runeAtPos(i).isAlpha:
-        result = i + 1
-        break
-      elif this.text[].runeAtPos(i).isAlpha:
-        fondLetter = true
-  
-  proc findRightCtrlWord(): int =
-    var fondLetter = false
-    result = this.text[].runeLen
-    for i in countup(this.cursorPos[].max(0), this.text[].runeLen - 1):
-      if fondLetter and not this.text[].runeAtPos(i).isAlpha:
-        result = i
-        break
-      elif this.text[].runeAtPos(i).isAlpha:
-        fondLetter = true
   
   case signal
   of of WindowEvent(event: @ea is of KeyEvent(), handled: false):
@@ -208,14 +214,14 @@ method recieve*(this: TextArea, signal: Signal) =
         case key
         of Key.left:
           if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
-            this.cursorPos[] = findLeftCtrlWord()
+            this.cursorPos[] = this.findLeftCtrlWord()
           else:
             this.cursorPos[] = this.cursorPos[] - 1
           handleSelection()
 
         of Key.right:
           if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
-            this.cursorPos[] = findRightCtrlWord()
+            this.cursorPos[] = this.findRightCtrlWord()
           else:
             this.cursorPos[] = this.cursorPos[] + 1
           handleSelection()
@@ -300,7 +306,7 @@ method recieve*(this: TextArea, signal: Signal) =
           elif this.cursorPos[] > 0:
             if window.keyboard.pressed.containsControl():
               # delete whole word
-              let i = findLeftCtrlWord()
+              let i = this.findLeftCtrlWord()
               let offset = this.text[].runeOffset(i)
               let offset2 =
                 if this.cursorPos[] == this.text[].runeLen:
@@ -329,7 +335,7 @@ method recieve*(this: TextArea, signal: Signal) =
           elif this.cursorPos[] < this.text[].runeLen:
             if window.keyboard.pressed.containsControl():
               # delete whole word
-              let i = findRightCtrlWord()
+              let i = this.findRightCtrlWord()
               let offset = this.text[].runeOffset(this.cursorPos[])
               let offset2 =
                 if i == this.text[].runeLen:
@@ -440,10 +446,38 @@ method init*(this: TextArea) =
             let e = (ref MouseButtonEvent)ea
             if e.pressed: root.active[] = false
 
+
+      this.clicked.connectTo root, e:
+        if selectingWordsByDobleClick in root.allowedInteractions and e.double:
+          root.selectionStart[] = root.findLeftCtrlWord(inBorders=true)
+          root.selectionEnd[] = root.findRightCtrlWord(inBorders=true)
+          root.cursorPos[] = root.selectionEnd[]
+          root.doubleClick = true
+        
+        if selectingAllTextByDobleClick in root.allowedInteractions and e.double:
+          root.selectionStart[] = 0
+          root.selectionEnd[] = root.text[].runeLen
+          root.cursorPos[] = root.selectionEnd[]
+          root.doubleClick = true
+        
+        if getTime() - root.lastDoubleClickTime <= initDuration(milliseconds=300):
+          if selectingAllTextByTripleClick in root.allowedInteractions:
+            root.selectionStart[] = 0
+            root.selectionEnd[] = root.text[].runeLen
+            root.cursorPos[] = root.selectionEnd[]
+
+        if e.double:
+          root.lastDoubleClickTime = getTime()
+
+
       this.pressed.changed.connectTo root, pressed:
+        if not pressed:
+          root.doubleClick = false
+        
         if activatingUsingMouse in root.allowedInteractions and pressed:
           root.active[] = true
-        if navigationUsingMouse in root.allowedInteractions and pressed:
+        
+        if navigationUsingMouse in root.allowedInteractions and pressed and (not root.doubleClick):
           root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
 
           if selectingUsingMouse in root.allowedInteractions:
@@ -452,7 +486,8 @@ method init*(this: TextArea) =
             else:
               root.selectionStart[] = root.cursorPos[]
               root.selectionEnd[] = root.cursorPos[]
-      
+
+
       this.mouseX.changed.connectTo root, mouseX:
         if navigationUsingMouse in root.allowedInteractions and this.pressed[]:
           root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
