@@ -140,7 +140,7 @@ proc reposition(this: Layout) =
         
         let fillContainer =
           if child of InLayout: child.InLayout.fillContainer[]
-          else: this.fillWithSpaces[]
+          else: this.fillContainer[]
         
         let align =
           if child of InLayout: child.InLayout.align[]
