@@ -6,18 +6,42 @@ type
   Styler* = ref object of UiObj
     style*: Property[proc(obj: UiObj)]
 
+    objsCreatedUsingStyle: seq[UiObj]
+    runningStyle: bool
+
 registerComponent Styler
 
 
 method recieve*(this: Styler, signal: Signal) =
   if signal of ChildAdded:
     if this.style[] != nil:
-      this.style[](signal.ChildAdded.child)
+      if this.runningStyle:
+        this.objsCreatedUsingStyle.add signal.ChildAdded.child
+        this.style[](signal.ChildAdded.child)
+      else:
+        this.runningStyle = true
+        this.style[](signal.ChildAdded.child)
+        this.runningStyle = false
 
   procCall this.super.recieve(signal)
 
 
-# todo: re-apply styles when Styler.style changes
+method init*(this: Styler) =
+  procCall this.super.init
+
+  this.style.changed.connectTo this:
+    for x in this.objsCreatedUsingStyle:
+      delete x
+    this.objsCreatedUsingStyle = @[]
+
+    if this.style[] != nil:
+      proc impl(n: UiObj) =
+        if n == nil: return
+        this.style[](n)
+        for x in n.childs:
+          impl(x)
+      
+      impl(this)
 
 
 macro makeStyle*(body: untyped): proc(obj: UiObj) =

@@ -643,6 +643,13 @@ method deteach*(this: UiObj) {.base.} =
   deteachStatic(this)
 
 
+proc delete*(this: UiObj) =
+  deteach this
+  if this.parent != nil:
+    this.parent.childs.del this.parent.childs.find(this)
+    this.parent = nil
+
+
 method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
   assert child.parent == nil
   if parent.newChildsObject != nil:

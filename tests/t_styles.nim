@@ -8,24 +8,43 @@ test "styles":
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
 
+  let darkTheme = makeStyle:
+    UiText:
+      font = typeface.withSize(24)
+      color = "ffffff"
+    
+    UiRect:
+      color = "303030"
+      radius = 5
+
+      - UiText():
+        this.centerIn parent
+        text = "rect"
+        color = "808080"
+
+  let lightTheme = makeStyle:
+    apply darkTheme
+
+    UiText:
+      color = "000000"
+    
+    UiRect:
+      color = "e0e0e0"
+      radius = 5
+
+      - UiText():
+        this.centerIn parent
+        text = "this should not be visible"
+        color = "808080"
+
+
   window.makeLayout:
     this.clearColor = "202020"
 
     - Styler():
       this.fill parent
-      style = makeStyle:
-        UiText:
-          font = typeface.withSize(24)
-          color = "ffffff"
-        
-        UiRect:
-          color = "303030"
-          radius = 5
-
-          - UiText():
-            this.centerIn parent
-            text = "rect"
-            color = "808080"
+      style = lightTheme
+      style = darkTheme
       
 
       - UiRect():
