@@ -102,13 +102,13 @@ test "todo app":
             this.binding w: parent.w[]
 
             orientation = vertical
-            gap = 10
+            gap = 5
 
             for i in 0..app.tasks.high:
               template task: auto = app.tasks[i]
 
               - Layout():
-                gap = 10
+                spacing = 10
                 align = center
                 
                 - Switch(isOn: task.complete[].property):

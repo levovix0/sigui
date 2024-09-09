@@ -152,7 +152,12 @@ proc `'ms`*(lit: cstring): Duration =
   initDuration(milliseconds = lit.int64, nanoseconds = ((lit - lit.int64.float) * 1_000_000).int64)
 
 
+proc clearTransition*(prop: var AnyProperty) =
+  prop.changed.disconnect({EventConnectionFlag.transition}, fullDeteach = true)
+
+
 template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
+  prop.clearTransition()
   let a = Animation[T](
     action: (proc(x: T) =
       prop{} = x

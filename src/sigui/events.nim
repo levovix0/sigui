@@ -62,6 +62,18 @@ proc destroyEvent(s: ptr EventBase) =
         inc i
   dealloc s
 
+
+proc disconnectEventHandler(handler: ptr EventHandlerObj) =
+  for s in handler[].connected:
+    var i = 0
+    while i < s[].connected.len:
+      if s[].connected[i][0] == handler:
+        s[].connected.del i
+      else:
+        inc i
+  handler[].connected = @[]
+
+
 proc destroyEventHandler(handler: ptr EventHandlerObj) =
   for s in handler[].connected:
     var i = 0
@@ -97,6 +109,36 @@ proc disconnect*[T](s: var Event[T], c: var EventHandler) =
   while i < s.p[].connected.len:
     if s.p[].connected[i].eh == c.p:
       s.p[].connected.del i
+    else:
+      inc i
+
+
+proc disconnect*[T](s: var Event[T], flags: set[EventConnectionFlag], fullDeteach: bool = false) =
+  if s.p == nil: return
+  var i = 0
+  while i < s.p[].connected.len:
+    if (flags * s.p[].connected[i].flags).len != 0:
+      let eh = s.p[].connected[i].eh
+
+      if fullDeteach:
+        disconnectEventHandler eh
+      else:
+        s.p[].connected.del i
+        
+        var hasThisEventHandlerConnectedSomewhere = false
+        for c in s.p[].connected:
+          if c.eh == eh:
+            hasThisEventHandlerConnectedSomewhere = true
+            break
+        
+        if not hasThisEventHandlerConnectedSomewhere:
+          var i = 0
+          while i < eh[].connected.len:
+            if eh[].connected[i] == cast[ptr EventBase](s.p):
+              eh[].connected.del i
+            else:
+              inc i
+
     else:
       inc i
 
