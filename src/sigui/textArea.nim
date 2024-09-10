@@ -83,19 +83,6 @@ proc `mod`(a, b: Duration): Duration =
     result -= b
 
 
-proc containsShift*(keyboardPressed: set[Key]): bool =
-  Key.lshift in keyboardPressed or Key.rshift in keyboardPressed
-
-proc containsControl*(keyboardPressed: set[Key]): bool =
-  Key.lcontrol in keyboardPressed or Key.rcontrol in keyboardPressed
-
-proc containsAlt*(keyboardPressed: set[Key]): bool =
-  Key.lalt in keyboardPressed or Key.ralt in keyboardPressed
-
-proc containsSystem*(keyboardPressed: set[Key]): bool =
-  Key.lsystem in keyboardPressed or Key.rsystem in keyboardPressed
-
-
 proc eraseSelectedText*(this: TextArea) =
   if this.selectionStart[] == this.selectionEnd[]: return
 
@@ -266,7 +253,7 @@ method recieve*(this: TextArea, signal: Signal) =
 
               let ct = globalClipboard.text
               let offset = this.text.runeOffset(this.cursorPos[])
-              this.text{}.insert(ct, offset)
+              this.text{}.insert(ct, (if offset == -1: this.text.len else: offset))
               this.text.changed.emit(this.text[])
               this.cursorPos[] = this.cursorPos[] + ct.runeLen
               this.selectionStart[] = this.cursorPos[]

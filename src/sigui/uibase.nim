@@ -237,6 +237,19 @@ proc floor*(v: Vec2): Vec2 =
   vec2(floor(v.x), floor(v.y))
 
 
+proc containsShift*(keyboardPressed: set[Key]): bool =
+  Key.lshift in keyboardPressed or Key.rshift in keyboardPressed
+
+proc containsControl*(keyboardPressed: set[Key]): bool =
+  Key.lcontrol in keyboardPressed or Key.rcontrol in keyboardPressed
+
+proc containsAlt*(keyboardPressed: set[Key]): bool =
+  Key.lalt in keyboardPressed or Key.ralt in keyboardPressed
+
+proc containsSystem*(keyboardPressed: set[Key]): bool =
+  Key.lsystem in keyboardPressed or Key.rsystem in keyboardPressed
+
+
 
 #* ------------- Uiobj ------------- *#
 
