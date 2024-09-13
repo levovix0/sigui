@@ -137,10 +137,10 @@ method init*(this: ScrollArea) =
  
 
   scrollArea.withWindow win:
-    win.onTick.connectTo this: scrollArea.onTick.p.changed.emit(true)
+    win.onTick.connectTo this: scrollArea.onTick.p.changed.emit()
 
   scrollArea.withAnimator anim:
-    anim.onTick.connectTo this: scrollArea.onTick.p.changed.emit(true)
+    anim.onTick.connectTo this: scrollArea.onTick.p.changed.emit()
   
 
   scrollArea.onTick.p.changed.connectTo scrollArea:

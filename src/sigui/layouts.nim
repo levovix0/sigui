@@ -217,14 +217,14 @@ method addChild*(this: InLayout, child: Uiobj) =
   child.w.changed.connectTo this:
     if not this.isChangingW:
       this.isChangingW = true
-      this.w[] = e
+      this.w[] = child.w[]
       this.isChangingW = false
   this.w[] = child.w[]
   
   child.h.changed.connectTo this:
     if not this.isChangingH:
       this.isChangingH = true
-      this.h[] = e
+      this.h[] = child.h[]
       this.isChangingH = false
   this.w[] = child.w[]
 

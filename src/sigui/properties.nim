@@ -3,17 +3,17 @@ import events
 type
   Property*[T] = object
     unsafeVal*: T
-    changed*: Event[T]
+    changed*: Event[void]
 
   CustomProperty*[T] = object
     get*: proc(): T
     set*: proc(v: T)
-    changed*: Event[T]
+    changed*: Event[void]
 
   AnyProperty*[T] = concept a, var v
     a[] is T
     v[] = T
-    a.changed is Event[T]
+    a.changed is Event[void]
     a{} is T
     v{} = T
 
@@ -28,7 +28,7 @@ proc `val=`*[T](p: var Property[T], v: T) =
   ## note: p.changed will not be emitted if new value is same as previous value
   if v == p.unsafeVal: return
   p.unsafeVal = v
-  emit p.changed, p.unsafeVal
+  emit(p.changed)
 
 proc `[]=`*[T](p: var Property[T], v: T) = p.val = v
 
@@ -51,7 +51,7 @@ proc `val=`*[T](p: CustomProperty[T], v: T) =
   let oldV = p.get()
   p.set(v)
   if oldV == p.get(): return
-  emit p.changed, p.get()
+  emit(p.changed)
 
 proc `[]=`*[T](p: CustomProperty[T], v: T) = p.val = v
 

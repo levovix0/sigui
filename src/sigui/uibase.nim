@@ -363,6 +363,10 @@ proc redraw*(obj: Uiobj, ifVisible = true) =
   if win != nil: redraw win
 
 
+redrawUiobj = proc(obj: pointer) {.cdecl.} =
+  redraw cast[Uiobj](obj)
+
+
 proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
   result = pos
   var obj {.cursor.} = obj
@@ -572,11 +576,9 @@ proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
     elif x is Property or x is CustomProperty:
       when compiles(initRedrawWhenPropertyChanged_ignore(T, name)):
         when not initRedrawWhenPropertyChanged_ignore(T, name):
-          x.changed.connectTo this:
-            redraw this
+          x.changed.uiobj = cast[pointer](this)
       else:
-        x.changed.connectTo this:
-          redraw this
+        x.changed.uiobj = cast[pointer](this)
   {.pop.}
 
 
@@ -1174,14 +1176,14 @@ method draw*(ico: UiSvgImage, ctx: DrawContext) =
 
 proc `fontSize=`*(this: UiText, size: float32) =
   this.font[].size = size
-  this.font.changed.emit(this.font[])
+  this.font.changed.emit()
 
 method init*(this: UiText) =
   procCall this.super.init
 
   this.arrangement.changed.connectTo this:
     if this.tex == nil: this.tex = newTexture()
-    if e != nil:
+    if this.arrangement[] != nil:
       let bounds = this.arrangement[].layoutBounds
       this.wh[] = bounds
       if bounds.x == 0 or bounds.y == 0: return
@@ -1586,18 +1588,18 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               if ctor == ident "this": warning("adding this to itself causes recursion", ctor)
               if ctor == ident "parent": warning("adding parent to itself causes recursion", ctor)
 
-            proc changableImpl(ctor, body: NimNode): NimNode =
+            proc changableImpl(prop, ctor, body: NimNode): NimNode =
               buildAst:
                 blockStmt:
                   genSym(nskLabel, "changableChildInitializationBlock")
                   stmtList:
                     discard checkCtor ctor
                     let
-                      prop = genSym(nskVar)
                       updateProc = genSym(nskProc)
                     
-                    varSection:
-                      identDefs(prop, empty(), call(bindSym"addChangableChild", ident "this", ctor))
+                    asgn:
+                      prop
+                      call(bindSym"addChangableChild", ident "this", ctor)
                     
                     procDef:
                       updateProc
@@ -1623,16 +1625,12 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       lambda:
                         empty()
                         empty(); empty()
-                        let propVal = genSym(nskParam)
                         formalParams:
                           empty()
-                          identDefs(propVal, call(bindSym"typeof", bracketExpr prop), empty())
                         empty(); empty()
                         call updateProc:
                           ident "this"
-                          propVal
-                    
-                    prop
+                          bracketExpr(prop)
 
 
             for x in body:
@@ -1664,14 +1662,10 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 impl(ident "this", s, body)
 
               of Infix[Ident(strVal: "---"), @to, @ctor]:
-                asgn:
-                  to
-                  changableImpl(ctor, nil)
+                changableImpl(to, ctor, nil)
 
               of Infix[Ident(strVal: "---"), @to, @ctor, @body is StmtList()]:
-                asgn:
-                  to
-                  changableImpl(ctor, body)
+                changableImpl(to, ctor, body)
               
               of
                 Infix[Ident(strVal: ":="), @name, @val],

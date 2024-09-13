@@ -93,7 +93,7 @@ proc eraseSelectedText*(this: TextArea) =
   let endOffset = this.text[].runeOffset(selEnd)
   
   this.text{}.delete startOffset..<(if endOffset == -1: this.text[].len else: endOffset)
-  this.text.changed.emit(this.text[])
+  this.text.changed.emit()
   
   this.selectionStart[] = selStart
   this.selectionEnd[] = selStart
@@ -254,7 +254,7 @@ method recieve*(this: TextArea, signal: Signal) =
               let ct = globalClipboard.text
               let offset = this.text.runeOffset(this.cursorPos[])
               this.text{}.insert(ct, (if offset == -1: this.text.len else: offset))
-              this.text.changed.emit(this.text[])
+              this.text.changed.emit()
               this.cursorPos[] = this.cursorPos[] + ct.runeLen
               this.selectionStart[] = this.cursorPos[]
               this.selectionEnd[] = this.cursorPos[]
@@ -301,7 +301,7 @@ method recieve*(this: TextArea, signal: Signal) =
                 else:
                   this.text[].runeOffset(this.cursorPos[])
               this.text{}.delete offset..(offset2 - 1)
-              this.text.changed.emit(this.text[])
+              this.text.changed.emit()
               this.cursorPos[] = i
 
             else:
@@ -309,7 +309,7 @@ method recieve*(this: TextArea, signal: Signal) =
               let i = this.cursorPos[] - 1
               let offset = this.text[].runeOffset(this.cursorPos[] - 1)
               this.text{}.delete offset..(offset + this.text[].runeLenAt(offset) - 1)
-              this.text.changed.emit(this.text[])
+              this.text.changed.emit()
               this.cursorPos[] = i
 
         of Key.del:
@@ -330,13 +330,13 @@ method recieve*(this: TextArea, signal: Signal) =
                 else:
                   this.text[].runeOffset(i)
               this.text{}.delete offset..(offset2 - 1)
-              this.text.changed.emit(this.text[])
+              this.text.changed.emit()
 
             else:
               # delete single letter
               let offset = this.text[].runeOffset(this.cursorPos[])
               this.text{}.delete offset..(offset + this.text[].runeLenAt(offset) - 1)
-              this.text.changed.emit(this.text[])
+              this.text.changed.emit()
         
         else: discard
     
@@ -362,7 +362,7 @@ method recieve*(this: TextArea, signal: Signal) =
           this.text[] = this.text[] & e.text
         else:
           this.text{}.insert e.text, this.text[].runeOffset(this.cursorPos[])
-          this.text.changed.emit(this.text[])
+          this.text.changed.emit()
         
         this.cursorPos[] = this.cursorPos[] + e.text.runeLen
         signal.WindowEvent.handled = true
@@ -457,14 +457,14 @@ method init*(this: TextArea) =
           root.lastDoubleClickTime = getTime()
 
 
-      this.pressed.changed.connectTo root, pressed:
-        if not pressed:
+      this.pressed.changed.connectTo root:
+        if not this.pressed[]:
           root.doubleClick = false
         
-        if activatingUsingMouse in root.allowedInteractions and pressed:
+        if activatingUsingMouse in root.allowedInteractions and this.pressed[]:
           root.active[] = true
         
-        if navigationUsingMouse in root.allowedInteractions and pressed and (not root.doubleClick):
+        if navigationUsingMouse in root.allowedInteractions and this.pressed[] and (not root.doubleClick):
           root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
 
           if selectingUsingMouse in root.allowedInteractions:

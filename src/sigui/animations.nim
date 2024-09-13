@@ -161,15 +161,15 @@ template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
   let a = Animation[T](
     action: (proc(x: T) =
       prop{} = x
-      prop.changed.emit(x, {EventConnectionFlag.transition})
+      prop.changed.emit({EventConnectionFlag.transition})
     ),
     duration: dur.property
   )
   a.a{} = prop.unsafeVal
   a.b{} = prop.unsafeVal
-  prop.changed.connect(a.eventHandler, proc(v: T) =
+  prop.changed.connect(a.eventHandler, proc() =
     a.a{} = a.currentValue
-    a.b{} = v
+    a.b{} = prop[]
     start a
   , flags = {EventConnectionFlag.transition})
   a

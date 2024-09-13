@@ -18,6 +18,8 @@ type
 
   Event*[T] = object  # pointer is wrapped to an object to attach custom destructor
     p: ptr EventObj[T]
+    uiobj*: pointer  # most of events is .changed properties, after most of which redraw should happen. If not nil, emit will call redrawUiobj
+
   EventObj*[T] = object
     ## only EventHandler can be connected to event
     ## one event can be connected to multiple components
@@ -26,6 +28,8 @@ type
     ## connection can be removed, but if EventHandler connected to event multiple times, they all will be removed
     connected: seq[EventConnection[T]]
 
+
+var redrawUiobj*: proc(uiobj: pointer) {.cdecl.}
 
 
 #* ------------- Event ------------- *#
@@ -144,20 +148,24 @@ proc disconnect*[T](s: var Event[T], flags: set[EventConnectionFlag], fullDeteac
 
 
 proc emit*[T](s: Event[T], v: T, disableFlags: set[EventConnectionFlag] = {}) =
-  if s.p == nil: return
-  var i = 0
-  while i < s.p[].connected.len:
-    if (disableFlags * s.p[].connected[i].flags).len == 0:
-      s.p[].connected[i].f(v)
-    inc i
+  if s.p != nil:
+    var i = 0
+    while i < s.p[].connected.len:
+      if (disableFlags * s.p[].connected[i].flags).len == 0:
+        s.p[].connected[i].f(v)
+      inc i
+  if s.uiobj != nil:
+    redrawUiobj s.uiobj
 
 proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
-  if s.p == nil: return
-  var i = 0
-  while i < s.p[].connected.len:
-    if (disableFlags * s.p[].connected[i].flags).len == 0:
-      s.p[].connected[i].f()
-    inc i
+  if s.p != nil:
+    var i = 0
+    while i < s.p[].connected.len:
+      if (disableFlags * s.p[].connected[i].flags).len == 0:
+        s.p[].connected[i].f()
+      inc i
+  if s.uiobj != nil:
+    redrawUiobj s.uiobj
 
 
 proc connect*[T](s: var Event[T], c: var EventHandler, f: proc(v: T), flags: set[EventConnectionFlag] = {}) =
