@@ -165,13 +165,19 @@ template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
     ),
     duration: dur.property
   )
-  a.a{} = prop.unsafeVal
-  a.b{} = prop.unsafeVal
+  a.a{} = prop[]
+  a.b{} = prop[]
+
+  var prevPropVal = prop[]
+
   prop.changed.connect(a.eventHandler, proc() =
-    a.a{} = a.currentValue
+    a.a{} = prevPropVal
     a.b{} = prop[]
     start a
   , flags = {EventConnectionFlag.transition})
+
+  prop.changed.connect(a.eventHandler, proc() = prevPropVal = prop[])
+
   a
 
 

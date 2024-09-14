@@ -706,7 +706,7 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Ui
         parent.childs[i] = v
         v.parent = parent
         v.recieve(ParentChanged(newParentInTree: parent))
-        parent.recieve(ChildAdded(child: child))
+        parent.recieve(ChildAdded(child: v))
       ),
     )
 
@@ -1594,8 +1594,8 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   genSym(nskLabel, "changableChildInitializationBlock")
                   stmtList:
                     discard checkCtor ctor
-                    let
-                      updateProc = genSym(nskProc)
+
+                    let updateProc = genSym(nskProc)
                     
                     asgn:
                       prop

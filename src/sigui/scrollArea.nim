@@ -1,6 +1,6 @@
 import std/[sequtils]
 import pkg/fusion/[matching]
-import ./[uibase, animations, mouseArea]
+import ./[uibase, events {.all.}, animations, mouseArea, dolars]
 
 type
   ScrollAreaSetting* = enum
@@ -12,8 +12,8 @@ type
     shrinkScrollBarWhenNotHovered
     hideScrollBarWhenNotHoveredOrScrolled
 
-    # disableAnimationsWhenScrollingUsingBar
-    # immediateScrollWhenClickedOnScrollBarArea
+    disableAnimationsWhenScrollingUsingBar
+    instantScrollWhenClickedOnScrollBarArea
 
 
   ScrollArea* = ref object of Uiobj
@@ -156,6 +156,59 @@ method init*(this: ScrollArea) =
         not(scrollArea.horizontalScrollBarArea.hovered[] or scrollArea.horizontalScrollBarArea.pressed[])
       ):
         scrollArea.horizontalScrollBarShouldBeVisible[] = false
+  
+
+  template makeScrollBar3(
+    this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbarObj, verticalScrollOverFit, verticalScrollSpeed
+  ) =
+    var isDraggingScrollbar: bool
+    var prevMouseY: float
+
+    proc moveVerticalScrollbarToMouse(mouseY: float) =
+      proc setScrollY(scrollArea: ScrollArea, newScrollY: float) =
+        if disableAnimationsWhenScrollingUsingBar in scrollArea.settings[]:
+          scrollArea.scrollY{} = newScrollY
+          scrollArea.scrollY.changed.emit({EventConnectionFlag.transition})
+          scrollArea.targetY[] = newScrollY
+        else:
+          scrollArea.targetY[] = newScrollY
+
+      if isDraggingScrollbar:
+        let d = mouseY - prevMouseY
+        prevMouseY = mouseY
+        scrollArea.setScrollY (
+          scrollArea.targetY[] + (d / this.h[] * (scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[]))
+        ).min(scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[]).max(0)
+      
+      else:
+        if instantScrollWhenClickedOnScrollBarArea in scrollArea.settings[]:
+          scrollArea.setScrollY (
+            (this.mouseY[] - scrollArea.verticalScrollbarObj[].h[] / 2) / (this.h[] - scrollArea.verticalScrollbarObj[].h[]) *
+            (scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[])
+          ).min(scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[]).max(0)
+        
+        else:
+          if this.mouseY[] notin (
+            scrollArea.verticalScrollbarObj[].y[] ..
+            (scrollArea.verticalScrollbarObj[].y[] + scrollArea.verticalScrollbarObj[].h[])
+          ):
+            scrollArea.setScrollY (
+              scrollArea.targetY[] +
+              scrollArea.verticalScrollSpeed[] * (if this.mouseY[] < scrollArea.verticalScrollbarObj[].y[]: -1 else: 1)
+            ).min(scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[]).max(0)
+
+    
+    this.pressed.changed.connectTo scrollArea:
+      isDraggingScrollbar = this.mouseY[] in (
+        scrollArea.verticalScrollbarObj[].y[] ..
+        (scrollArea.verticalScrollbarObj[].y[] + scrollArea.verticalScrollbarObj[].h[])
+      )
+      prevMouseY = this.mouseY[]
+      if (hasScrollBar in scrollArea.settings[]) and this.pressed[]: moveVerticalScrollbarToMouse(this.mouseY[])
+    
+    this.mouseY.changed.connectTo scrollArea:
+      if (hasScrollBar in scrollArea.settings[]) and this.pressed[]: moveVerticalScrollbarToMouse(this.mouseY[])
+
 
 
   # actual scroll area
@@ -205,7 +258,7 @@ method init*(this: ScrollArea) =
         w = binding:
           if (
             shrinkScrollBarWhenNotHovered in scrollArea.settings[] and
-            (not scrollArea.verticalScrollBarArea.hovered[] or scrollArea.verticalScrollBarArea.pressed[])
+            not (scrollArea.verticalScrollBarArea.hovered[] or scrollArea.verticalScrollBarArea.pressed[])
           ):
             scrollArea.verticalScrollBarShrinkedWidth[]
           else:
@@ -219,6 +272,8 @@ method init*(this: ScrollArea) =
 
         - this.w.transition(0.2's):
           easing = outSquareEasing
+      
+      makeScrollBar3(this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollBarObj, verticalScrollOverFit, verticalScrollSpeed)
     
 
     - scrollArea.horizontalScrollBarArea:
@@ -246,6 +301,8 @@ method init*(this: ScrollArea) =
 
         - this.h.transition(0.2's):
           easing = outSquareEasing
+      
+      makeScrollBar3(this, mouseX, scrollX, targetX, scrollW, x, w, horizontalScrollbarObj, horizontalScrollOverFit, horizontalScrollSpeed)
 
 
     this.newChildsObject = container
