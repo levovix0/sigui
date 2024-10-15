@@ -396,7 +396,7 @@ method init*(this: TextArea) =
       if pos > arrangement.positions.high:
         arrangement.layoutBounds.x
       else:
-        arrangement.positions[pos].x
+        arrangement.selectionRects[pos].x
     else: 0
   
   proc characterAtPosition(arrangement: Arrangement, pos: float): int =

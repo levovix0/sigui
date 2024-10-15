@@ -17,11 +17,18 @@ test "anchors":
     this.bindingValue w[]: (this.w[] - margin * 4) / 3
     this.bindingValue h[]: (this.h[] - margin * 4) / 3
 
+    - UiObj() as background
+
     proc text(s: string): UiText =
       result = UiText()
       initIfNeeded result
       result.text[] = s
       result.font[] = typeface.withSize(16)
+      result.makeLayout:
+        - UiRect():
+          this.fill parent
+          drawLayer = after background
+          color = "c0c0c0"
 
     - UiRectBorder() as rect_tl:
       left = parent.left + margin

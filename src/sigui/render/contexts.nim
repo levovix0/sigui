@@ -1,7 +1,7 @@
 import std/[tables, macros, sequtils, sets]
 import pkg/[shady, pixie]
 import pkg/fusion/[matching, astdsl]
-import ./[gl]
+import ./[gl, text as renderText]
 
 when hasImageman:
   import pkg/imageman
@@ -23,6 +23,8 @@ type
 
     frameBufferHierarchy*: seq[tuple[fbo: GlUint, size: IVec2]]
     offset*: Vec2
+
+    glyphBuffer*: GlyphBuffer
 
 
 var freeTextures*: HashSet[GlUint]
@@ -297,3 +299,62 @@ proc updateDrawingAreaSize*(ctx: DrawContext, size: IVec2) =
   # update size
   ctx.px = vec2(2'f32 / size.x.float32, 2'f32 / size.y.float32)
   ctx.wh = ivec2(size.x, -size.y).vec2 / 2
+
+
+proc drawText*(ctx: DrawContext, pos: Vec2, arrangement: Arrangement, color: Vec4) =
+  if arrangement == nil or arrangement.fonts.len == 0:
+    return
+
+  let shader = ctx.makeShader:
+    proc vert(
+      gl_Position: var Vec4,
+      pos: var Vec2,
+      uv: var Vec2,
+      ipos: Vec2,
+      transform: Uniform[Mat4],
+      size: Uniform[Vec2],
+      px: Uniform[Vec2],
+      placement: Uniform[Vec2],
+      placementWh: Uniform[Vec2],
+    ) =
+      transformation(gl_Position, pos, size, px, ipos, transform)
+      uv = placement + ipos * placementWh
+
+    proc frag(
+      glCol: var Vec4,
+      pos: Vec2,
+      uv: Vec2,
+      size: Uniform[Vec2],
+      color: Uniform[Vec4],
+    ) =
+      let col = gltex.texture(uv)
+      glCol = vec4(color.rgb * color.a, color.a) * col.r
+
+  use shader.shader
+  glEnable(GlBlend)
+  glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
+
+  let family = ctx.glyphBuffer.families.mgetOrPut(arrangement.fonts[0].glyphFamily, GlyphFamilyBuffer()).addr
+
+  for i, rune in arrangement.runes:
+    var rect = arrangement.selectionRects[i]
+    # todo: force pixie to adjust text to pixel grid while generating arrangement, for better alligning
+    ctx.passTransform(shader, pos = pos + rect.xy, size = rect.wh, angle=0)
+
+    let placement = family[].renderIfNeeded(rune, arrangement.fonts[0], rect.wh)
+    shader.placement.uniform =
+      vec2(placement.x.float, placement.y.float) /
+      vec2(sigui_glyphBuffer_textureSize, sigui_glyphBuffer_textureSize)
+    
+    shader.placementWh.uniform =
+      rect.wh /
+      vec2(sigui_glyphBuffer_textureSize, sigui_glyphBuffer_textureSize)
+
+    shader.color.uniform = color
+    
+    glBindTexture(GlTexture2d, placement.texture)
+
+    draw ctx.rect
+  
+  glBindTexture(GlTexture2d, 0)
+  glDisable(GlBlend)

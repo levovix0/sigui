@@ -194,12 +194,10 @@ type
     hAlign*: Property[HorizontalAlignment]
     vAlign*: Property[VerticalAlignment]
     wrap*: Property[bool] = true.property
-    angle*: Property[float32]
     color*: Property[Col] = color(0, 0, 0).property
 
     arrangement*: Property[Arrangement]
     roundPositionOnDraw*: Property[bool] = true.property
-    tex: Texture
   
   BindingKind = enum
     bindProperty
@@ -221,11 +219,12 @@ var registredReflection {.compileTime.}: seq[tuple[f: NimNode, filter: NimNode]]
 var globalClipboard* = siwin.clipboard()
 
 
-proc vec4*(color: Col): Vec4 =
+proc vec4*(color: chroma.Color): Vec4 =
   vec4(color.r, color.g, color.b, color.a)
 
-proc color*(v: Vec4): Col =
-  Col(r: v.x, g: v.y, b: v.z, a: v.w)
+proc color*(v: Vec4): chroma.Color =
+  chroma.Color(r: v.x, g: v.y, b: v.z, a: v.w)
+
 
 proc round*(v: Vec2): Vec2 =
   vec2(round(v.x), round(v.y))
@@ -1182,29 +1181,23 @@ method init*(this: UiText) =
   procCall this.super.init
 
   this.arrangement.changed.connectTo this:
-    if this.tex == nil: this.tex = newTexture()
     if this.arrangement[] != nil:
       let bounds = this.arrangement[].layoutBounds
       this.wh[] = bounds
-      if bounds.x == 0 or bounds.y == 0: return
-      let image = newImage(bounds.x.ceil.int32, bounds.y.ceil.int32)
-      image.fillText(this.arrangement[])
-      this.tex.load(image)
-      # todo: reposition
     else:
       this.wh[] = vec2()
 
-  template newArrangement: Arrangement =
+  proc newArrangement(this: UiText): Arrangement =
     if this.text[] != "" and this.font != nil:
       typeset(this.font[], this.text[], this.bounds[], this.hAlign[], this.vAlign[], this.wrap[])
     else: nil
 
-  this.text.changed.connectTo this: this.arrangement[] = newArrangement
-  this.font.changed.connectTo this: this.arrangement[] = newArrangement
-  this.bounds.changed.connectTo this: this.arrangement[] = newArrangement
-  this.hAlign.changed.connectTo this: this.arrangement[] = newArrangement
-  this.vAlign.changed.connectTo this: this.arrangement[] = newArrangement
-  this.wrap.changed.connectTo this: this.arrangement[] = newArrangement
+  this.text.changed.connectTo this: this.arrangement[] = newArrangement(this)
+  this.font.changed.connectTo this: this.arrangement[] = newArrangement(this)
+  this.bounds.changed.connectTo this: this.arrangement[] = newArrangement(this)
+  this.hAlign.changed.connectTo this: this.arrangement[] = newArrangement(this)
+  this.vAlign.changed.connectTo this: this.arrangement[] = newArrangement(this)
+  this.wrap.changed.connectTo this: this.arrangement[] = newArrangement(this)
 
 
 method draw*(text: UiText, ctx: DrawContext) =
@@ -1215,8 +1208,8 @@ method draw*(text: UiText, ctx: DrawContext) =
     else:
       text.xy[].posToGlobal(text.parent) + ctx.offset
 
-  if text.visibility[] == visible and text.tex != nil:
-    ctx.drawIcon(pos, text.wh[], text.tex.raw, text.color.vec4, 0, true, text.angle)
+  if text.visibility[] == visible:
+    ctx.drawText(pos, text.arrangement[], text.color.vec4)
   text.drawAfter(ctx)
 
 
