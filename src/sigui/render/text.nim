@@ -41,9 +41,9 @@ proc render(familyBuffer: var GlyphFamilyBuffer, placement: var GlyphPlacement, 
 
     glBindTexture(GlTexture2d, textureId)
 
-    let buffer = alloc0(ts * ts)
+    let buffer = alloc0(ts * ts * 4)
 
-    glTexImage2D(GlTexture2d, 0, GlR8.GLint, ts.GLsizei, ts.GLsizei, 0, GlRed, GlUnsignedByte, buffer)
+    glTexImage2D(GlTexture2d, 0, GlRgba.GLint, ts.GLsizei, ts.GLsizei, 0, GlRgba, GlUnsignedByte, buffer)
     glGenerateMipmap(GlTexture2d)
 
     glBindTexture(GlTexture2d, 0)

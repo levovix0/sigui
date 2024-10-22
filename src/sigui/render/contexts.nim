@@ -152,7 +152,7 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
     frag: NimNode
     uniforms: Table[string, NimNode]
   
-  var version: NimNode = newLit "330 core"
+  var version: NimNode = newLit "300 es"
   var origBody = body
   var body = body
   if body.kind != nnkStmtList:

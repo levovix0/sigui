@@ -1892,7 +1892,7 @@ macro generateInitRedrawWhenPropertyChangedMethod(t: typed) =
 registerReflection generateInitRedrawWhenPropertyChangedMethod, T is Uiobj and t != "Uiobj"
 
 
-converter toColor*(s: string{lit}): chroma.Color =
+proc toColor*(s: string): chroma.Color =
   case s.len
   of 3:
     result = chroma.Color(
@@ -1924,3 +1924,7 @@ converter toColor*(s: string{lit}): chroma.Color =
     )
   else:
     raise ValueError.newException("invalid color: " & s)
+
+
+converter litToColor*(s: string{lit}): chroma.Color =
+  s.toColor

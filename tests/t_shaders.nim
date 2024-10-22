@@ -11,7 +11,7 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
   this.drawBefore(ctx)
   if this.visibility == visible:
     let shader = ctx.makeShader:
-      {.version: "330 core".}
+      {.version: "300 es".}
       
       proc vert(
         gl_Position: var Vec4,
