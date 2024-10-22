@@ -27,7 +27,7 @@ type
       ## mouse button pressed and released inside this area (also if pressed, leaved, re-entered and released)
 
     dragged* {.deprecated #[use grabbed instead]#.}: Event[IVec2]
-    grabbed*: Event[IVec2]
+    grabbed*: Event[Vec2]
       ## mouse pressed and started moving while in this area
       ## emits start position (relative to screen)
       ## see mouseX and mouseY for current position
@@ -45,7 +45,7 @@ type
       ## cursor for mouse when inside this area
     
     pressedButtons: set[MouseButton]
-    pressedPos: IVec2
+    pressedPos: Vec2
     grabStarted: bool
 
 proc initRedrawWhenPropertyChanged_ignore(t: type MouseArea, name: string): bool =
@@ -121,7 +121,7 @@ method recieve*(this: MouseArea, signal: Signal) =
             if this.hovered[]:
               this.pressedButtons.incl e.button
               this.pressed[] = true
-              this.pressedPos = e.window.mouse.pos + e.window.pos
+              this.pressedPos = e.window.mouse.pos + e.window.pos.vec2
           else:
             this.pressedButtons.excl e.button
             if this.pressedButtons == {}:

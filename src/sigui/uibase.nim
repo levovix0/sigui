@@ -216,9 +216,6 @@ var registredReflection {.compileTime.}: seq[tuple[f: NimNode, filter: NimNode]]
   # callable syms
 
 
-var globalClipboard* = siwin.clipboard()
-
-
 proc vec4*(color: chroma.Color): Vec4 =
   vec4(color.r, color.g, color.b, color.a)
 

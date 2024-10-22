@@ -239,9 +239,9 @@ method recieve*(this: TextArea, signal: Signal) =
             if window.keyboard.pressed.containsControl():  # when crl+c pressed and copyingUsingCtrlC enabled
               # copy selected text
               if this.selectionStart[] != this.selectionEnd[]:
-                globalClipboard.text = this.selectedText
+                this.parentWindow.clipboard.text = this.selectedText
               else:
-                globalClipboard.text = this.text[]
+                this.parentWindow.clipboard.text = this.text[]
         
         of Key.v:
           if pastingUsingCtrlV in this.allowedInteractions:
@@ -251,7 +251,7 @@ method recieve*(this: TextArea, signal: Signal) =
                 this.pushState()
               this.eraseSelectedText()
 
-              let ct = globalClipboard.text
+              let ct = this.parentWindow.clipboard.text
               let offset = this.text.runeOffset(this.cursorPos[])
               this.text{}.insert(ct, (if offset == -1: this.text.len else: offset))
               this.text.changed.emit()
@@ -266,7 +266,7 @@ method recieve*(this: TextArea, signal: Signal) =
               if this.selectionStart[] != this.selectionEnd[]:
                 if savingUndoStates in this.allowedInteractions:
                   this.pushState()
-                globalClipboard.text = this.selectedText
+                this.parentWindow.clipboard.text = this.selectedText
                 this.eraseSelectedText()
         
         of Key.z:
