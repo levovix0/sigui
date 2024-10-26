@@ -33,7 +33,7 @@ type
     visible
     hidden
     hiddenTree
-    collapsed
+    collapsed  #? is it needed?
   
   
   Signal* = ref object of RootObj
@@ -103,10 +103,6 @@ type
 
   ParentChanged* = ref object of SubtreeSignal
     newParentInTree*: Uiobj
-
-  ParentPositionChanged* = ref object of SubtreeSignal
-    parent*: Uiobj
-    position*: Vec2
   
   WindowEvent* = ref object of SubtreeSignal
     event*: ref AnyWindowEvent
@@ -371,8 +367,9 @@ proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
     if obj == nil: return
     result.x -= obj.x[]
     result.y -= obj.y[]
-    if obj.globalTransform: return
+    if obj.globalTransform[]: return
     obj = obj.parent
+
 
 proc posToGlobal*(pos: Vec2, obj: Uiobj): Vec2 =
   result = pos
@@ -381,62 +378,15 @@ proc posToGlobal*(pos: Vec2, obj: Uiobj): Vec2 =
     if obj == nil: return
     result.x += obj.x[]
     result.y += obj.y[]
-    if obj.globalTransform: return
+    if obj.globalTransform[]: return
     obj = obj.parent
 
 
 proc posToObject*(fromObj, toObj: Uiobj, pos: Vec2): Vec2 =
-  pos.posToGlobal(fromObj).posToLocal(toObj)
+  pos + fromObj.globalXy - toObj.globalXy
 
-proc posToObject*(pos: Vec2, fromObj, toObj: Uiobj): Vec2 =
-  pos.posToGlobal(fromObj).posToLocal(toObj)
-
-
-proc pos*(anchor: Anchor, isY: bool): Vec2 =
-  assert anchor.obj != nil
-  let p = case anchor.offsetFrom
-  of start:
-    if isY:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.top.obj == nil and anchor.obj.anchors.bottom.obj != nil:
-        anchor.obj.h[] + anchor.offset
-      else:
-        anchor.offset
-    else:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.left.obj == nil and anchor.obj.anchors.right.obj != nil:
-        anchor.obj.w[] + anchor.offset
-      else:
-        anchor.offset
-  of `end`:
-    if isY:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.top.obj != nil and anchor.obj.anchors.bottom.obj == nil:
-        anchor.offset
-      else:
-        anchor.obj.h[] + anchor.offset
-    else:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.left.obj != nil and anchor.obj.anchors.right.obj == nil:
-        anchor.offset
-      else:
-        anchor.obj.w[] + anchor.offset
-  of center:
-    if isY:
-      if anchor.obj.visibility == collapsed:
-        if anchor.obj.anchors.top.obj == nil and anchor.obj.anchors.bottom.obj != nil:
-          anchor.obj.h[] + anchor.offset
-        else:
-          anchor.offset
-      else:
-        anchor.obj.h[] / 2 + anchor.offset
-    else:
-      if anchor.obj.visibility == collapsed:
-        if anchor.obj.anchors.left.obj == nil and anchor.obj.anchors.right.obj != nil:
-          anchor.obj.w[] + anchor.offset
-        else:
-          anchor.offset
-      else:
-        anchor.obj.w[] / 2 + anchor.offset
-
-  if isY: vec2(0, p).posToGlobal(anchor.obj)
-  else: vec2(p, 0).posToGlobal(anchor.obj)
+proc posToObject*(pos: Vec2, fromObj, toObj: Uiobj): Vec2 {.inline.} =
+  posToObject(fromObj, toObj, pos)
 
 
 #--- Events connection ---
@@ -460,32 +410,81 @@ template connectTo*(s: var Event[void], obj: HasEventHandler, argname: untyped, 
 
 #--- Reposition ---
 
+proc pos*(anchor: Anchor, isY: bool, toObject: UiObj): float32 =
+  assert anchor.obj != nil
+  let p = case anchor.offsetFrom
+  of start:
+    if isY:
+      if anchor.obj.visibility == collapsed and anchor.obj.anchors.top.obj == nil and anchor.obj.anchors.bottom.obj != nil:
+        anchor.obj.h[] + anchor.offset
+      else:
+        anchor.offset
+    else:
+      if anchor.obj.visibility == collapsed and anchor.obj.anchors.left.obj == nil and anchor.obj.anchors.right.obj != nil:
+        anchor.obj.w[] + anchor.offset
+      else:
+        anchor.offset
+
+  of `end`:
+    if isY:
+      if anchor.obj.visibility == collapsed and anchor.obj.anchors.top.obj != nil and anchor.obj.anchors.bottom.obj == nil:
+        anchor.offset
+      else:
+        anchor.obj.h[] + anchor.offset
+    else:
+      if anchor.obj.visibility == collapsed and anchor.obj.anchors.left.obj != nil and anchor.obj.anchors.right.obj == nil:
+        anchor.offset
+      else:
+        anchor.obj.w[] + anchor.offset
+
+  of center:
+    if isY:
+      if anchor.obj.visibility == collapsed:
+        if anchor.obj.anchors.top.obj == nil and anchor.obj.anchors.bottom.obj != nil:
+          anchor.obj.h[] + anchor.offset
+        else:
+          anchor.offset
+      else:
+        anchor.obj.h[] / 2 + anchor.offset
+    else:
+      if anchor.obj.visibility == collapsed:
+        if anchor.obj.anchors.left.obj == nil and anchor.obj.anchors.right.obj != nil:
+          anchor.obj.w[] + anchor.offset
+        else:
+          anchor.offset
+      else:
+        anchor.obj.w[] / 2 + anchor.offset
+
+  if isY: p + anchor.obj.globalY[] - (if toObject != nil: toObject.globalY[] else: 0)
+  else: p + anchor.obj.globalX[] - (if toObject != nil: toObject.globalX[] else: 0)
+
+
 proc applyAnchors*(obj: Uiobj) =
   # x and w
   if obj.anchors.left.obj != nil:
-    obj.x[] = obj.anchors.left.pos(isY=false).posToLocal(obj.parent).x
+    obj.x[] = obj.anchors.left.pos(isY=false, obj.parent)
   
   if obj.anchors.right.obj != nil:
     if obj.anchors.left.obj != nil:
-      obj.w[] = obj.anchors.right.pos(isY=false).posToLocal(obj.parent).x - obj.x[]
+      obj.w[] = obj.anchors.right.pos(isY=false, obj.parent) - obj.x[]
     else:
-      obj.x[] = obj.anchors.right.pos(isY=false).posToLocal(obj.parent).x - obj.w[]
+      obj.x[] = obj.anchors.right.pos(isY=false, obj.parent) - obj.w[]
   
   if obj.anchors.centerX.obj != nil:
-    obj.x[] = obj.anchors.centerX.pos(isY=false).posToLocal(obj.parent).x - obj.w[] / 2
+    obj.x[] = obj.anchors.centerX.pos(isY=false, obj.parent) - obj.w[] / 2
 
   # y and h
   if obj.anchors.top.obj != nil:
-    obj.y[] = obj.anchors.top.pos(isY=true).posToLocal(obj.parent).y
+    obj.y[] = obj.anchors.top.pos(isY=true, obj.parent)
   
   if obj.anchors.bottom.obj != nil:
     if obj.anchors.top.obj != nil:
-      obj.h[] = obj.anchors.bottom.pos(isY=true).posToLocal(obj.parent).y - obj.y[]
+      obj.h[] = obj.anchors.bottom.pos(isY=true, obj.parent) - obj.y[]
     else:
-      obj.y[] = obj.anchors.bottom.pos(isY=true).posToLocal(obj.parent).y - obj.h[]
+      obj.y[] = obj.anchors.bottom.pos(isY=true, obj.parent) - obj.h[]
   
   if obj.anchors.centerY.obj != nil:
-    obj.y[] = obj.anchors.centerY.pos(isY=true).posToLocal(obj.parent).y - obj.h[] / 2
+    obj.y[] = obj.anchors.centerY.pos(isY=true, obj.parent) - obj.h[] / 2
 
 
 proc left*(obj: Uiobj, margin: float32 = 0): Anchor =
@@ -506,28 +505,37 @@ proc `-`*(a: Anchor, offset: float32): Anchor =
   Anchor(obj: a.obj, offsetFrom: a.offsetFrom, offset: a.offset - offset)
 
 proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
+  proc applyThisAnchors =
+    this.applyAnchors()
+
   if anchor.obj == nil: return
   if not isY:
     case anchor.offsetFrom:
     of start:
-      anchor.obj.globalX.changed.connectTo anchor: this.applyAnchors()
+      if anchor.obj != this.parent:
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
     of `end`:
-      anchor.obj.globalX.changed.connectTo anchor: this.applyAnchors()
-      anchor.obj.w.changed.connectTo anchor: this.applyAnchors()
+      if anchor.obj != this.parent:
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors)
     of center:
-      anchor.obj.globalX.changed.connectTo anchor: this.applyAnchors()
-      anchor.obj.w.changed.connectTo anchor: this.applyAnchors()
+      if anchor.obj != this.parent:
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors)
   else:
     case anchor.offsetFrom:
     of start:
-      anchor.obj.globalY.changed.connectTo anchor: this.applyAnchors()
+      if anchor.obj != this.parent:
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
     of `end`:
-      anchor.obj.globalY.changed.connectTo anchor: this.applyAnchors()
-      anchor.obj.h.changed.connectTo anchor: this.applyAnchors()
+      if anchor.obj != this.parent:
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors)
     of center:
-      anchor.obj.globalY.changed.connectTo anchor: this.applyAnchors()
-      anchor.obj.h.changed.connectTo anchor: this.applyAnchors()
-  anchor.obj.visibility.changed.connectTo anchor: this.applyAnchors()
+      if anchor.obj != this.parent:
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors)
+  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors)
 
 template anchorAssign(anchor: untyped, isY: bool): untyped {.dirty.} =
   proc `anchor=`*(obj: Uiobj, v: Anchor) =
@@ -546,11 +554,6 @@ anchorAssign centerY, true
 method recieve*(obj: Uiobj, signal: Signal) {.base.} =
   if signal of AttachedToWindow:
     obj.attachedToWindow = true
-
-  if signal of ParentPositionChanged:
-    let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
-    obj.globalX[] = p.x
-    obj.globalY[] = p.y
 
   obj.onSignal.emit signal
 
@@ -585,6 +588,19 @@ method initRedrawWhenPropertyChanged*(obj: Uiobj) {.base.} =
   initRedrawWhenPropertyChangedStatic(obj)
 
 
+proc spreadGlobalXChange(obj: Uiobj, delta: float32) =
+  obj.globalX{} += delta
+  for x in obj.childs:
+    x.spreadGlobalXChange(delta)
+  obj.globalX.changed.emit()
+
+proc spreadGlobalYChange(obj: Uiobj, delta: float32) =
+  obj.globalY{} += delta
+  for x in obj.childs:
+    x.spreadGlobalYChange(delta)
+  obj.globalY.changed.emit()
+
+
 method init*(obj: Uiobj) {.base.} =
   initRedrawWhenPropertyChanged(obj)
 
@@ -595,13 +611,19 @@ method init*(obj: Uiobj) {.base.} =
   obj.h.changed.connectTo obj: obj.applyAnchors()
 
   obj.x.changed.connectTo obj:
-    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy))
-  obj.y.changed.connectTo obj:
-    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy))
+    obj.spreadGlobalXChange(
+      if obj.parent == nil or obj.globalTransform[]: obj.x[] - obj.globalX[]
+      else: obj.x[] - (obj.globalX[] - obj.parent.globalX[])
+    )
 
-  let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
-  obj.globalX[] = p.x
-  obj.globalY[] = p.y
+  obj.y.changed.connectTo obj:
+    obj.spreadGlobalYChange(
+      if obj.parent == nil or obj.globalTransform[]: obj.y[] - obj.globalY[]
+      else: obj.y[] - (obj.globalY[] - obj.parent.globalY[])
+    )
+
+  obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
+  obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
   
   if not obj.attachedToWindow:
     let win = obj.parentUiWindow
