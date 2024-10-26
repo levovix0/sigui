@@ -810,7 +810,7 @@ proc drawRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius: float
       size: Uniform[Vec2],
       px: Uniform[Vec2],
     ) =
-      transformation(gl_Position, pos, size, px, ipos, transform)
+      transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
 
     proc frag(
       glCol: var Vec4,
@@ -819,7 +819,7 @@ proc drawRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius: float
       size: Uniform[Vec2],
       color: Uniform[Vec4],
     ) =
-      glCol = vec4(color.rgb * color.a, color.a) * roundRect(pos, size, radius)
+      glCol = vec4(color.Vec4.rgb * color.Vec4.a, color.Vec4.a) * roundRect(pos, size.Vec2, radius.float)
   
   if blend:
     glEnable(GlBlend)
@@ -894,7 +894,7 @@ proc drawRectStroke*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
       size: Uniform[Vec2],
       px: Uniform[Vec2],
     ) =
-      transformation(gl_Position, pos, size, px, ipos, transform)
+      transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
 
     proc frag(
       glCol: var Vec4,
@@ -907,14 +907,14 @@ proc drawRectStroke*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
       tileSecondSize: Uniform[Vec2],
       secondColor: Uniform[Vec4],
     ) =
-      if strokeTiling(pos, size, tileSize, tileSecondSize, radius, borderWidth) > 0:
+      if strokeTiling(pos, size.Vec2, tileSize.Vec2, tileSecondSize.Vec2, radius, borderWidth) > 0:
         glCol =
-          vec4(secondColor.rgb * secondColor.a, secondColor.a) *
-          roundRectStroke(pos, size, radius, borderWidth)
+          vec4(secondColor.Vec4.rgb * secondColor.Vec4.a, secondColor.Vec4.a) *
+          roundRectStroke(pos, size.Vec2, radius.float, borderWidth.float)
       else:
         glCol =
-          vec4(color.rgb * color.a, color.a) *
-          roundRectStroke(pos, size, radius, borderWidth)
+          vec4(color.Vec4.rgb * color.Vec4.a, color.Vec4.a) *
+          roundRectStroke(pos, size.Vec2, radius.float, borderWidth.float)
   
   if blend:
     glEnable(GlBlend)
@@ -947,7 +947,7 @@ proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, color: Vec
       size: Uniform[Vec2],
       px: Uniform[Vec2],
     ) =
-      transformation(gl_Position, pos, size, px, ipos, transform)
+      transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
       uv = ipos
 
     proc frag(
@@ -959,7 +959,7 @@ proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, color: Vec
       color: Uniform[Vec4],
     ) =
       let c = gltex.texture(uv)
-      glCol = vec4(c.rgb, c.a) * roundRect(pos, size, radius) * vec4(color.rgb * color.a, color.a)
+      glCol = vec4(c.rgb, c.a) * roundRect(pos, size.Vec2, radius.float) * vec4(color.Vec4.rgb * color.Vec4.a, color.Vec4.a)
 
   if blend:
     glEnable(GlBlend)
@@ -987,7 +987,7 @@ proc drawIcon*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, col: Vec4, 
       size: Uniform[Vec2],
       px: Uniform[Vec2],
     ) =
-      transformation(gl_Position, pos, size, px, ipos, transform)
+      transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
       uv = ipos
 
     proc frag(
@@ -999,7 +999,7 @@ proc drawIcon*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, col: Vec4, 
       color: Uniform[Vec4],
     ) =
       let col = gltex.texture(uv)
-      glCol = vec4(color.rgb * color.a, color.a) * col.a * roundRect(pos, size, radius)
+      glCol = vec4(color.Vec4.rgb * color.Vec4.a, color.Vec4.a) * col.a * roundRect(pos, size.Vec2, radius.float)
 
   if blend:
     glEnable(GlBlend)
@@ -1059,7 +1059,7 @@ proc drawShadowRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
       size: Uniform[Vec2],
       px: Uniform[Vec2],
     ) =
-      transformation(gl_Position, pos, size, px, ipos, transform)
+      transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
 
     proc frag(
       glCol: var Vec4,
@@ -1069,7 +1069,7 @@ proc drawShadowRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
       size: Uniform[Vec2],
       color: Uniform[Vec4],
     ) =
-      glCol = vec4(color.rgb * color.a, color.a) * distanceRoundRect(pos, size, radius, blurRadius)
+      glCol = vec4(color.Vec4.rgb * color.Vec4.a, color.Vec4.a) * distanceRoundRect(pos, size.Vec2, radius.float, blurRadius.float)
 
   if blend:
     glEnable(GlBlend)

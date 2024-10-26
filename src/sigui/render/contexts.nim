@@ -317,8 +317,8 @@ proc drawText*(ctx: DrawContext, pos: Vec2, arrangement: Arrangement, color: Vec
       placement: Uniform[Vec2],
       placementWh: Uniform[Vec2],
     ) =
-      transformation(gl_Position, pos, size, px, ipos, transform)
-      uv = placement + ipos * placementWh
+      transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
+      uv = placement.Vec2 + ipos * placementWh.Vec2
 
     proc frag(
       glCol: var Vec4,
@@ -328,7 +328,7 @@ proc drawText*(ctx: DrawContext, pos: Vec2, arrangement: Arrangement, color: Vec
       color: Uniform[Vec4],
     ) =
       let col = gltex.texture(uv)
-      glCol = vec4(color.rgb * color.a, color.a) * col.r
+      glCol = vec4(color.Vec4.rgb * color.Vec4.a, color.Vec4.a) * col.r
 
   use shader.shader
   glEnable(GlBlend)

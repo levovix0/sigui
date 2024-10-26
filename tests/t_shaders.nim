@@ -24,7 +24,7 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
         # default sigui specific transformation to correct locate component on screen
         # and convert opengl's coordinate system (-1..1) to sigui's coordinate system (0..windowSize_inPixels)
         # out `pos` is component-local (0..componentSize_inPixels)
-        transformation(gl_Position, pos, size, px, ipos, transform)
+        transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
         # don't use it if you don't need it (and don't call `ctx.passTransform` if so)
 
       proc frag(
