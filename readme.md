@@ -85,7 +85,7 @@ method init*(this: Switch) =
   if this.initialized: return
   procCall this.super.init()
   
-  this.isOn.changed.connectTo this, val:
+  this.isOn.changed.connectTo this:
     echo this
 
   this.makeLayout:
@@ -199,8 +199,8 @@ registerComponent MyComponent
 method init*(this: MyComponent) =
   procCall this.super.init()
 
-  this.myState.changed.connectTo this, val:
-    this.myInternalState = val
+  this.myState.changed.connectTo this:
+    this.myInternalState = this.myState[]
 
   this.makeLayout:
     - UiRect():
@@ -436,7 +436,7 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
 
     use shader.shader
-    ctx.passTransform(shader, pos=(this.xy[].posToGlobal(this.parent) + ctx.offset).round, size=this.wh[].round, angle=0)
+    ctx.passTransform(shader, pos=(this.xy.posToGlobal(this.parent) + ctx.offset).round, size=this.wh.round, angle=0)
     shader.tileSize.uniform = this.tileSize
     
     draw ctx.rect

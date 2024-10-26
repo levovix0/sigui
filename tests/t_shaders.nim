@@ -44,7 +44,7 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
 
     use shader.shader
-    ctx.passTransform(shader, pos=(this.xy[].posToGlobal(this.parent) + ctx.offset).round, size=this.wh[].round, angle=0)
+    ctx.passTransform(shader, pos=(this.xy.posToGlobal(this.parent) + ctx.offset).round, size=this.wh.round, angle=0)
     shader.tileSize.uniform = this.tileSize
     
     draw ctx.rect

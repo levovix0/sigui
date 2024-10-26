@@ -250,27 +250,28 @@ proc containsSystem*(keyboardPressed: set[Key]): bool =
 #* ------------- Uiobj ------------- *#
 
 
-proc xy*(obj: Uiobj): CustomProperty[Vec2] =
-  ##! never emits changed event
-  CustomProperty[Vec2](
-    get: proc(): Vec2 = vec2(obj.x[], obj.y[]),
-    set: proc(v: Vec2) = obj.x[] = v.x; obj.y[] = v.y,
-  )
+proc xy*(obj: Uiobj): Vec2 =
+  vec2(obj.x[], obj.y[])
 
-proc wh*(obj: Uiobj): CustomProperty[Vec2] =
-  ##! never emits changed event
-  CustomProperty[Vec2](
-    get: proc(): Vec2 = vec2(obj.w[], obj.h[]),
-    set: proc(v: Vec2) = obj.w[] = v.x; obj.h[] = v.y,
-  )
+proc `xy=`*(obj: Uiobj, v: Vec2) =
+  obj.x[] = v.x
+  obj.y[] = v.y
 
 
-proc globalXy*(obj: Uiobj): CustomProperty[Vec2] =
-  ##! never emits changed event
-  CustomProperty[Vec2](
-    get: proc(): Vec2 = vec2(obj.globalX[], obj.globalY[]),
-    set: proc(v: Vec2) = obj.globalX[] = v.x; obj.globalY[] = v.y,
-  )
+proc wh*(obj: Uiobj): Vec2 =
+  vec2(obj.w[], obj.h[])
+
+proc `wh=`*(obj: Uiobj, v: Vec2) =
+  obj.w[] = v.x
+  obj.h[] = v.y
+
+
+proc globalXy*(obj: Uiobj): Vec2 =
+  vec2(obj.globalX[], obj.globalY[])
+
+proc `globalXy=`*(obj: Uiobj, v: Vec2) =
+  obj.globalX[] = v.x
+  obj.globalY[] = v.y
 
 
 method draw*(obj: Uiobj, ctx: DrawContext) {.base.}
@@ -368,7 +369,8 @@ proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
   var obj {.cursor.} = obj
   while true:
     if obj == nil: return
-    result -= obj.xy[]
+    result.x -= obj.x[]
+    result.y -= obj.y[]
     if obj.globalTransform: return
     obj = obj.parent
 
@@ -377,7 +379,8 @@ proc posToGlobal*(pos: Vec2, obj: Uiobj): Vec2 =
   var obj {.cursor.} = obj
   while true:
     if obj == nil: return
-    result += obj.xy[]
+    result.x += obj.x[]
+    result.y += obj.y[]
     if obj.globalTransform: return
     obj = obj.parent
 
@@ -592,9 +595,9 @@ method init*(obj: Uiobj) {.base.} =
   obj.h.changed.connectTo obj: obj.applyAnchors()
 
   obj.x.changed.connectTo obj:
-    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy[]))
+    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy))
   obj.y.changed.connectTo obj:
-    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy[]))
+    obj.recieve(ParentPositionChanged(sender: obj, parent: obj, position: obj.xy))
 
   let p = vec2(obj.x[], obj.y[]).posToGlobal(obj.parent)
   obj.globalX[] = p.x
@@ -1097,23 +1100,26 @@ proc `image=`*(obj: UiImage, img: pixie.Image) =
   if img != nil:
     if obj.tex == nil: obj.tex = newTexture()
     obj.tex.load(img)
-    if obj.wh[] == vec2():
-      obj.wh[] = vec2(img.width.float32, img.height.float32)
+    if obj.wh == vec2():
+      obj.wh = vec2(img.width.float32, img.height.float32)
     obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
 
 when hasImageman:
   proc `image=`*(obj: UiImage, img: imageman.Image[ColorRGBAU]) =
     if obj.tex == nil: obj.tex = newTexture()
     obj.tex.load(img)
-    if obj.wh[] == vec2():
-      obj.wh[] = vec2(img.width.float32, img.height.float32)
+    if obj.wh == vec2():
+      obj.wh = vec2(img.width.float32, img.height.float32)
     obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
 
 
 method draw*(rect: UiRect, ctx: DrawContext) =
   rect.drawBefore(ctx)
   if rect.visibility[] == visible:
-    ctx.drawRect((rect.xy[].posToGlobal(rect.parent) + ctx.offset).round, rect.wh[], rect.color.vec4, rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle)
+    ctx.drawRect(
+      (rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh,
+      rect.color.vec4, rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle
+    )
   rect.drawAfter(ctx)
 
 
@@ -1122,12 +1128,12 @@ method draw*(this: UiImage, ctx: DrawContext) =
   if this.visibility[] == visible and this.tex != nil:
     if this.colorOverlay[]:
       ctx.drawIcon(
-        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex.raw,
+        (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh, this.tex.raw,
         this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
       )
     else:
       ctx.drawImage(
-        (this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex.raw,
+        (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh, this.tex.raw,
         this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
       )
   this.drawAfter(ctx)
@@ -1140,7 +1146,7 @@ method init*(this: UiSvgImage) =
   proc updateTexture(size = ivec2()) =
     let sz =
       if size.x > 0 and size.y > 0: size
-      elif this.w[].int32 > 0 and this.h[].int32 > 0: this.wh[].ivec2
+      elif this.w[].int32 > 0 and this.h[].int32 > 0: this.wh.ivec2
       else: ivec2(0, 0)
     
     prevSize = size
@@ -1151,22 +1157,22 @@ method init*(this: UiSvgImage) =
       
       if this.tex == nil: this.tex = newTexture()
       this.tex.load(img)
-      if this.wh[] == vec2():
-        this.wh[] = vec2(img.width.float32, img.height.float32)
+      if this.wh == vec2():
+        this.wh = vec2(img.width.float32, img.height.float32)
       if size == ivec2():
         this.imageWh[] = ivec2(img.width.int32, img.height.int32)
     else:
       this.imageWh[] = ivec2()
 
   this.image.changed.connectTo this: updateTexture()
-  this.w.changed.connectTo this: updateTexture(this.wh[].ceil.ivec2)
-  this.h.changed.connectTo this: updateTexture(this.wh[].ceil.ivec2)
+  this.w.changed.connectTo this: updateTexture(this.wh.ceil.ivec2)
+  this.h.changed.connectTo this: updateTexture(this.wh.ceil.ivec2)
 
 
 method draw*(ico: UiSvgImage, ctx: DrawContext) =
   ico.drawBefore(ctx)
   if ico.visibility[] == visible and ico.tex != nil:
-    ctx.drawIcon((ico.xy[].posToGlobal(ico.parent) + ctx.offset).round, ico.wh[].ceil, ico.tex.raw, ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
+    ctx.drawIcon((ico.xy.posToGlobal(ico.parent) + ctx.offset).round, ico.wh.ceil, ico.tex.raw, ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
   ico.drawAfter(ctx)
 
 
@@ -1180,9 +1186,9 @@ method init*(this: UiText) =
   this.arrangement.changed.connectTo this:
     if this.arrangement[] != nil:
       let bounds = this.arrangement[].layoutBounds
-      this.wh[] = bounds
+      this.wh = bounds
     else:
-      this.wh[] = vec2()
+      this.wh = vec2()
 
   proc newArrangement(this: UiText): Arrangement =
     if this.text[] != "" and this.font != nil:
@@ -1201,9 +1207,9 @@ method draw*(text: UiText, ctx: DrawContext) =
   text.drawBefore(ctx)
   let pos =
     if text.roundPositionOnDraw[]:
-      (text.xy[].posToGlobal(text.parent) + ctx.offset).round
+      (text.xy.posToGlobal(text.parent) + ctx.offset).round
     else:
-      text.xy[].posToGlobal(text.parent) + ctx.offset
+      text.xy.posToGlobal(text.parent) + ctx.offset
 
   if text.visibility[] == visible:
     ctx.drawText(pos, text.arrangement[], text.color.vec4)
@@ -1213,14 +1219,14 @@ method draw*(text: UiText, ctx: DrawContext) =
 method draw*(rect: UiRectBorder, ctx: DrawContext) =
   rect.drawBefore(ctx)
   if rect.visibility[] == visible:
-    ctx.drawRectStroke((rect.xy[].posToGlobal(rect.parent) + ctx.offset).round, rect.wh[], rect.color.vec4, rect.radius, true, rect.angle, rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4)
+    ctx.drawRectStroke((rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh, rect.color.vec4, rect.radius, true, rect.angle, rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4)
   rect.drawAfter(ctx)
 
 
 method draw*(rect: RectShadow, ctx: DrawContext) =
   rect.drawBefore(ctx)
   if rect.visibility[] == visible:
-    ctx.drawShadowRect((rect.xy[].posToGlobal(rect.parent) + ctx.offset).round, rect.wh[], rect.color.vec4, rect.radius, true, rect.blurRadius, rect.angle)
+    ctx.drawShadowRect((rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh, rect.color.vec4, rect.radius, true, rect.blurRadius, rect.angle)
   rect.drawAfter(ctx)
 
 
@@ -1253,7 +1259,7 @@ method draw*(this: ClipRect, ctx: DrawContext) =
     ctx.updateDrawingAreaSize(size)
 
     let offset = block:
-      var xy = this.xy[]
+      var xy = this.xy
       var obj = this.parent
       while obj != nil and not(obj of ClipRect):
         xy.x += obj.x[]
@@ -1274,12 +1280,15 @@ method draw*(this: ClipRect, ctx: DrawContext) =
       let size =
         if ctx.frameBufferHierarchy.len == 0:
           let win = this.parentWindow
-          if win == nil: this.lastParent.wh[].ivec2 else: win.size
+          if win == nil: this.lastParent.wh.ivec2 else: win.size
         else: ctx.frameBufferHierarchy[^1].size
       glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
       ctx.updateDrawingAreaSize(size)
       
-      ctx.drawImage((this.xy[].posToGlobal(this.parent) + ctx.offset).round, this.wh[], this.tex.raw, this.color.vec4, this.radius, true, this.angle, flipY=true)
+      ctx.drawImage(
+        (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh,
+        this.tex.raw, this.color.vec4, this.radius, true, this.angle, flipY=true
+      )
   else:
     this.drawBeforeChilds(ctx)
     this.drawChilds(ctx)
@@ -1296,7 +1305,7 @@ method draw*(win: UiWindow, ctx: DrawContext) =
 method recieve*(this: UiWindow, signal: Signal) =
   if signal of WindowEvent and signal.WindowEvent.event of ResizeEvent:
     let e = (ref ResizeEvent)signal.WindowEvent.event
-    this.wh[] = e.size.vec2
+    this.wh = e.size.vec2
     glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
     this.ctx.updateDrawingAreaSize(e.size)
 
@@ -1779,8 +1788,8 @@ proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, t
   ).newUiWindow
   let obj = withWindow()
 
-  if size == ivec2() and obj.wh[] != vec2():
-    win.siwinWindow.size = (obj.wh[] + margin * 2).ivec2
+  if size == ivec2() and obj.wh != vec2():
+    win.siwinWindow.size = (obj.wh + margin * 2).ivec2
 
   win.clearColor = clearColor
   win.makeLayout:
