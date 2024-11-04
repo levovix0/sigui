@@ -509,8 +509,7 @@ method init*(this: TextArea) =
           root.binding selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
           
 
-          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.fillVertical root; r.UiObj):
-            w = 2
+          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.fillVertical root; r.w[] = 2; r.UiObj):
             x := root.cursorX[]
 
             visibility = binding:

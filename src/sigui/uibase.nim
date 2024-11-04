@@ -415,31 +415,31 @@ proc pos*(anchor: Anchor, isY: bool, toObject: UiObj): float32 =
   let p = case anchor.offsetFrom
   of start:
     if isY:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.top.obj == nil and anchor.obj.anchors.bottom.obj != nil:
+      if anchor.obj.visibility[] == collapsed and anchor.obj.anchors.top.obj == nil and anchor.obj.anchors.bottom.obj != nil:
         anchor.obj.h[] + anchor.offset
       else:
         anchor.offset
     else:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.left.obj == nil and anchor.obj.anchors.right.obj != nil:
+      if anchor.obj.visibility[] == collapsed and anchor.obj.anchors.left.obj == nil and anchor.obj.anchors.right.obj != nil:
         anchor.obj.w[] + anchor.offset
       else:
         anchor.offset
 
   of `end`:
     if isY:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.top.obj != nil and anchor.obj.anchors.bottom.obj == nil:
+      if anchor.obj.visibility[] == collapsed and anchor.obj.anchors.top.obj != nil and anchor.obj.anchors.bottom.obj == nil:
         anchor.offset
       else:
         anchor.obj.h[] + anchor.offset
     else:
-      if anchor.obj.visibility == collapsed and anchor.obj.anchors.left.obj != nil and anchor.obj.anchors.right.obj == nil:
+      if anchor.obj.visibility[] == collapsed and anchor.obj.anchors.left.obj != nil and anchor.obj.anchors.right.obj == nil:
         anchor.offset
       else:
         anchor.obj.w[] + anchor.offset
 
   of center:
     if isY:
-      if anchor.obj.visibility == collapsed:
+      if anchor.obj.visibility[] == collapsed:
         if anchor.obj.anchors.top.obj == nil and anchor.obj.anchors.bottom.obj != nil:
           anchor.obj.h[] + anchor.offset
         else:
@@ -447,7 +447,7 @@ proc pos*(anchor: Anchor, isY: bool, toObject: UiObj): float32 =
       else:
         anchor.obj.h[] / 2 + anchor.offset
     else:
-      if anchor.obj.visibility == collapsed:
+      if anchor.obj.visibility[] == collapsed:
         if anchor.obj.anchors.left.obj == nil and anchor.obj.anchors.right.obj != nil:
           anchor.obj.w[] + anchor.offset
         else:
@@ -635,6 +635,9 @@ method init*(obj: Uiobj) {.base.} =
 proc initIfNeeded*(obj: Uiobj) =
   if obj.initialized: return
   init(obj)
+  if obj.parent != nil:
+    obj.recieve(ParentChanged(newParentInTree: obj.parent))
+    obj.parent.recieve(ChildAdded(child: obj))
 
 #--- Anchors ---
 
@@ -697,8 +700,9 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
       let win = parent.parentUiWindow
       if win != nil:
         child.recieve(AttachedToWindow(window: win))
-    child.recieve(ParentChanged(newParentInTree: parent))
-    parent.recieve(ChildAdded(child: child))
+    if child.initialized:
+      child.recieve(ParentChanged(newParentInTree: parent))
+      parent.recieve(ChildAdded(child: child))
 
 
 method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Uiobj] {.base.} =
@@ -715,8 +719,9 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Ui
       let win = parent.parentUiWindow
       if win != nil:
         child.recieve(AttachedToWindow(window: win))
-    child.recieve(ParentChanged(newParentInTree: parent))
-    parent.recieve(ChildAdded(child: child))
+    if child.initialized:
+      child.recieve(ParentChanged(newParentInTree: parent))
+      parent.recieve(ChildAdded(child: child))
 
     let i = parent.childs.high
     result = CustomProperty[Uiobj](
@@ -726,8 +731,9 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Ui
         deteach parent.childs[i]
         parent.childs[i] = v
         v.parent = parent
-        v.recieve(ParentChanged(newParentInTree: parent))
-        parent.recieve(ChildAdded(child: v))
+        if v.initialized:
+          v.recieve(ParentChanged(newParentInTree: parent))
+          parent.recieve(ChildAdded(child: v))
       ),
     )
 
@@ -1728,7 +1734,14 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                     call ident($name & "="):
                       ident "this"
                       val
-                  Else: asgn(name, val)
+                  elifBranch:
+                    call bindSym"compiles":
+                      asgn(name, val)
+                    asgn(name, val)
+                  Else:
+                    call ident"[]=":
+                      dotExpr(ident "this", name)
+                      val
               
               of ForStmt():
                 forStmt:

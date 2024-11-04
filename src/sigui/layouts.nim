@@ -98,7 +98,12 @@ proc reposition(this: Layout) =
       if not(child of InLayout) or not(child.InLayout.fillContainer[]):
         h = max(h, child.get_h)
       rows[^1].freeSpace -= child.get_w
+    
+    if not this.wrapHugContent[]:
+      h = this.get_h
+    
     rows[^1].h = h
+  
   
   for x in rows.mitems:
     x.spaceBetween =
