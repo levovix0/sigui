@@ -1,11 +1,11 @@
 import times, macros, tables, unicode, strutils
 import vmath, bumpy, siwin, shady, fusion/[matching, astdsl], pixie, pixie/fileformats/svg
-import ./[events, properties]
+import ./[events, properties, cvmath]
 import ./render/[gl, contexts]
 when hasImageman:
   import imageman except Rect, color, Color
 
-export vmath, bumpy, gl, pixie, events, properties, tables, contexts
+export vmath, cvmath, bumpy, gl, pixie, events, properties, tables, contexts
 
 when defined(sigui_debug_useLogging):
   import logging
@@ -210,23 +210,6 @@ var registredComponents {.compileTime.}: seq[NimNode]
   # type syms
 var registredReflection {.compileTime.}: seq[tuple[f: NimNode, filter: NimNode]]
   # callable syms
-
-
-proc vec4*(color: chroma.Color): Vec4 =
-  vec4(color.r, color.g, color.b, color.a)
-
-proc color*(v: Vec4): chroma.Color =
-  chroma.Color(r: v.x, g: v.y, b: v.z, a: v.w)
-
-
-proc round*(v: Vec2): Vec2 =
-  vec2(round(v.x), round(v.y))
-
-proc ceil*(v: Vec2): Vec2 =
-  vec2(ceil(v.x), ceil(v.y))
-
-proc floor*(v: Vec2): Vec2 =
-  vec2(floor(v.x), floor(v.y))
 
 
 proc containsShift*(keyboardPressed: set[Key]): bool =

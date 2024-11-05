@@ -338,7 +338,10 @@ proc drawText*(ctx: DrawContext, pos: Vec2, arrangement: Arrangement, color: Vec
 
   for i, rune in arrangement.runes:
     var rect = arrangement.selectionRects[i]
+    rect.wh = rect.wh + vec2(2, 2)
+    
     # todo: force pixie to adjust text to pixel grid while generating arrangement, for better alligning
+    
     ctx.passTransform(shader, pos = pos + rect.xy, size = rect.wh, angle=0)
 
     let placement = family[].renderIfNeeded(rune, arrangement.fonts[0], rect.wh)
