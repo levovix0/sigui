@@ -3,22 +3,6 @@ import ./uibase
 import ./events {.all.}
 export times
 
-let
-  linearEasing* = proc(x: float): float = x
-  inSquareEasing* = proc(x: float): float = x * x
-  inCubicEasing* = proc(x: float): float = x * x * x
-  outSquareEasing* = proc(x: float): float = 1 - (x - 1) * (x - 1)
-  outCubicEasing* = proc(x: float): float = 1 + (x - 1) * (x - 1) * (x - 1)
-  outBounceEasing* = proc(x: float): float = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
-  inBounceEasing* = proc(x: float): float = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
-
-  linearInterpolation* {.deprecated: "renamed to linearEasing".} = linearEasing
-  inSquareInterpolation* {.deprecated: "renamed to inSquareEasing".} = inSquareEasing
-  inCubicInterpolation* {.deprecated: "renamed to inCubicEasing".} = inCubicEasing
-  outSquareInterpolation* {.deprecated: "renamed to outSquareEasing".} = outSquareEasing
-  outCubicInterpolation* {.deprecated: "renamed to outCubicEasing".} = outCubicEasing
-  outBounceInterpolation* {.deprecated: "renamed to outBounceEasing".} = outBounceEasing
-  inBounceInterpolation* {.deprecated: "renamed to inBounceEasing".} = inBounceEasing
 
 type
   Animation*[T] = ref object
@@ -27,13 +11,14 @@ type
     running*: Property[bool]
     duration*: Property[Duration]
     action*: proc(x: T)
-    interpolation* {.deprecated #[renamed to easing]#.}: Property[proc(x: float): float]
     easing*: Property[proc(x: float): float]
     a*, b*: Property[T]
     loop*: Property[bool]
     ended*: Event[void]
 
     currentTime*: Property[Duration]
+    
+    firstTick: bool
   
   Animator* = ref object of Uiobj
     onTick*: Event[Duration]
@@ -61,6 +46,18 @@ func interpolate*[T: object | tuple](a, b: T, x: float): T =
     for j, af, bf in fieldPairs(a, b):
       when i == j:
         y = interpolate(af, bf, x)
+
+
+proc linearEasing*(x: float): float = x
+
+proc inSquareEasing*(x: float): float = x * x
+proc inCubicEasing*(x: float): float = x * x * x
+
+proc outSquareEasing*(x: float): float = 1 - (x - 1) * (x - 1)
+proc outCubicEasing*(x: float): float = 1 + (x - 1) * (x - 1) * (x - 1)
+
+proc inBounceEasing*(x: float): float = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
+proc outBounceEasing*(x: float): float = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
 
 
 # --- be compatible with makeLayout API ---
@@ -100,6 +97,11 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
 
   proc tick(deltaTime: Duration) =
     if a.enabled[] and a.running[]:
+      if a.firstTick:
+        a.firstTick = false
+        act()
+        return
+
       let time = a.currentTime[] + deltaTime
       a.currentTime[] =
         if time < DurationZero: DurationZero
@@ -139,6 +141,7 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
 proc start*(a: Animation) =
   a.currentTime[] = DurationZero
   a.running[] = true
+  a.firstTick = true
 
 template animation*[T](val: T): Animation[T] =
   Animation[T](action: proc(x: T) = val = x)
