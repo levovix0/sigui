@@ -1,5 +1,5 @@
-import sequtils
-import uibase
+import std/[sequtils]
+import ./[uiobj, properties]
 
 type
   LayoutOrientation* = enum

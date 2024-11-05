@@ -4,7 +4,7 @@ import pkg/fusion/[matching, astdsl]
 import ./[gl, text as renderText]
 
 when hasImageman:
-  import pkg/imageman
+  import pkg/imageman/[images as imagemanImages, colors as imagemanColors]
 
 
 type
@@ -66,10 +66,10 @@ proc newTexture*(image: pixie.Image): Texture =
 
 
 when hasImageman:
-  proc load*(texture: Texture, image: imageman.Image[imageman.ColorRgbau]) =
+  proc load*(texture: Texture, image: imagemanImages.Image[imagemanColors.ColorRgbau]) =
     texture.raw.loadTexture(image)
 
-  proc newTexture*(image: imageman.Image[imageman.ColorRgbau]): Texture =
+  proc newTexture*(image: imagemanImages.Image[imagemanColors.ColorRgbau]): Texture =
     result = newTexture()
     result.load(image)
 

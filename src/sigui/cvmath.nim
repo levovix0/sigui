@@ -1,10 +1,10 @@
 import pkg/[vmath, chroma]
 
-proc vec4*(color: chroma.Color): Vec4 =
+proc vec4*(color: Color): Vec4 =
   vec4(color.r, color.g, color.b, color.a)
 
-proc color*(v: Vec4): chroma.Color =
-  chroma.Color(r: v.x, g: v.y, b: v.z, a: v.w)
+proc color*(v: Vec4): Color =
+  Color(r: v.x, g: v.y, b: v.z, a: v.w)
 
 
 proc round*(v: Vec2): Vec2 =

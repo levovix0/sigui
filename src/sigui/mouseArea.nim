@@ -48,7 +48,7 @@ type
     pressedPos: Vec2
     grabStarted: bool
 
-proc initRedrawWhenPropertyChanged_ignore(t: type MouseArea, name: string): bool =
+proc initRedrawWhenPropertyChanged_ignore(t: type MouseArea, name: string): bool {.used.} =
   name notin ["x", "y"]  # MouseArea doesn't draw anything
 
 registerComponent MouseArea

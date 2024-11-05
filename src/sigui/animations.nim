@@ -1,6 +1,5 @@
-import times, strutils
-import ./uibase
-import ./events {.all.}
+import std/[times, strutils, math]
+import ./[uiobj, properties, events {.all.}]
 export times
 
 
@@ -186,7 +185,7 @@ template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
 
 when isMainModule:
   import siwin
-  import ./globalShortcut
+  import ./[uibase, globalShortcut]
 
   let animator = newOpenglWindow(size = ivec2(300, 40)).newUiWindow
   animator.makeLayout:

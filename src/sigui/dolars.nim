@@ -1,6 +1,7 @@
 import std/[strutils, macros]
+import pkg/[chroma, bumpy]
 import pkg/fusion/[astdsl]
-import ./uibase {.all.}
+import ./[events, properties, uiobj {.all.}]
 
 method componentTypeName*(this: Uiobj): string {.base.} = "Uiobj"
 
@@ -87,7 +88,7 @@ macro declareComponentTypeName(t: typed) =
 registerReflection declareComponentTypeName, T is Uiobj and t != "Uiobj"
 
 
-macro declareFormatFields(t: typed) =
+macro declareFormatFields(t: typed) {.used.} =
   result = buildAst:
     methodDef:
       let thisSym = genSym(nskParam, "this")
@@ -108,11 +109,14 @@ macro declareFormatFields(t: typed) =
           bracketExpr:
             thisSym
 
-registerReflection declareFormatFields, T is Uiobj and t != "Uiobj"
+when defined(nimcheck) or defined(nimsuggest):
+  discard
+else:
+  registerReflection declareFormatFields, T is Uiobj and t != "Uiobj"
 
 
 when isMainModule:
-  import ./mouseArea
+  import ./[uibase, mouseArea]
 
   type MyComponent = ref object of UiRect
     invisibleProp: Property[int]

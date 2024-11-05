@@ -1,5 +1,6 @@
-import siwin, fusion/matching
-import uibase
+import pkg/[siwin]
+import pkg/fusion/[matching]
+import ./[uiobj, properties, events]
 
 type
   GlobalShortcut* = ref object of Uiobj

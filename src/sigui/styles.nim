@@ -1,6 +1,6 @@
 import std/[macros]
 import pkg/fusion/matching
-import ./[uibase]
+import ./[uiobj, properties]
 
 type
   Styler* = ref object of UiObj

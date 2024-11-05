@@ -1,7 +1,8 @@
-import pkg/[vmath, opengl, pixie]
+import pkg/[vmath, opengl]
+import pkg/pixie/images as pixie
 
 when (compiles do: import imageman):
-  import pkg/imageman
+  import pkg/imageman/[images as imagemanImages, colors as imagemanColors]
   const hasImageman* = true
 else:
   const hasImageman* = false
@@ -94,7 +95,7 @@ proc loadTexture*(obj: GlUint, img: pixie.Image) =
   glBindTexture(GlTexture2d, 0)
 
 when hasImageman:
-  proc loadTexture*(obj: GlUint, img: imageman.Image[imageman.ColorRgbau]) =
+  proc loadTexture*(obj: GlUint, img: imagemanImages.Image[imagemanColors.ColorRgbau]) =
     glBindTexture(GlTexture2d, obj)
     glTexImage2D(GlTexture2d, 0, GlRgba.GLint, img.width.GLsizei, img.height.GLsizei, 0, GlRgba, GlUnsignedByte, img.data[0].unsafeaddr)
     glGenerateMipmap(GlTexture2d)
