@@ -800,7 +800,15 @@ proc newUiWindow*(): UiWindow = new result
 
 
 
-proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: NimNode, init: bool, kind: BindingKind): NimNode =
+proc bindingImpl*(
+  obj: NimNode,
+  target: NimNode,
+  body: NimNode,
+  afterUpdate: NimNode,
+  init: bool,
+  kind: BindingKind,
+  ctor: NimNode = newEmptyNode()
+): NimNode =
   ## connects update proc to every `x[]` property changed, and invokes update proc instantly
   ##
   ## .. code-block:: nim
@@ -832,7 +840,11 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
   proc impl(stmts: var seq[NimNode], body: NimNode) =
     case body
     of in alreadyBinded: return
-    of Call[Sym(strVal: "[]"), @exp]:
+    of
+      Call[Sym(strVal: "[]"), @exp],
+      Call[Ident(strVal: "[]"), @exp],
+      BracketExpr[@exp]:
+      
       stmts.add: buildAst(call):
         ident "connectTo"
         dotExpr(exp, ident "changed")
@@ -862,16 +874,16 @@ proc bindingImpl*(obj: NimNode, target: NimNode, body: NimNode, afterUpdate: Nim
           of bindProperty:
             asgn:
               bracketExpr dotExpr(thisInProc, target)
-              body
+              if ctor.kind != nnkEmpty: ctor else: body
           of bindValue:
             asgn:
               target
-              body
+              if ctor.kind != nnkEmpty: ctor else: body
           of bindProc:
             call:
               target
               thisInProc
-              body
+              if ctor.kind != nnkEmpty: ctor else: body
           
           case afterUpdate
           of Call[Sym(strVal: "newStmtList"), HiddenStdConv[Empty(), Bracket()]]: discard
@@ -905,24 +917,9 @@ macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, aft
   bindingImpl(obj, target, body, afterUpdate, init, bindProc)
 
 
-macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
 
-macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
-
-macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
-
-
-macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
-
-macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
-
-macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), redraw: static bool, init: static bool = true): untyped {.deprecated: "there is no more need to manually call redraw".} =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+macro bindingChangableChild[T](obj: T, target: untyped, body: untyped, ctor: typed): untyped =
+  bindingImpl(obj, target, body, newStmtList(), true, bindValue, ctor)
 
 
 
@@ -976,7 +973,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
       else: discard
 
-  proc impl(parent: NimNode, obj: NimNode, body: NimNode): NimNode =
+  proc impl(parent: NimNode, obj: NimNode, body: NimNode, changableChild: NimNode, changableChildUpdaters: NimNode): NimNode =
     buildAst blockStmt:
       genSym(nskLabel, "initializationBlock")
       call:
@@ -1009,6 +1006,8 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       prop
                       call(bindSym"addChangableChild", ident "this", ctor)
                     
+                    let updaters = newStmtList()
+                    
                     procDef:
                       updateProc
                       empty(); empty()
@@ -1021,7 +1020,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                         if body == nil:
                           call ident"initIfNeeded":
                             ident "this"
-                        if body != nil: impl(ident"parent", ident"this", body)
+                        if body != nil: impl(ident"parent", ident"this", body, prop, updaters)
 
                     call updateProc:
                       ident "this"
@@ -1039,6 +1038,8 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                         call updateProc:
                           ident "this"
                           bracketExpr(prop)
+                    
+                    for x in updaters: x
 
 
             for x in body:
@@ -1057,7 +1058,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 letSection:
                   identDefs(s, empty(), ctor)
                 call(ident"addChild", ident "this", s)
-                impl(ident "this", s, body)
+                impl(ident "this", s, body, changableChild, changableChildUpdaters)
 
               of Infix[Ident(strVal: "as"), Prefix[Ident(strVal: "-"), @ctor], @s]:
                 discard checkCtor ctor
@@ -1067,13 +1068,26 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               of Infix[Ident(strVal: "as"), Prefix[Ident(strVal: "-"), @ctor], @s, @body is StmtList()]:
                 discard checkCtor ctor
                 call(ident"addChild", ident "this", s)
-                impl(ident "this", s, body)
+                impl(ident "this", s, body, changableChild, changableChildUpdaters)
 
               of Infix[Ident(strVal: "---"), @to, @ctor]:
                 changableImpl(to, ctor, nil)
 
               of Infix[Ident(strVal: "---"), @to, @ctor, @body is StmtList()]:
                 changableImpl(to, ctor, body)
+              
+              of Prefix[Ident(strVal: "<---"), @ctor, @body is StmtList()]:
+                if changableChild.kind == nnkEmpty:
+                  (error("Must be inside changable child", x))
+
+                changableChildUpdaters.add:
+                  buildAst:
+                    call bindSym("bindingChangableChild"):
+                      ident "this"
+                      bracketExpr:
+                        changableChild
+                      body
+                      ctor
               
               of
                 Infix[Ident(strVal: ":="), @name, @val],
@@ -1147,7 +1161,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                             var fwd: seq[NimNode]
                             (implFwd(x[^1], fwd))
                             for x in fwd: x
-                          impl(ident "parent", ident "this", x[^1])
+                          impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     
                     for param in x[0..^3]:
                       param
@@ -1161,7 +1175,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                           var fwd: seq[NimNode]
                           (implFwd(x[^1], fwd))
                           for x in fwd: x
-                        impl(ident "parent", ident "this", x[^1])
+                        impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     x
 
               else: x
@@ -1177,7 +1191,13 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
         (implFwd(body, fwd))
         for x in fwd: x
       
-      impl(nnkDotExpr.newTree(ident "root", ident "parent"), ident "root", if body.kind == nnkStmtList: body else: newStmtList(body))
+      impl(
+        nnkDotExpr.newTree(ident "root", ident "parent"),
+        ident "root",
+        if body.kind == nnkStmtList: body else: newStmtList(body),
+        newEmptyNode(),
+        newStmtList(),
+      )
 
 
 template withWindow*(obj: UiObj, winVar: untyped, body: untyped) =

@@ -352,6 +352,29 @@ elementsObj --- Layout():
         text = "+"
 ```
 
+The `<--- ctor: props[]...` syntax can be used to re-build tree based on property changes
+```nim
+var elements = ["first", "second"].property
+var elementsObj: CustomProperty[Layout]
+
+elementsObj --- Layout():
+  <--- Layout(): elements[]
+
+  # ...
+
+  - InLayout():
+    # ...
+
+    - MouseArea():
+      # ...
+
+      this.mouseDownAndUpInside.connectTo this:
+        elements{}.add "new"
+        elements.changed.emit()
+
+      # ...
+```
+
 
 ## Anchors
 ![image](http://levovix.ru:8000/docs/sigui/anchors%20example.png)
