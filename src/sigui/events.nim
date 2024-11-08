@@ -201,3 +201,7 @@ template connectTo*(s: var Event[void], obj: var EventHandler, argname: untyped,
 proc hasHandlers*(e: Event): bool =
   if e.p == nil: return false
   e.p.connected.len > 0
+
+
+template changed*[T](e: Event[T]): Event[T] =
+  e

@@ -352,7 +352,7 @@ elementsObj --- Layout():
         text = "+"
 ```
 
-The `<--- ctor: props[]...` syntax can be used to re-build tree based on property changes
+The `<--- ctor: prop[]; event[]; ...` syntax can be used to re-build tree based on property changes
 ```nim
 var elements = ["first", "second"].property
 var elementsObj: CustomProperty[Layout]

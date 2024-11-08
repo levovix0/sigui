@@ -5,13 +5,22 @@ import siwin
 import sigui
 import t_customComponent
 
-type App = ref object of Uiobj
-  tasks: seq[tuple[name: string, complete: Property[bool]]]
-  tasksChanged: Event[void]
+type
+  App = ref object of Uiobj
+    tasks: seq[tuple[name: string, complete: Property[bool]]]
+    tasksChanged: Event[void]
 
-  layout: CustomProperty[Layout]
+    layout: CustomProperty[Layout]
+
+  DestroyLogger = object
+    message: string
 
 registerComponent App
+
+
+proc `=destroy`(x: DestroyLogger) =
+  if x.message != "":
+    echo x.message
 
 
 test "todo app":
@@ -84,6 +93,8 @@ test "todo app":
       top = taskAdder.bottom + 20
 
       app.layout --- Layout():
+        <--- Layout(): app.tasksChanged[]
+
         this.binding w: parent.w[]
 
         orientation = vertical
@@ -91,6 +102,8 @@ test "todo app":
 
         for i in 0..app.tasks.high:
           template task: auto = app.tasks[i]
+
+          let logger {.used.} = DestroyLogger(message: "destroyed: " & $i)
 
           - Layout():
             spacing = 10
@@ -119,8 +132,6 @@ test "todo app":
                 this.fill parent
                 this.mouseDownAndUpInside.connectTo this:
                   task.complete[] = not task.complete[]
-      
-    app.tasksChanged.connectTo app:
-      app.layout[] = Layout()
+                  echo "made sure ", logger.message, " works"
 
   run window.siwinWindow
