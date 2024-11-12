@@ -80,7 +80,7 @@ test "todo app":
         - MouseArea() as mouse:
           this.fill parent
 
-          this.mouseDownAndUpInside.connectTo this:
+          on this.mouseDownAndUpInside:
             if taskName.text[] == "": return
             app.tasks.add((name: taskName.text[], complete: false.property))
             app.tasksChanged.emit()
@@ -130,7 +130,7 @@ test "todo app":
 
               - MouseArea() as mouse:
                 this.fill parent
-                this.mouseDownAndUpInside.connectTo this:
+                on this.mouseDownAndUpInside:
                   task.complete[] = not task.complete[]
                   echo "made sure ", logger.message, " works"
 

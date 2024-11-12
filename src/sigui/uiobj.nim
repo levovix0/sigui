@@ -1177,6 +1177,12 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                           for x in fwd: x
                         impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     x
+              
+              of Command[Ident(strVal: "on"), @event, @body]:
+                call bindSym("connectTo"):
+                  event
+                  ident "this"
+                  body
 
               else: x
         parent

@@ -59,7 +59,7 @@ win.makeLayout:
 
     - MouseArea() as mouse:
       this.fill(parent)
-      this.mouseDownAndUpInside.connectTo root:
+      on this.mouseDownAndUpInside:
         state[] = (state[] + 1) mod 3
       this.cursor = (ref Cursor)(kind: builtin, builtin: pointingHand)
 
@@ -334,7 +334,7 @@ elementsObj --- Layout():
     - TextArea():
       text = element
 
-      this.text.changed.connectTo this:
+      on this.text.changed:
         elements[i] = this.text[]
   
   - InLayout():
@@ -343,7 +343,7 @@ elementsObj --- Layout():
     - MouseArea():
       h = 20
 
-      this.mouseDownAndUpInside.connectTo this:
+      on this.mouseDownAndUpInside:
         elements.add "new"
         elementsObj[] = Layout()  # re-build tree
 

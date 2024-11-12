@@ -22,7 +22,7 @@ win.makeLayout:
 
     - MouseArea() as mouse:
       this.fill(parent)
-      this.mouseDownAndUpInside.connectTo root:
+      on this.mouseDownAndUpInside:
         state[] = (state[] + 1) mod 3
       this.cursor = (ref Cursor)(kind: builtin, builtin: BuiltinCursor.pointingHand)
 
