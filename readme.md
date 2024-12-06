@@ -297,7 +297,7 @@ Built-in interpolation modifiers:
 ```nim
 type
   MyComponent = ref object of Uiobj
-    changableChild: CustomProperty[UiRect]
+    changableChild: ChangableChild[UiRect]
 
 registerComponent MyComponent
 
@@ -324,7 +324,7 @@ Changable childs could be used to re-build component tree on any event.
 # ...in makeLaout macro...
 
 var elements = ["first", "second"]
-var elementsObj: CustomProperty[Layout]
+var elementsObj: ChangableChild[Layout]
 
 elementsObj --- Layout():
   orientation = vertical
@@ -355,7 +355,7 @@ elementsObj --- Layout():
 The `<--- ctor: prop[]; event[]; ...` syntax can be used to re-build tree based on property changes
 ```nim
 var elements = ["first", "second"].property
-var elementsObj: CustomProperty[Layout]
+var elementsObj: ChangableChild[Layout]
 
 elementsObj --- Layout():
   <--- Layout(): elements[]

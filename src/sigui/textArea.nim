@@ -42,9 +42,9 @@ type
 
 
   TextArea* = ref object of Uiobj
-    cursorObj*: CustomProperty[UiObj]
-    selectionObj*: CustomProperty[Uiobj]
-    textObj*: CustomProperty[UiText]
+    cursorObj*: ChangableChild[UiObj]
+    selectionObj*: ChangableChild[Uiobj]
+    textObj*: ChangableChild[UiText]
 
     active*: Property[bool]
     text*: Property[string]

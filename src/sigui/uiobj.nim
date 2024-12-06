@@ -17,7 +17,7 @@ type
     `end`
 
   Anchor* = object
-    obj: UiObj
+    obj {.cursor.}: UiObj
       # if nil, anchor is disabled
     offsetFrom: AnchorOffsetFrom
     offset: float32
@@ -95,6 +95,12 @@ type
     ctx*: DrawContext
     clearColor*: Col
     onTick*: Event[TickEvent]
+
+
+  ChangableChild*[T] = object
+    parent {.cursor.}: Uiobj
+    childIndex: int
+    changed*: Event[void]
 
 
   #--- Signals ---
@@ -269,8 +275,8 @@ proc redraw*(obj: Uiobj, ifVisible = true) =
   if win != nil: redraw win
 
 
-redrawUiobj = proc(obj: pointer) {.cdecl.} =
-  redraw cast[Uiobj](obj)
+redrawUiobj = proc(obj: FlaggedPointer) {.cdecl.} =
+  redraw(cast[Uiobj](cast[int](obj) and (not 1)), (cast[int](obj.pointer) and 1) == 0)
 
 
 proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
@@ -483,7 +489,7 @@ proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
   {.push, warning[Deprecated]: off.}
   for name, x in this[].fieldPairs:
     when name == "visibility":
-      x.changed.connectTo this: redraw(this, ifVisible=false)
+      x.changed.uiobj = cast[FlaggedPointer](cast[int](this) or 1)
     
     elif name == "globalX" or name == "globalY":
       discard  # will anyway be handled in parent
@@ -491,9 +497,9 @@ proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
     elif x is Property or x is CustomProperty:
       when compiles(initRedrawWhenPropertyChanged_ignore(T, name)):
         when not initRedrawWhenPropertyChanged_ignore(T, name):
-          x.changed.uiobj = cast[pointer](this)
+          x.changed.uiobj = cast[FlaggedPointer](this)
       else:
-        x.changed.uiobj = cast[pointer](this)
+        x.changed.uiobj = cast[FlaggedPointer](this)
   {.pop.}
 
 
@@ -552,7 +558,9 @@ proc initIfNeeded*(obj: Uiobj) =
     obj.recieve(ParentChanged(newParentInTree: obj.parent))
     obj.parent.recieve(ChildAdded(child: obj))
 
+
 #--- Anchors ---
+
 
 proc fillHorizontal*(this: Uiobj, obj: Uiobj, margin: float32 = 0) =
   this.left = obj.left + margin
@@ -575,104 +583,7 @@ proc fill*(this: Uiobj, obj: Uiobj, marginX: float32, marginY: float32) =
   this.fillVertical(obj, marginY)
 
 
-method deteach*(this: UiObj) {.base.}
-
-proc deteachStatic[T: UiObj](this: T) =
-  if this == nil: return
-
-  disconnect this.eventHandler
-  for x in this.childs: deteach(x)
-
-  {.push, warning[Deprecated]: off.}
-  for x in this[].fields:
-    when x is Property or x is CustomProperty:
-      disconnect x.changed
-  {.pop.}
-
-
-method deteach*(this: UiObj) {.base.} =
-  ## disconnect all events
-  deteachStatic(this)
-
-
-proc delete*(this: UiObj) =
-  deteach this
-  if this.parent != nil:
-    this.parent.childs.del this.parent.childs.find(this)
-    this.parent = nil
-
-
-method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
-  assert child.parent == nil
-  if parent.newChildsObject != nil:
-    parent.newChildsObject.addChild(child)
-  else:
-    child.parent = parent
-    parent.childs.add child
-    if not child.attachedToWindow and parent.attachedToWindow:
-      let win = parent.parentUiWindow
-      if win != nil:
-        child.recieve(AttachedToWindow(window: win))
-    if child.initialized:
-      child.recieve(ParentChanged(newParentInTree: parent))
-      parent.recieve(ChildAdded(child: child))
-
-
-method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): CustomProperty[Uiobj] {.base.} =
-  assert child != nil
-  
-  if parent.newChildsObject != nil:
-    return parent.newChildsObject.addChangableChildUntyped(child)
-  else:
-    # add to parent.childs seq even if addChild is overrided
-    assert child.parent == nil
-    child.parent = parent
-    parent.childs.add child
-    if not child.attachedToWindow and parent.attachedToWindow:
-      let win = parent.parentUiWindow
-      if win != nil:
-        child.recieve(AttachedToWindow(window: win))
-    if child.initialized:
-      child.recieve(ParentChanged(newParentInTree: parent))
-      parent.recieve(ChildAdded(child: child))
-
-    let i = parent.childs.high
-    result = CustomProperty[Uiobj](
-      get: proc(): Uiobj = parent.childs[i],
-      set: (proc(v: Uiobj) =
-        parent.childs[i].parent = nil
-        deteach parent.childs[i]
-        parent.childs[i] = v
-        v.parent = parent
-        if v.initialized:
-          v.recieve(ParentChanged(newParentInTree: parent))
-          parent.recieve(ChildAdded(child: v))
-      ),
-    )
-
-
-proc addChangableChild*[T: UiObj](parent: Uiobj, child: T): CustomProperty[T] =
-  var prop = parent.addChangableChildUntyped(child)
-  cast[ptr CustomProperty[UiObj]](result.addr)[] = move prop
-
-
-
-macro super*[T: Uiobj](obj: T): auto =
-  var t = obj.getTypeImpl
-  case t
-  of RefTy[@sym is Sym()]:
-    t = sym.getImpl
-  case t
-  of TypeDef[_, _, ObjectTy[_, OfInherit[@sup], .._]]:
-    return buildAst(dotExpr):
-      obj
-      sup
-  else: error("unexpected type impl", obj)
-
-
-
 #----- Layers -----
-
 
 
 proc `=destroy`(l: DrawLayer) =
@@ -713,6 +624,138 @@ proc `drawLayer=`*(this: Uiobj, layer: Layer) =
   of before: layer.obj.drawLayering.before.add UiobjCursor(obj: this)
   of beforeChilds: layer.obj.drawLayering.beforeChilds.add UiobjCursor(obj: this)
   of after: layer.obj.drawLayering.after.add UiobjCursor(obj: this)
+
+
+#----- Adding childs -----
+
+
+method deteach*(this: UiObj) {.base.}
+
+proc deteachStatic[T: UiObj](this: T) =
+  if this == nil: return
+
+  this.drawLayer = nil
+
+  disconnect this.eventHandler
+
+  for x in this[].fields:
+    when x is Property or x is CustomProperty:
+      disconnect x.changed
+
+  for anchor in this.anchors.fields:
+    disconnect anchor.eventHandler
+    anchor = Anchor()
+
+  for x in this.childs:
+    deteach(x)
+    x.parent = nil
+  
+  this.childs = @[]
+
+
+method deteach*(this: UiObj) {.base.} =
+  ## disconnect all events
+  deteachStatic(this)
+
+
+proc delete*(this: UiObj) =
+  if this == nil: return
+
+  deteach this
+  
+  if this.parent != nil:
+    let i = this.parent.childs.find(this)
+    if i != -1:
+      this.parent.childs.delete i
+    this.parent = nil
+
+
+method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
+  assert child.parent == nil
+  if parent.newChildsObject != nil:
+    parent.newChildsObject.addChild(child)
+  else:
+    child.parent = parent
+    parent.childs.add child
+    if not child.attachedToWindow and parent.attachedToWindow:
+      let win = parent.parentUiWindow
+      if win != nil:
+        child.recieve(AttachedToWindow(window: win))
+    if child.initialized:
+      child.recieve(ParentChanged(newParentInTree: parent))
+      parent.recieve(ChildAdded(child: child))
+
+
+proc `val=`*[T](p: var ChangableChild[T], v: T) =
+  ## note: p.changed will not be emitted if new value is same as previous value
+  p.parent.childs[p.childIndex].parent = nil
+  deteach p.parent.childs[p.childIndex]
+  p.parent.childs[p.childIndex] = v
+  v.parent = p.parent
+
+  if v.initialized:
+    v.recieve(ParentChanged(newParentInTree: p.parent))
+    p.parent.recieve(ChildAdded(child: v))
+
+  emit(p.changed)
+
+proc `[]=`*[T](p: var ChangableChild[T], v: T) {.inline.} = p.val = v
+
+proc val*[T](p: ChangableChild[T]): T {.inline.} =
+  result = p.parent.childs[p.childIndex].T
+
+proc val*(p: ChangableChild[UiObj]): UiObj {.inline.} =
+  # we need this overload to avoid ConvFromXtoItselfNotNeeded warning
+  result = p.parent.childs[p.childIndex]
+
+proc `[]`*[T](p: ChangableChild[T]): T {.inline.} = p.val
+
+proc `{}`*[T](p: var ChangableChild[T]): T {.inline.} = p.val
+proc `{}=`*[T](p: var ChangableChild[T], v: T) {.inline.} = p.val = v
+
+
+method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): ChangableChild[Uiobj] {.base.} =
+  assert child != nil
+  
+  if parent.newChildsObject != nil:
+    return parent.newChildsObject.addChangableChildUntyped(child)
+  else:
+    # add to parent.childs seq even if addChild is overrided
+    assert child.parent == nil
+
+    child.parent = parent
+    parent.childs.add child
+
+    if not child.attachedToWindow and parent.attachedToWindow:
+      let win = parent.parentUiWindow
+      if win != nil:
+        child.recieve(AttachedToWindow(window: win))
+
+    if child.initialized:
+      child.recieve(ParentChanged(newParentInTree: parent))
+      parent.recieve(ChildAdded(child: child))
+
+    result = ChangableChild[Uiobj](parent: parent, childIndex: parent.childs.high)
+
+
+proc addChangableChild*[T: UiObj](parent: Uiobj, child: T): ChangableChild[T] =
+  result = cast[ChangableChild[T]](parent.addChangableChildUntyped(child))
+
+
+macro super*[T: Uiobj](obj: T): auto =
+  var t = obj.getTypeImpl
+  case t
+  of RefTy[@sym is Sym()]:
+    t = sym.getImpl
+  case t
+  of TypeDef[_, _, ObjectTy[_, OfInherit[@sup], .._]]:
+    return buildAst(dotExpr):
+      obj
+      sup
+  else: error("unexpected type impl", obj)
+
+
+#----- Drawing -----
 
 
 method draw*(win: UiWindow, ctx: DrawContext) =
@@ -814,12 +857,12 @@ proc bindingImpl*(
   ## .. code-block:: nim
   ##   type MyObj = ref object of Uiobj
   ##     c: Property[int]
-  ##
+  ##   
   ##   let obj = MyObj()
   ##   obj.binding c:
   ##     if config.csd[]: parent[].b else: 10[]
   ##
-  ## convers to (roughly):
+  ## converts to (roughly):
   ##
   ## .. code-block:: nim
   ##   block bindingBlock:

@@ -43,7 +43,7 @@ type
       {ScrollAreaSetting.low..ScrollAreaSetting.high}
     ).property
 
-    verticalScrollbarObj*: CustomProperty[UiObj]
+    verticalScrollbarObj*: ChangableChild[UiObj]
       ## if changed, properties below can be attached by you to new object
     verticalScrollbarOpacity*: Property[float]
       ## has default animation
@@ -53,7 +53,7 @@ type
     verticalScrollBarLastShown*: Property[Time]
     verticalScrollBarHideDelay*: Property[Duration] = initDuration(milliseconds = 1000).property
 
-    horizontalScrollbarObj*: CustomProperty[UiObj]
+    horizontalScrollbarObj*: ChangableChild[UiObj]
       ## if changed, properties below can be attached by you to new object
     horizontalScrollbarOpacity*: Property[float]
       ## has default animation

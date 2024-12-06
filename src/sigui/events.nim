@@ -16,9 +16,12 @@ type
   EventBase = object
     connected: seq[EventConnection[int]]  # type of function argument does not matter for this
 
+  FlaggedPointer* = distinct pointer
+    ## pointer, but first bit is used for a flag (pointers are aligned anyway)
+
   Event*[T] = object  # pointer is wrapped to an object to attach custom destructor
     p: ptr EventObj[T]
-    uiobj*: pointer  # most of events is .changed properties, after most of which redraw should happen. If not nil, emit will call redrawUiobj
+    uiobj*: FlaggedPointer  # most of events is .changed properties, after most of which redraw should happen. If not nil, emit will call redrawUiobj
 
   EventObj*[T] = object
     ## only EventHandler can be connected to event
@@ -29,13 +32,27 @@ type
     connected: seq[EventConnection[T]]
 
 
-var redrawUiobj*: proc(uiobj: pointer) {.cdecl.}
+var redrawUiobj*: proc(uiobj: FlaggedPointer) {.cdecl.}
+
+
+proc `==`*(a, b: FlaggedPointer): bool {.borrow.}
 
 
 #* ------------- Event ------------- *#
 
 proc destroyEvent(s: ptr EventBase) {.raises: [].}
 proc destroyEventHandler(handler: ptr EventHandlerObj) {.raises: [].}
+
+
+proc `=trace`[T](event: var Event[T], env: pointer) =
+  if event.p != nil:
+    for conn in event.p[].connected.mitems:
+      `=trace`(conn, env)
+
+proc `=trace`(eh: var EventHandler, env: pointer) =
+  if eh.p != nil:
+    for event in eh.p[].connected:
+      `=trace`(event[], env)
 
 
 proc `=destroy`[T](s: Event[T]) =
@@ -64,6 +81,7 @@ proc destroyEvent(s: ptr EventBase) =
         handler[].connected.delete i
       else:
         inc i
+  `=destroy`(s[])
   dealloc s
 
 
@@ -86,6 +104,7 @@ proc destroyEventHandler(handler: ptr EventHandlerObj) =
         s[].connected.delete i
       else:
         inc i
+  `=destroy`(handler[])
   dealloc handler
 
 
@@ -154,7 +173,7 @@ proc emit*[T](s: Event[T], v: T, disableFlags: set[EventConnectionFlag] = {}) =
       if (disableFlags * s.p[].connected[i].flags).len == 0:
         s.p[].connected[i].f(v)
       inc i
-  if s.uiobj != nil:
+  if s.uiobj.pointer != nil:
     redrawUiobj s.uiobj
 
 proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
@@ -164,7 +183,7 @@ proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
       if (disableFlags * s.p[].connected[i].flags).len == 0:
         s.p[].connected[i].f()
       inc i
-  if s.uiobj != nil:
+  if s.uiobj.pointer != nil:
     redrawUiobj s.uiobj
 
 

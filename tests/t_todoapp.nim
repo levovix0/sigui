@@ -10,15 +10,18 @@ type
     tasks: seq[tuple[name: string, complete: Property[bool]]]
     tasksChanged: Event[void]
 
-    layout: CustomProperty[Layout]
+    layout: ChangableChild[Layout]
 
-  DestroyLogger = object
+  DestroyLoggerInner = object
     message: string
+
+  DestroyLogger = ref object of Uiobj
+    inner: DestroyLoggerInner
 
 registerComponent App
 
 
-proc `=destroy`(x: DestroyLogger) =
+proc `=destroy`(x: DestroyLoggerInner) =
   if x.message != "":
     echo x.message
 
@@ -103,7 +106,8 @@ test "todo app":
         for i in 0..app.tasks.high:
           template task: auto = app.tasks[i]
 
-          let logger {.used.} = DestroyLogger(message: "destroyed: " & $i)
+          - DestroyLogger() as logger:
+            this.inner.message = "destroyed: " & $i
 
           - Layout():
             spacing = 10
@@ -132,6 +136,6 @@ test "todo app":
                 this.fill parent
                 on this.mouseDownAndUpInside:
                   task.complete[] = not task.complete[]
-                  echo "made sure ", logger.message, " works"
+                  echo "made sure ", logger.inner.message, " works"
 
   run window.siwinWindow
