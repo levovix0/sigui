@@ -5,7 +5,29 @@ import ./[events, properties, uiobj {.all.}]
 
 method componentTypeName*(this: Uiobj): string {.base.} = "Uiobj"
 
-proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] =
+
+proc formatProperty[T](res: var seq[string], name: string, prop: Property[T]) =
+  if (prop[] != typeof(prop[]).default or prop.changed.hasHandlers):
+    when compiles($prop[]):
+      res.add name & ": " & $prop[]
+
+
+proc formatProperty[T](res: var seq[string], name: string, prop: CustomProperty[T]) =
+  if (
+    prop.get != nil and
+    (prop[] != typeof(prop[]).default or prop.changed.hasHandlers)
+  ):
+    when compiles($prop[]):
+      res.add name & ": " & $prop[]
+
+
+proc formatValue[T](res: var seq[string], name: string, val: T) =
+  if (val is bool) or (val is enum) or (val != typeof(val).default):
+    when compiles($val):
+      res.add name & ": " & $val
+
+
+proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
   {.push, warning[Deprecated]: off.}
   result.add "box: " & $rect(this.x, this.y, this.w, this.h)
   
@@ -24,19 +46,13 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] =
       ## todo
     
     elif v is Property or v is CustomProperty:
-      if (
-        (when v is CustomProperty: v.get != nil else: true) and
-        (v[] != typeof(v[]).default or v.changed.hasHandlers)
-      ):
-        when compiles($v[]):
-          result.add k & ": " & $v[]
+      result.formatProperty(k, v)
 
     else:
-      if (v is bool) or (v is enum) or (v != typeof(v).default):
-        when compiles($v):
-          result.add k & ": " & $v
-  
+      result.formatValue(k, v)
+
   {.pop.}
+
 
 method formatFields*(this: Uiobj): seq[string] {.base.} =
   formatFieldsStatic(this[])
