@@ -1,4 +1,4 @@
-import siwin, fusion/matching
+import siwin
 import uibase
 export MouseButton, MouseMoveEvent
 
@@ -80,14 +80,17 @@ method recieve*(this: MouseArea, signal: Signal) =
       if e.window.mouse.pos.x.float32 in pos.x..(pos.x + this.w[]) and e.window.mouse.pos.y.float32 in pos.y..(pos.y + this.h[]):
         this.ev2.emit e[]
     
+
     if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent:
       {.push, warning[Deprecated]: off.}
       handlePositionalEvent MouseButtonEvent, mouseButton
       {.pop.}
     
+
     elif signal of WindowEvent and signal.WindowEvent.event of ClickEvent:
       handlePositionalEvent ClickEvent, clicked
     
+
     elif signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent:
       let e {.cursor.} = (ref MouseMoveEvent)signal.WindowEvent.event
       let pos = this.xy.posToGlobal(this.parent)
@@ -96,16 +99,15 @@ method recieve*(this: MouseArea, signal: Signal) =
       else:
         this.hovered[] = false
     
-    case signal
-    of of WindowEvent(event: @ea is of MouseMoveEvent()):
-      let e = (ref MouseMoveEvent)ea
+    
+    if signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent:
+      let e = (ref MouseMoveEvent)signal.WindowEvent.event
       let d = vec2().posToGlobal(this)
       this.mouseX[] = e.window.mouse.pos.x.float32 - d.x
       this.mouseY[] = e.window.mouse.pos.y.float32 - d.y
 
-    case signal
 
-    of of WindowEvent(event: @ea is of MouseMoveEvent(), handled: false, fake: false):
+    if signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent and signal.WindowEvent.handled == false and signal.WindowEvent.fake == false:
       if this.pressed[]:
         if not this.grabStarted:
           this.grabStarted = true
@@ -113,9 +115,10 @@ method recieve*(this: MouseArea, signal: Signal) =
             signal.WindowEvent.handled = true
           this.grabbed.emit(this.pressedPos)
 
-    of of WindowEvent(event: @ea is of MouseButtonEvent(), handled: false):
+
+    elif signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent and signal.WindowEvent.handled == false:
       if this.visibility != collapsed:
-        let e = (ref MouseButtonEvent)ea
+        let e = (ref MouseButtonEvent)signal.WindowEvent.event
         if e.button in this.acceptedButtons[]:
           if e.pressed:
             if this.hovered[]:
@@ -131,19 +134,20 @@ method recieve*(this: MouseArea, signal: Signal) =
                 if this.hovered[] and not e.generated:
                   this.mouseDownAndUpInside.emit()
 
-    of of WindowEvent(event: @ea is of ScrollEvent(), handled: false):
+    elif signal of WindowEvent and signal.WindowEvent.event of ScrollEvent and signal.WindowEvent.handled == false:
       if this.visibility != collapsed:
-        let e = (ref ScrollEvent)ea
+        let e = (ref ScrollEvent)signal.WindowEvent.event
         if this.hovered[]:
           this.scrolled.emit(vec2(e.deltaX, e.delta))
     
-    if signal of GetActiveCursor:
+
+    elif signal of GetActiveCursor:
       if signal.GetActiveCursor.cursor == nil and this.hovered[]:
         signal.GetActiveCursor.cursor = this.cursor
   
-  case signal
-  of of VisibilityChanged(visibility: @e):
-    if e == collapsed:
+
+  if signal of VisibilityChanged:
+    if signal.VisibilityChanged.visibility == collapsed:
       this.hovered[] = false
 
 

@@ -1,5 +1,4 @@
 import std/[macros]
-import pkg/fusion/matching
 import ./[uiobj, properties]
 
 type
@@ -48,11 +47,16 @@ macro makeStyle*(body: untyped): proc(obj: UiObj) =
   var styleBody = newStmtList()
 
   for x in body:
-    case x
-    of Command[Ident(strVal: "apply"), @style], Call[Ident(strVal: "apply"), @style]:
+    # apply(style)
+    if x.kind in {nnkCommand, nnkCall} and x.len == 2 and x[0] == ident("apply"):
+      let style = x[1]
       styleBody.add newCall(style, ident("obj"))
     
-    of Call[@typ, @body]:
+    # typ: body
+    elif x.kind == nnkCall and x.len == 2:
+      let typ = x[0]
+      let body = x[1]
+      
       styleBody.add nnkIfStmt.newTree(
         nnkElifBranch.newTree(
           nnkInfix.newTree(

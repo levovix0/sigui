@@ -1,6 +1,6 @@
 import std/[tables, macros, sequtils, sets]
 import pkg/[shady, pixie]
-import pkg/fusion/[matching, astdsl]
+import pkg/fusion/[astdsl]
 import ./[gl, text as renderText]
 
 when hasImageman:
@@ -162,24 +162,30 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
     for x in params:
       x.expectKind nnkIdentDefs
       var names = x[0..^3].mapIt($it)
-      case x[^2]
-      of BracketExpr[Ident(strVal: "Uniform"), @t]:
+      
+      # Uniform[t]
+      if x[^2].kind == nnkBracketExpr and x[^2][0] == ident("Uniform"):
         for name in names:
-          uniforms[name] = t
+          uniforms[name] = x[^2][1]
 
   result = buildAst(stmtList):
     for x in body:
-      case x
-      of Pragma[ExprColonExpr[Ident(strVal: "version"), @ver]]:
-        version = ver
-      of ProcDef[@name is Ident(strVal: "vert"), _, _, FormalParams[Empty(), all @params], .._]:
+      # {.version: ver.}
+      if x.kind == nnkPragma and x.len == 1 and x[0].kind == nnkExprColonExpr and x[0][0] == ident("version"):
+        version = x[0][1]
+      
+      # proc vert(params...) = body
+      elif x.kind == nnkProcDef and x[0] == ident("vert"):
         x
-        vert = name
-        (uniforms.findUniforms(params))
-      of ProcDef[@name is Ident(strVal: "frag"), _, _, FormalParams[Empty(), all @params], .._]:
+        vert = x[0]
+        (uniforms.findUniforms(x.params[1..^1]))
+
+      # proc frag(params...) = body
+      elif x.kind == nnkProcDef and x[0] == ident("frag"):
         x
-        frag = name
-        (uniforms.findUniforms(params))
+        frag = x[0]
+        (uniforms.findUniforms(x.params[1..^1]))
+
       else: x
 
     if vert == nil:

@@ -1,5 +1,4 @@
 import std/[sequtils]
-import pkg/fusion/[matching]
 import ./[uibase, events {.all.}, animations, mouseArea, dolars]
 
 type
@@ -85,8 +84,7 @@ proc updateScrollW(this: ScrollArea) =
 method recieve*(this: ScrollArea, signal: Signal) =
   procCall this.super.recieve(signal)
 
-  case signal
-  of of ChildAdded():
+  if signal of ChildAdded:
     let child = signal.ChildAdded.child
     if child.parent == this.newChildsObject:
       this.updateScrollH()

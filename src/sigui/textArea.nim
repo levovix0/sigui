@@ -1,5 +1,5 @@
 import times, unicode, strutils
-import siwin, fusion/matching
+import siwin
 import ./[uibase, mouseArea]
 
 type
@@ -178,18 +178,17 @@ proc findRightCtrlWord(this: TextArea, inBorders: bool = false): int =
 method recieve*(this: TextArea, signal: Signal) =
   procCall this.super.recieve(signal)
   
-  case signal
-  of of WindowEvent(event: @ea is of KeyEvent(), handled: false):
-    let e = (ref KeyEvent)ea
+  if signal of WindowEvent and signal.WindowEvent.event of KeyEvent and signal.WindowEvent.handled == false:
+    let e = (ref KeyEvent)signal.WindowEvent.event
 
     if this.active[]:
-      case e
-      of (pressed: true, generated: false):
+      if e.pressed and (not e.generated):
         this.keyDown.emit(e[])
 
     if navigationUsingArrows in this.allowedInteractions and this.active[]:
-      case e
-      of (window: @window, key: @key, pressed: true, generated: false):
+      if e.pressed and (not e.generated):
+        let window = e.window
+
         proc handleSelection =
           if selectingUsingKeyboard in this.allowedInteractions:
             if Key.lshift in window.keyboard.pressed or Key.rshift in window.keyboard.pressed:
@@ -198,7 +197,7 @@ method recieve*(this: TextArea, signal: Signal) =
               this.selectionStart[] = this.cursorPos[]
               this.selectionEnd[] = this.cursorPos[]
         
-        case key
+        case e.key
         of Key.left:
           if Key.lcontrol in window.keyboard.pressed or Key.rcontrol in window.keyboard.pressed:
             this.cursorPos[] = this.findLeftCtrlWord()
@@ -224,9 +223,10 @@ method recieve*(this: TextArea, signal: Signal) =
         else: discard
 
     if this.active[]:
-      case e
-      of (window: @window, key: @key, pressed: true, generated: false):
-        case key
+      if e.pressed and (not e.generated):
+        let window = e.window
+        
+        case e.key
         of Key.a:
           if selectingAllTextByCtrlA in this.allowedInteractions:
             if window.keyboard.pressed.containsControl():   # when crl+a pressed and selectingAllTextByCtrlA enabled
@@ -280,9 +280,10 @@ method recieve*(this: TextArea, signal: Signal) =
         else: discard
 
     if textInput in this.allowedInteractions and this.active[]:
-      case e
-      of (window: @window, key: @key, pressed: true, generated: false):
-        case key
+      if e.pressed and (not e.generated):
+        let window = e.window
+        
+        case e.key
         of Key.backspace:
           if savingUndoStates in this.allowedInteractions:
             this.pushState()
@@ -341,14 +342,14 @@ method recieve*(this: TextArea, signal: Signal) =
         else: discard
     
     if deactivatingUsingEsc in this.allowedInteractions and this.active[]:
-      case e
-      of (window: @window, key: @key, pressed: true, generated: false):
-        if key == Key.escape:
+      if e.pressed and (not e.generated):
+        if e.key == Key.escape:
           this.active[] = false
 
 
-  of of WindowEvent(event: @ea is of TextInputEvent(), handled: false):
-    let e = (ref TextInputEvent)ea
+  if signal of WindowEvent and signal.WindowEvent.event of TextInputEvent and signal.WindowEvent.handled == false:
+    let e = (ref TextInputEvent)signal.WindowEvent.event
+
     if textInput in this.allowedInteractions and this.active[]:
       if e.text in ["\8", "\13", "\127"]:
         ## ignore backspace, enter and delete  # todo: in siwin
@@ -428,9 +429,8 @@ method init*(this: TextArea) =
 
       this.onSignal.connectTo this, signal:
         if deactivatingUsingMouse in root.allowedInteractions and root.active[] and not this.hovered[]:
-          case signal
-          of of WindowEvent(event: @ea is of MouseButtonEvent(), handled: false):
-            let e = (ref MouseButtonEvent)ea
+          if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent and signal.WindowEvent.handled == false:
+            let e = (ref MouseButtonEvent)signal.WindowEvent.event
             if e.pressed: root.active[] = false
 
 

@@ -1,6 +1,6 @@
 import std/[times, macros, strutils]
 import pkg/[vmath, bumpy, siwin, chroma]
-import pkg/fusion/[matching, astdsl]
+import pkg/fusion/[astdsl]
 import ./[events, properties]
 import ./render/[gl, contexts]
 
@@ -744,15 +744,13 @@ proc addChangableChild*[T: UiObj](parent: Uiobj, child: T): ChangableChild[T] =
 
 macro super*[T: Uiobj](obj: T): auto =
   var t = obj.getTypeImpl
-  case t
-  of RefTy[@sym is Sym()]:
-    t = sym.getImpl
-  case t
-  of TypeDef[_, _, ObjectTy[_, OfInherit[@sup], .._]]:
-    return buildAst(dotExpr):
-      obj
-      sup
-  else: error("unexpected type impl", obj)
+  if t.kind == nnkRefTy and t[0].kind == nnkSym:
+    t = t[0].getImpl
+  
+  if t.kind == nnkTypeDef and t[2].kind == nnkObjectTy and t[2][1].kind == nnkOfInherit:
+    return nnkDotExpr.newTree(obj, t[2][1][0])
+  else:
+    error("unexpected type impl", obj)
 
 
 #----- Drawing -----
@@ -847,7 +845,6 @@ proc bindingImpl*(
   obj: NimNode,
   target: NimNode,
   body: NimNode,
-  afterUpdate: NimNode,
   init: bool,
   kind: BindingKind,
   ctor: NimNode = newEmptyNode()
@@ -881,13 +878,19 @@ proc bindingImpl*(
   var alreadyBinded: seq[NimNode]
 
   proc impl(stmts: var seq[NimNode], body: NimNode) =
-    case body
-    of in alreadyBinded: return
-    of
-      Call[Sym(strVal: "[]"), @exp],
-      Call[Ident(strVal: "[]"), @exp],
-      BracketExpr[@exp]:
-      
+    if body in alreadyBinded:
+      return
+    
+    elif (
+      var exp: NimNode
+      if body.kind == nnkCall and body.len == 2 and body[0].kind in {nnkSym, nnkIdent} and body[0].strVal == "[]":
+        exp = body[1]
+        true
+      elif body.kind == nnkBracketExpr and body.len == 1:
+        exp = body[0]
+        true
+      else: false
+    ):
       stmts.add: buildAst(call):
         ident "connectTo"
         dotExpr(exp, ident "changed")
@@ -896,9 +899,10 @@ proc bindingImpl*(
           objCursor
       alreadyBinded.add body
       impl(stmts, exp)
-
+    
     else:
-      for x in body: impl(stmts, x)
+      for x in body:
+        impl(stmts, x)
   
   result = buildAst(blockStmt):
     ident "bindingBlock"
@@ -927,10 +931,6 @@ proc bindingImpl*(
               target
               thisInProc
               if ctor.kind != nnkEmpty: ctor else: body
-          
-          case afterUpdate
-          of Call[Sym(strVal: "newStmtList"), HiddenStdConv[Empty(), Bracket()]]: discard
-          else: afterUpdate
       
       var stmts: seq[NimNode]
       (impl(stmts, body))
@@ -940,29 +940,29 @@ proc bindingImpl*(
         call updateProc, objCursor
 
 
-macro binding*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+macro binding*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
+  bindingImpl(obj, target, body, init, bindProperty)
 
-macro bindingValue*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+macro bindingValue*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
+  bindingImpl(obj, target, body, init, bindValue)
 
-macro bindingProc*(obj: EventHandler, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+macro bindingProc*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
+  bindingImpl(obj, target, body, init, bindProc)
 
 
-macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProperty)
+macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =
+  bindingImpl(obj, target, body, init, bindProperty)
 
-macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindValue)
+macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =
+  bindingImpl(obj, target, body, init, bindValue)
 
-macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, afterUpdate: typed = newStmtList(), init: static bool = true): untyped =
-  bindingImpl(obj, target, body, afterUpdate, init, bindProc)
+macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =
+  bindingImpl(obj, target, body, init, bindProc)
 
 
 
 macro bindingChangableChild[T](obj: T, target: untyped, body: untyped, ctor: typed): untyped =
-  bindingImpl(obj, target, body, newStmtList(), true, bindValue, ctor)
+  bindingImpl(obj, target, body, true, bindValue, ctor)
 
 
 
@@ -998,25 +998,78 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
   proc implFwd(body: NimNode, res: var seq[NimNode]) =
     for x in body:
-      case x
-      of Prefix[Ident(strVal: "-"), @ctor]:
-        discard
+      # - ctor: body
+      if x.kind == nnkPrefix and x.len == 3 and x[0] == ident("-"):
+        implFwd(x[2] #[ body ]#, res)
 
-      of Prefix[Ident(strVal: "-"), @ctor, @body is StmtList()]:
-        implFwd(body, res)
+      # - ctor as alias: body
+      elif (
+        x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("as") and
+        x[1].kind == nnkPrefix and x[1][0] == ident("-")
+      ):
+        res.add nnkIdentDefs.newTree(
+          x[2] #[ alias ]#,
+          newEmptyNode(),
+          x[1][1] #[ ctor ]#
+        )
+        if x.len == 4:
+          implFwd(x[3] #[ body ]#, res)
 
-      of Infix[Ident(strVal: "as"), Prefix[Ident(strVal: "-"), @ctor], @s]:
-        res.add: buildAst:
-          identDefs(s, empty(), ctor)
-
-      of Infix[Ident(strVal: "as"), Prefix[Ident(strVal: "-"), @ctor], @s, @body is StmtList()]:
-        res.add: buildAst:
-          identDefs(s, empty(), ctor)
-        implFwd(body, res)
-
-      else: discard
 
   proc impl(parent: NimNode, obj: NimNode, body: NimNode, changableChild: NimNode, changableChildUpdaters: NimNode): NimNode =
+    proc checkCtor(ctor: NimNode): bool =
+      if ctor == ident "root": warning("adding root to itself causes recursion", ctor)
+      if ctor == ident "this": warning("adding this to itself causes recursion", ctor)
+      if ctor == ident "parent": warning("adding parent to itself causes recursion", ctor)
+
+    proc changableImpl(prop, ctor, body: NimNode): NimNode =
+      buildAst:
+        blockStmt:
+          genSym(nskLabel, "changableChildInitializationBlock")
+          stmtList:
+            discard checkCtor ctor
+
+            let updateProc = genSym(nskProc)
+            
+            asgn:
+              prop
+              call(bindSym"addChangableChild", ident "this", ctor)
+            
+            let updaters = newStmtList()
+            
+            procDef:
+              updateProc
+              empty(); empty()
+              formalParams:
+                empty()
+                identDefs(ident"parent", call(bindSym"typeof", ident"this"), empty())
+                identDefs(ident"this", call(bindSym"typeof", bracketExpr(prop)), empty())
+              empty(); empty()
+              stmtList:
+                if body == nil:
+                  call ident"initIfNeeded":
+                    ident "this"
+                if body != nil: impl(ident"parent", ident"this", body, prop, updaters)
+
+            call updateProc:
+              ident "this"
+              bracketExpr(prop)
+            
+            call bindSym"connect":
+              dotExpr(prop, ident"changed")
+              dotExpr ident "this", ident "eventHandler"
+              lambda:
+                empty()
+                empty(); empty()
+                formalParams:
+                  empty()
+                empty(); empty()
+                call updateProc:
+                  ident "this"
+                  bracketExpr(prop)
+            
+            for x in updaters: x
+
     buildAst blockStmt:
       genSym(nskLabel, "initializationBlock")
       call:
@@ -1030,96 +1083,59 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
           
           stmtList:
             call(ident"initIfNeeded", ident "this")
-            
-            proc checkCtor(ctor: NimNode): bool =
-              if ctor == ident "root": warning("adding root to itself causes recursion", ctor)
-              if ctor == ident "this": warning("adding this to itself causes recursion", ctor)
-              if ctor == ident "parent": warning("adding parent to itself causes recursion", ctor)
-
-            proc changableImpl(prop, ctor, body: NimNode): NimNode =
-              buildAst:
-                blockStmt:
-                  genSym(nskLabel, "changableChildInitializationBlock")
-                  stmtList:
-                    discard checkCtor ctor
-
-                    let updateProc = genSym(nskProc)
-                    
-                    asgn:
-                      prop
-                      call(bindSym"addChangableChild", ident "this", ctor)
-                    
-                    let updaters = newStmtList()
-                    
-                    procDef:
-                      updateProc
-                      empty(); empty()
-                      formalParams:
-                        empty()
-                        identDefs(ident"parent", call(bindSym"typeof", ident"this"), empty())
-                        identDefs(ident"this", call(bindSym"typeof", bracketExpr(prop)), empty())
-                      empty(); empty()
-                      stmtList:
-                        if body == nil:
-                          call ident"initIfNeeded":
-                            ident "this"
-                        if body != nil: impl(ident"parent", ident"this", body, prop, updaters)
-
-                    call updateProc:
-                      ident "this"
-                      bracketExpr(prop)
-                    
-                    call bindSym"connect":
-                      dotExpr(prop, ident"changed")
-                      dotExpr ident "this", ident "eventHandler"
-                      lambda:
-                        empty()
-                        empty(); empty()
-                        formalParams:
-                          empty()
-                        empty(); empty()
-                        call updateProc:
-                          ident "this"
-                          bracketExpr(prop)
-                    
-                    for x in updaters: x
-
 
             for x in body:
-              case x
-              of Prefix[Ident(strVal: "-"), @ctor]:
+              # - ctor: body
+              if (
+                x.kind == nnkPrefix and x.len in 2..3 and x[0] == ident("-")
+              ):
+                let ctor = x[1]
                 discard checkCtor ctor
-                let s = genSym(nskLet)
+                let alias = genSym(nskLet)
                 letSection:
-                  identDefs(s, empty(), ctor)
-                call(ident"addChild", ident "this", s)
-                call(ident"initIfNeeded", s)
+                  identDefs(alias, empty(), ctor)
+                call(ident"addChild", ident "this", alias)
+                
+                if x.len == 2:
+                  call(ident"initIfNeeded", alias)
+                else:
+                  let body = x[2]
+                  impl(ident "this", alias, body, changableChild, changableChildUpdaters)
 
-              of Prefix[Ident(strVal: "-"), @ctor, @body is StmtList()]:
+
+              # - ctor as alias: body
+              elif (
+                x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("as") and
+                x[1].kind == nnkPrefix and x[1][0] == ident("-")
+              ):
+                let ctor = x[1][1]
+                let alias = x[2]
                 discard checkCtor ctor
-                let s = genSym(nskLet)
-                letSection:
-                  identDefs(s, empty(), ctor)
-                call(ident"addChild", ident "this", s)
-                impl(ident "this", s, body, changableChild, changableChildUpdaters)
-
-              of Infix[Ident(strVal: "as"), Prefix[Ident(strVal: "-"), @ctor], @s]:
-                discard checkCtor ctor
-                call(ident"addChild", ident "this", s)
-                call(ident"initIfNeeded", s)
-
-              of Infix[Ident(strVal: "as"), Prefix[Ident(strVal: "-"), @ctor], @s, @body is StmtList()]:
-                discard checkCtor ctor
-                call(ident"addChild", ident "this", s)
-                impl(ident "this", s, body, changableChild, changableChildUpdaters)
-
-              of Infix[Ident(strVal: "---"), @to, @ctor]:
-                changableImpl(to, ctor, nil)
-
-              of Infix[Ident(strVal: "---"), @to, @ctor, @body is StmtList()]:
-                changableImpl(to, ctor, body)
+                call(ident"addChild", ident "this", alias)
+                
+                if x.len == 3:
+                  call(ident"initIfNeeded", alias)
+                else:
+                  let body = x[3]
+                  impl(ident "this", alias, body, changableChild, changableChildUpdaters)
               
-              of Prefix[Ident(strVal: "<---"), @ctor, @body is StmtList()]:
+
+              # to --- ctor: body
+              elif (
+                x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("---")
+              ):
+                let to = x[1]
+                let ctor = x[2]
+                discard checkCtor ctor
+                changableImpl(to, ctor, (if x.len == 3: nil else: x[3]))
+
+              
+              # <--- ctor: body
+              elif (
+                x.kind == nnkPrefix and x.len == 3 and x[0] == ident("<---")
+              ):
+                let ctor = x[1]
+                let body = x[2]
                 if changableChild.kind == nnkEmpty:
                   (error("Must be inside changable child", x))
 
@@ -1132,11 +1148,26 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       body
                       ctor
               
-              of
-                Infix[Ident(strVal: ":="), @name, @val],
-                Asgn[@name is Ident(), Command[Ident(strVal: "binding"), @val]],
-                Asgn[@name is Ident(), Call[Ident(strVal: "binding"), @val]]:
 
+              # prop := val
+              # prop = binding: val
+              elif (
+                var name, val: NimNode
+                
+                # prop := val
+                if x.kind == nnkInfix and x.len == 3 and x[0] == ident(":="):
+                  name = x[1]
+                  val = x[2]
+                  true
+                
+                # prop = binding: val
+                elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1][0] == ident("binding"):
+                  name = x[0]
+                  val = x[1][1]
+                  true
+                
+                else: false
+              ):
                 whenStmt:
                   elifBranch:
                     call bindSym"compiles":
@@ -1154,34 +1185,58 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       name
                       val
               
-              of Asgn[@name is Ident(), @val]:
-                whenStmt:
-                  elifBranch:
-                    call bindSym"compiles":
-                      call ident"[]=":
-                        dotExpr(ident "this", name)
-                        val
-                    call ident"[]=":
-                      dotExpr(ident "this", name)
-                      val
-                  elifBranch:
-                    call bindSym"compiles":
-                      call ident($name & "="):
-                        ident "this"
-                        val
-                    call ident($name & "="):
-                      ident "this"
-                      val
-                  elifBranch:
-                    call bindSym"compiles":
-                      asgn(name, val)
-                    asgn(name, val)
-                  Else:
-                    call ident"[]=":
-                      dotExpr(ident "this", name)
-                      val
-              
-              of ForStmt():
+
+              # name = val
+              elif (
+                x.kind == nnkAsgn and x[0].kind == nnkIdent
+              ):
+                let name = x[0]
+                let val = x[1]
+
+                let asgnProperty = nnkAsgn.newTree(
+                  nnkBracketExpr.newTree(
+                    nnkDotExpr.newTree(ident("this"), name),
+                  ),
+                  val
+                )
+
+                let asgnField = nnkAsgn.newTree(
+                  nnkDotExpr.newTree(ident("this"), name),
+                  val
+                )
+
+                let asgnSimple = nnkAsgn.newTree(
+                  name,
+                  val
+                )
+
+                let selector = nnkWhenStmt.newTree(
+                  nnkElifBranch.newTree(
+                    nnkCall.newTree(bindSym("compiles"), asgnProperty),
+                    asgnProperty
+                  ),
+                  nnkElifBranch.newTree(
+                    nnkCall.newTree(bindSym("compiles"), asgnField),
+                    asgnField
+                  ),
+                  nnkElifBranch.newTree(
+                    nnkCall.newTree(bindSym("compiles"), asgnSimple),
+                    asgnSimple
+                  ),
+                  nnkElse.newTree(
+                    asgnProperty
+                  )
+                )
+
+                (selector[0][0].copyLineInfo(selector[0][0][0]))
+                (selector[1][0].copyLineInfo(selector[1][0][0]))
+                (selector[2][0].copyLineInfo(selector[2][0][0]))
+
+                selector
+            
+
+              # for x in y: body
+              elif x.kind == nnkForStmt:
                 forStmt:
                   for y in x[0..^2]: y
                   call:
@@ -1208,10 +1263,12 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                     
                     for param in x[0..^3]:
                       param
-              
-              of IfStmt[all @branches]:
+
+
+              # if x: body
+              elif x.kind == nnkIfStmt:
                 ifStmt:
-                  for x in branches:
+                  for x in x.children:
                     x[^1] = buildAst:
                       stmtList:
                         letSection:
@@ -1221,15 +1278,29 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                         impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     x
               
-              of Command[Ident(strVal: "on"), @event, @body]:
-                call bindSym("connectTo"):
-                  event
-                  ident "this"
-                  body
 
-              else: x
+              # on event: body
+              elif x.kind == nnkCommand and x.len == 3 and x[0] == ident("on"):
+                let event = x[1]
+                let body = x[2]
+
+                let connectCall = nnkCall.newTree(
+                  bindSym("connectTo"),
+                  event,
+                  ident "this",
+                  body
+                )
+                (connectCall[0].copyLineInfo(x[0]))
+                
+                connectCall
+              
+
+              else:
+                x
+
         parent
         obj
+
 
   buildAst blockStmt:
     genSym(nskLabel, "makeLayoutBlock")

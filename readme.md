@@ -221,17 +221,14 @@ Ui objects can receive signals.
 
 ## Signals
 ```nim
-import fusion/matching
-
 type
   MySignal = object of SubtreeSignal
     val: int
 
 method recieve*(this: MyComponent, signal: Signal) =
-  case signal
-  of of MySignal(val: @val):
-    echo val
-    # note: not calling this.super.recieve(signal) to not send MySignal to this object childs and not emit this.onSignal
+  if signal of MySignal:
+    echo signal.MySignal.val
+    # note: not calling this.super.recieve(signal) to not send MySignal to childs of this object and not emit this.onSignal
   else:
     procCall this.super.recieve(signal)
 
