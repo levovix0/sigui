@@ -35,23 +35,23 @@ test "todo app":
   window.makeLayout:
     this.clearColor = color(1, 1, 1)
 
-    - App() as app
+    - App.new as app
 
-    - UiText() as text:
+    - UiText.new as text:
       centerX = parent.center
       y = 20
       font = typeface.withSize(72)
       color = color(0.5, 0.5, 0.5)
       text = "todos"
     
-    - UiRectBorder() as taskAdder:
+    - UiRectBorder.new as taskAdder:
       this.fillHorizontal(parent, 20)
       h = 40
       top = text.bottom + 20
       color = color(0.5, 0.5, 0.5)
       radius = 5
       
-      - TextArea() as taskName:
+      - TextArea.new as taskName:
         this.fill(parent, 4, 2)
         right = addTask.left - 10
         text = "sample task"
@@ -60,7 +60,7 @@ test "todo app":
         this.onKeyDown enter:
           mouse.mouseDownAndUpInside.emit()
       
-      - UiRect() as addTask:
+      - UiRect.new as addTask:
         right = parent.right - 5
         this.fillVertical(parent, 4)
         w := this.h[]
@@ -74,13 +74,13 @@ test "todo app":
         - this.color.transition(0.4's):
           easing = outCubicEasing
 
-        - UiText():
+        - UiText.new:
           this.centerIn parent
           text = "+"
           font = typeface.withSize(32)
           color = color(1, 1, 1)
 
-        - MouseArea() as mouse:
+        - MouseArea.new as mouse:
           this.fill parent
 
           on this.mouseDownAndUpInside:
@@ -90,12 +90,12 @@ test "todo app":
             taskName.pushState()
             taskName.text[] = ""
 
-    - ScrollArea():
+    - ScrollArea.new:
       this.fillHorizontal(parent, 20)
       bottom = parent.bottom - 20
       top = taskAdder.bottom + 20
 
-      app.layout --- Layout():
+      app.layout --- Layout.new:
         <--- Layout(): app.tasksChanged[]
 
         this.binding w: parent.w[]
@@ -106,10 +106,10 @@ test "todo app":
         for i in 0..app.tasks.high:
           template task: auto = app.tasks[i]
 
-          - DestroyLogger() as logger:
+          - DestroyLogger.new as logger:
             this.inner.message = "destroyed: " & $i
 
-          - Layout():
+          - Layout.new:
             spacing = 10
             align = center
             
@@ -119,7 +119,7 @@ test "todo app":
               isOn := task.complete[]
               this.bindingValue task.complete[]: this.isOn[]
 
-            - UiText():
+            - UiText.new:
               text = task.name
               
               this.binding font:
@@ -132,7 +132,7 @@ test "todo app":
                 elif mouse.hovered[]: color(0.4, 0.4, 0.4)
                 else: color(0, 0, 0)
 
-              - MouseArea() as mouse:
+              - MouseArea.new as mouse:
                 this.fill parent
                 on this.mouseDownAndUpInside:
                   task.complete[] = not task.complete[]

@@ -189,7 +189,7 @@ when isMainModule:
 
   let animator = newOpenglWindow(size = ivec2(300, 40)).newUiWindow
   animator.makeLayout:
-    - newUiRect() as rect:
+    - UiRect.new as rect:
       w = 40
       h = 40
       x = 10

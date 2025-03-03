@@ -424,7 +424,7 @@ method init*(this: TextArea) =
       win.onTick.connectTo this:
         this.blinking.time[] = (this.blinking.time + e.deltaTime) mod (this.blinking.period[] * 2)
 
-    - MouseArea():
+    - MouseArea.new:
       this.fill parent
 
       this.onSignal.connectTo this, signal:
@@ -483,10 +483,10 @@ method init*(this: TextArea) =
             root.selectionEnd[] = root.cursorPos[]
 
 
-      - ClipRect() as clip:
+      - ClipRect.new as clip:
         this.fill parent
 
-        - Uiobj() as offset:
+        - Uiobj.new as offset:
           this.fillVertical parent
           # w := root.textObj[].w[]
           x := root.offset[]
@@ -497,7 +497,7 @@ method init*(this: TextArea) =
             w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
 
 
-          root.textObj --- UiText():
+          root.textObj --- UiText.new:
             centerY = parent.center
             text = binding:
               if root.text[].len == 0: ""  # workaround https://github.com/nim-lang/Nim/issues/24080
@@ -550,7 +550,7 @@ when isMainModule:
         w = 400
         h = this.textObj[].h[].max(24)
 
-        - UiRectBorder():
+        - UiRectBorder.new:
           this.fill(parent, -1)
       this
   )

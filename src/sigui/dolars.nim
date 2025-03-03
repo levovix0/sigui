@@ -148,12 +148,12 @@ when isMainModule:
     this.h[] = 30
     this.field = 2
 
-    - RectShadow() as shadow:
+    - RectShadow.new as shadow:
       this.fill(parent, -5)
       this.drawLayer = before parent
       this.radius[] = 5
     
-    - MouseArea():
+    - MouseArea.new:
       this.mouseDownAndUpInside.connectTo parent:
         discard
 

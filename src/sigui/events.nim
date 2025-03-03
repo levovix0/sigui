@@ -32,7 +32,8 @@ type
     connected: seq[EventConnection[T]]
 
 
-var redrawUiobj*: proc(uiobj: FlaggedPointer) {.cdecl.}
+proc redrawUiobj(uiobj: FlaggedPointer) {.importc: "sigui_internal_redrawUiobj".}
+  ## cross-module forward declaration, implementation is in uiobj.nim
 
 
 proc `==`*(a, b: FlaggedPointer): bool {.borrow.}
@@ -185,6 +186,9 @@ proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
       inc i
   if s.uiobj.pointer != nil:
     redrawUiobj s.uiobj
+
+
+# todo: -d:sigui_benchmark_event_emits, to see how much and which exactly events are chain-emited
 
 
 proc connect*[T](s: var Event[T], c: var EventHandler, f: proc(v: T), flags: set[EventConnectionFlag] = {}) =

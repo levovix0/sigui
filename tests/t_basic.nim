@@ -3,7 +3,7 @@ import sigui, siwin
 let win = newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindow
 
 win.makeLayout:
-  - UiRect():
+  - UiRect.new:
     this.centerIn(parent)
     w = 100
     h := this.w[]  # same as this.bindingValue this.h[]: this.w[]
@@ -20,7 +20,7 @@ win.makeLayout:
 
     - this.color.transition(0.4's)
 
-    - MouseArea() as mouse:
+    - MouseArea.new as mouse:
       this.fill(parent)
       on this.mouseDownAndUpInside:
         state[] = (state[] + 1) mod 3

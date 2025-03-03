@@ -24,10 +24,10 @@ test "localize":
   let typeface = parseTtf(typefaceFile)
 
   win.makeLayout:
-    - UiText():
+    - UiText.new:
       this.centerIn(parent)
       font = typeface.withSize(32)
       color = "fff"
-      text := locale[].tr"Hello, world!"
+      text := tr("Hello, world!", "", locale[])
 
   run win.siwinWindow

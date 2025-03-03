@@ -131,6 +131,8 @@ type
   
   ChildAdded* = ref object of UptreeSignal
     child*: Uiobj
+  
+  # todo: ChildRemoved
 
   
   BindingKind = enum
@@ -275,8 +277,8 @@ proc redraw*(obj: Uiobj, ifVisible = true) =
   if win != nil: redraw win
 
 
-redrawUiobj = proc(obj: FlaggedPointer) {.cdecl.} =
-  redraw(cast[Uiobj](cast[int](obj) and (not 1)), (cast[int](obj.pointer) and 1) == 0)
+proc redrawUiobj(uiobj: FlaggedPointer) {.exportc: "sigui_internal_redrawUiobj".} =
+  redraw(cast[Uiobj](cast[int](uiobj) and (not 1)), (cast[int](uiobj.pointer) and 1) == 0)
 
 
 proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
@@ -981,16 +983,16 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
         echo shadowEffect.radius
         doassert parent.Uiobj == this.parent
 
-        - ClipRect():
+        - ClipRect.new:
           this.radius[] = 7.5
           this.fill(parent, 10)
           doassert root.Uiobj == this.parent.parent
 
-          ooo --- UiRect():  # add changable child
+          ooo --- UiRect.new:  # add changable child
             this.fill(parent)
 
           - b
-          - UiRect()
+          - UiRect.new
 
       - c:
         this.fill(parent)
@@ -1021,6 +1023,8 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       if ctor == ident "root": warning("adding root to itself causes recursion", ctor)
       if ctor == ident "this": warning("adding this to itself causes recursion", ctor)
       if ctor == ident "parent": warning("adding parent to itself causes recursion", ctor)
+      if ctor.kind == nnkCall and ctor[0].kind == nnkIdent and ctor[0].strVal[0].isUpperAscii and ctor.len == 1:
+        warning("default nim constructor cannot be overloaded, please prefer using " & ctor[0].strVal & ".new, new " & ctor[0].strVal & " or new" & ctor[0].strVal & "()", ctor)
 
     proc changableImpl(prop, ctor, body: NimNode): NimNode =
       buildAst:
@@ -1212,21 +1216,26 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
                 let selector = nnkWhenStmt.newTree(
                   nnkElifBranch.newTree(
-                    nnkCall.newTree(bindSym("compiles"), asgnProperty),
+                    nnkCall.newTree(bindSym("compiles"), asgnProperty.copy),
                     asgnProperty
                   ),
                   nnkElifBranch.newTree(
-                    nnkCall.newTree(bindSym("compiles"), asgnField),
+                    nnkCall.newTree(bindSym("compiles"), asgnField.copy),
                     asgnField
                   ),
                   nnkElifBranch.newTree(
-                    nnkCall.newTree(bindSym("compiles"), asgnSimple),
+                    nnkCall.newTree(bindSym("compiles"), asgnSimple.copy),
                     asgnSimple
                   ),
                   nnkElse.newTree(
                     asgnProperty
                   )
                 )
+                
+                (asgnProperty.copyLineInfo(x))
+                (asgnProperty[0].copyLineInfo(x))
+                (asgnField.copyLineInfo(x))
+                (asgnSimple.copyLineInfo(x))
 
                 (selector[0][0].copyLineInfo(selector[0][0][0]))
                 (selector[1][0].copyLineInfo(selector[1][0][0]))

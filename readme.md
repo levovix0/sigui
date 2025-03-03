@@ -8,7 +8,7 @@
 
 Sigui is inspired by QtQuick.
 
-Libraries to see also: [siwin](https://github.com/levovix0/siwin), [localize](https://github.com/levovix0/localize)
+Libraries to see also: [siwin](https://github.com/levovix0/siwin), [localize](https://github.com/levovix0/localize), [pixie](https://github.com/treeform/pixie), [shady](https://github.com/treeform/shady)
 
 ## Table of contents
 1. [Examples](#Examples)
@@ -40,7 +40,7 @@ import sigui, siwin
 let win = newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindow
 
 win.makeLayout:
-  - UiRect():
+  - UiRect.new:
     this.centerIn(parent)
     w = 100  # same as this.w[] = 100
     h := this.w[]  # same as this.bindingValue this.h[]: this.w[]
@@ -57,7 +57,7 @@ win.makeLayout:
 
     - this.color.transition(0.4's)
 
-    - MouseArea() as mouse:
+    - MouseArea.new as mouse:
       this.fill(parent)
       on this.mouseDownAndUpInside:
         state[] = (state[] + 1) mod 3
@@ -92,19 +92,19 @@ method init*(this: Switch) =
     w = 40
     h = 20
 
-    - MouseArea() as mouse:
+    - MouseArea.new as mouse:
       this.fill(parent)
       this.mouseDownAndUpInside.connectTo root:
         if root.enabled[]:
           root.isOn[] = not root.isOn[]
 
-      - UiRectBorder():
+      - UiRectBorder.new:
         this.fill(parent)
         this.binding radius: min(this.w[], this.h[]) / 2 - 2
         borderWidth = 2
         color = "aaa"
 
-        - UiRect():
+        - UiRect.new:
           centerY = parent.center
           w := min(parent.w[], parent.h[]) - 8
           h := this.w[]
@@ -124,7 +124,7 @@ method init*(this: Switch) =
 
 when isMainModule:
   preview(clearColor = color(1, 1, 1), margin = 20, withWindow = proc: Uiobj =
-    var r = Switch()
+    var r = Switch.new
     init r
     r
   )
@@ -203,7 +203,7 @@ method init*(this: MyComponent) =
     this.myInternalState = this.myState[]
 
   this.makeLayout:
-    - UiRect():
+    - UiRect.new:
       this.fill parent
 
 # ...
@@ -261,7 +261,7 @@ Built-in interpolation modifiers:
 ## Layouts
 *not to be confused with makeLayout macro*
 ```nim
-- Layout():
+- Layout.new:
   h = 720
   gap = 10
   wrapGap = 20
@@ -274,18 +274,18 @@ Built-in interpolation modifiers:
   elementsBeforeWrap = 3
   lengthBeforeWrap := this.w[]
 
-  - UiRect():
+  - UiRect.new:
     w = 20
     h = 30
   
-  - InLayout():
+  - InLayout.new:
     align = center
 
-    - UiRect():
+    - UiRect.new:
       w = 10
       h = 10
 
-  - UiRect():
+  - UiRect.new:
     w = 30
     w = 20
 ```
@@ -299,18 +299,18 @@ type
 registerComponent MyComponent
 
 
-let x = MyComponent()
+let x = MyComponent.new
 x.makeLayout:
   - UiRect():
     this.fill parent
     this.binding color: rect2.color[].darken(0.5)  # objects created and aliased using `as` can be referenced before declaration
 
-    - UiRect() as rect2:
+    - UiRect.new as rect2:
       w = 20
       h = 30
       color = color(1, 1, 1)
     
-      root.changableChild --- UiRect():
+      root.changableChild --- UiRect.new:
         # actions in this body will be executed when root.changableChild is changed
         this.fill(parent, 2, 4)
 ```
@@ -323,26 +323,26 @@ Changable childs could be used to re-build component tree on any event.
 var elements = ["first", "second"]
 var elementsObj: ChangableChild[Layout]
 
-elementsObj --- Layout():
+elementsObj --- Layout.new:
   orientation = vertical
   gap = 10
 
   for i, element in elements:
-    - TextArea():
+    - TextArea.new:
       text = element
 
       on this.text.changed:
         elements[i] = this.text[]
   
-  - InLayout():
+  - InLayout.new:
     fillContainer = true
 
-    - MouseArea():
+    - MouseArea.new:
       h = 20
 
       on this.mouseDownAndUpInside:
         elements.add "new"
-        elementsObj[] = Layout()  # re-build tree
+        elementsObj[] = Layout.new  # re-build tree
 
       - UiText():
         this.centerIn parent
@@ -354,15 +354,15 @@ The `<--- ctor: prop[]; event[]; ...` syntax can be used to re-build tree based 
 var elements = ["first", "second"].property
 var elementsObj: ChangableChild[Layout]
 
-elementsObj --- Layout():
-  <--- Layout(): elements[]
+elementsObj --- Layout.new:
+  <--- Layout.new: elements[]
 
   # ...
 
-  - InLayout():
+  - InLayout.new:
     # ...
 
-    - MouseArea():
+    - MouseArea.new:
       # ...
 
       this.mouseDownAndUpInside.connectTo this:
@@ -377,17 +377,17 @@ elementsObj --- Layout():
 ![image](http://levovix.ru:8000/docs/sigui/anchors%20example.png)
 *centering component is `this.centerIn parent`*
 ```nim
-- UiRect():
+- UiRect.new:
   this.fill parent
   color = color(0, 1, 0)
 
-  - UiRect() as rect:
+  - UiRect.new as rect:
     left = parent.center  # same as this.left = parent.center
     right = parent.right
     bottom = parent.bottom - 10  # -i always means up/left and +i means down/right, even if theese all are bottom anchors
     color = color(1, 0, 0)
   
-  - UiRect():
+  - UiRect.new:
     centerX = rect.left
     centerY = parent.center + 1
     color = color(0, 0, 1)
@@ -397,13 +397,13 @@ elementsObj --- Layout():
 ![image](http://levovix.ru:8000/docs/sigui/layers%20example.png)
 Unlike other ui libs, sigui don't have z-indices. Instead, you can directly specify component `before`, `after` or `beforeChilds` your component should be rendered.
 ```nim
-- UiRect():
+- UiRect.new:
   #...
 
-  - UiRect() as rect:
+  - UiRect.new as rect:
     drawLayer = before parent
   
-- UiRect():
+- UiRect.new:
   drawLayer = after rect
 ```
 
@@ -471,7 +471,7 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
 const typefaceFile = staticRead "Roboto-Regular.ttf"
 let typeface = parseTtf(typefaceFile)
 
-- Styler():
+- Styler.new:
   this.fill parent
   style = makeStyle:
     UiText:
@@ -488,24 +488,24 @@ let typeface = parseTtf(typefaceFile)
         color = "808080"
   
 
-  - UiRect():
+  - UiRect.new:
     x = 20
     y = 20
     w = 200
     h = 100
 
-    - UiRect():
+    - UiRect.new:
       this.centerIn root
       w = 50
       h = 50
   
-  - UiText():
+  - UiText.new:
       bottom = parent.bottom
       text = "text with changed font"
       font = typeface.withSize(16)
 
 # rect outside styler
-- UiRect():
+- UiRect.new:
   right = parent.right
   bottom = parent.bottom
   w = 100
@@ -526,7 +526,7 @@ Configure .allowedInteractions if you need somthing advanced.
 const typefaceFile = staticRead "../../tests/Roboto-Regular.ttf"
 let typeface = parseTtf(typefaceFile)
 
-- TextArea():
+- TextArea.new:
   text = "start text"
   this.textObj[].font[] = typeface.withSize(24)
 

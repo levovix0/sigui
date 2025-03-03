@@ -228,10 +228,10 @@ method init*(this: ScrollArea) =
       easing = outSquareEasing
 
 
-    - ClipRect():
+    - ClipRect.new:
       this.fill parent
 
-      - MouseArea():
+      - MouseArea.new:
         this.fill parent
 
         this.scrolled.connectTo root, xy:
@@ -240,7 +240,7 @@ method init*(this: ScrollArea) =
             root.targetX[] = (root.targetX[] + xy.x * root.horizontalScrollSpeed).max(0).min((root.scrollW[] - root.w[]).max(0))
           root.targetY[] = (root.targetY[] + xy.y * root.verticalScrollSpeed).max(0).min((root.scrollH[] - root.h[]).max(0))
 
-        - UiObj() as container:
+        - UiObj.new as container:
           x := -root.scrollX[]
           y := -root.scrollY[]
     
@@ -365,34 +365,34 @@ when isMainModule:
         w = 200
         h = 200
 
-        - Styler():
+        - Styler.new:
           style = makeStyle:
             UiRect:
               w = 190
               h = 100
 
-          - Layout():
+          - Layout.new:
             parent.fill this
             orientation = vertical
 
-            - UiRect():
+            - UiRect.new:
               color = color(1, 0, 0)
 
-            - UiRect():
+            - UiRect.new:
               color = color(0, 1, 0)
               radius = 20
 
-            - UiRect():
+            - UiRect.new:
               color = color(0, 0, 1)
 
-            - UiRect():
+            - UiRect.new:
               color = color(1, 0.3, 0.3)
 
-            - UiRect():
+            - UiRect.new:
               color = color(0.3, 1, 0.3)
               radius = 20
 
-            - UiRect():
+            - UiRect.new:
               color = color(0.3, 0.3, 1)
 
       this

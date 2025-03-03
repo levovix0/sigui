@@ -20,19 +20,19 @@ method init*(this: Switch) =
     w = 40
     h = 20
 
-    - MouseArea() as mouse:
+    - MouseArea.new as mouse:
       this.fill(parent)
       this.mouseDownAndUpInside.connectTo root:
         if root.enabled[]:
           root.isOn[] = not root.isOn[]
 
-      - UiRectBorder():
+      - UiRectBorder.new:
         this.fill(parent)
         this.binding radius: min(this.w[], this.h[]) / 2 - 2
         borderWidth = 2
         color = "aaa"
 
-        - UiRect():
+        - UiRect.new:
           centerY = parent.center
           w := min(parent.w[], parent.h[]) - 8
           h := this.w[]
@@ -52,7 +52,7 @@ method init*(this: Switch) =
 
 when isMainModule:
   preview(clearColor = color(1, 1, 1), margin = 20, withWindow = proc: Uiobj =
-    var r = Switch()
+    var r = Switch.new
     init r
     r
   )

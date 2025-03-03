@@ -9,6 +9,8 @@ else:
 
 export vmath, opengl
 
+# todo: import only needed functions from opengl, instead of full huge bundle
+
 
 type
   Buffers* = ref BuffersObj

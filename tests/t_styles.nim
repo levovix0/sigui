@@ -32,7 +32,7 @@ test "styles":
       color = "e0e0e0"
       radius = 5
 
-      - UiText():
+      - UiText.new:
         this.centerIn parent
         text = "this should not be visible"
         color = "808080"
@@ -41,29 +41,29 @@ test "styles":
   window.makeLayout:
     this.clearColor = "202020"
 
-    - Styler():
+    - Styler.new:
       this.fill parent
       style = lightTheme
       style = darkTheme
       
 
-      - UiRect():
+      - UiRect.new:
         x = 20
         y = 20
         w = 200
         h = 100
 
-        - UiRect():
+        - UiRect.new:
           this.centerIn root
           w = 50
           h = 50
       
-      - UiText():
+      - UiText.new:
           bottom = parent.bottom
           text = "text with changed font"
           font = typeface.withSize(16)
     
-    - UiRect():
+    - UiRect.new:
       right = parent.right
       bottom = parent.bottom
       w = 100
