@@ -971,10 +971,12 @@ macro bindingChangableChild[T](obj: T, target: untyped, body: untyped, ctor: typ
 macro makeLayout*(obj: Uiobj, body: untyped) =
   ## tip: use a.makeLauyout(-soMeFuN()) instead of (let b = soMeFuN(); a.addChild(b); init b)
   runnableExamples:
-    let a = UiRect()
-    let b = UiRect()
-    let c = UiRect()
-    var ooo: CustomProperty[UiRect]
+    import sigui/uibase
+    
+    let a = UiRect.new
+    let b = UiRect.new
+    let c = UiRect.new
+    var ooo: ChangableChild[UiRect]
     a.makeLayout:
       - RectShadow(radius: 7.5'f32.property, blurRadius: 10'f32.property, color: color(0, 0, 0, 0.3).property) as shadowEffect
 
