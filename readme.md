@@ -37,7 +37,7 @@ https://github.com/levovix0/sigui/assets/53170138/9509e245-2701-4dba-8237-a83f48
 ```nim
 import sigui, siwin
 
-let win = newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindow
+let win = newSiwinGlobals().newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindow
 
 win.makeLayout:
   - UiRect.new:

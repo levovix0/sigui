@@ -27,7 +27,7 @@ proc `=destroy`(x: DestroyLoggerInner) =
 
 
 test "todo app":
-  let window = newOpenglWindow(size = ivec2(500, 800), title = "todos").newUiWindow
+  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(500, 800), title = "todos").newUiWindow
 
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)

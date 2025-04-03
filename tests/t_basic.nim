@@ -1,6 +1,6 @@
 import sigui, siwin
 
-let win = newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindow
+let win = newSiwinGlobals().newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiWindow
 
 win.makeLayout:
   - UiRect.new:

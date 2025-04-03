@@ -3,7 +3,7 @@ import siwin
 import sigui
 
 test "layers":
-  let window = newOpenglWindow(size = ivec2(1280, 720), title = "layers").newUiWindow
+  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "layers").newUiWindow
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)

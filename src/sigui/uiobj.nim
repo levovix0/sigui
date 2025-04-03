@@ -1340,7 +1340,7 @@ template withWindow*(obj: UiObj, winVar: untyped, body: untyped) =
 
 
 proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, transparent = false, withWindow: proc(): Uiobj) =
-  let win = newOpenglWindow(
+  let win = newSiwinGlobals().newOpenglWindow(
     size =
       if size != ivec2(): size
       else: ivec2(100, 100),
