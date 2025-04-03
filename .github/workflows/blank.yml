@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: jiro4989/setup-nim-action@v1
         with:
-          nim-version: 2.0.8
+          nim-version: 2.2.0
   
       - run: nimble install -Y
       
@@ -40,7 +40,7 @@ jobs:
           cp -r docs/* _site
         
       - name: Upload  _site directory for deploy job
-        uses: actions/upload-pages-artifact@v1 # This will automatically upload an artifact from the '/_site' directory
+        uses: actions/upload-pages-artifact@v3 # This will automatically upload an artifact from the '/_site' directory
    
   
   # Deploy _site directory with permissions of GITHUB_TOKEN
