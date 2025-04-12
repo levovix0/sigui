@@ -45,7 +45,7 @@ type
       ## cursor for mouse when inside this area
     
     pressedButtons: set[MouseButton]
-    pressedPos: Vec2
+    pressedPos: Vec2  # press start pos relative to screen
     grabStarted: bool
 
 proc initRedrawWhenPropertyChanged_ignore(t: type MouseArea, name: string): bool {.used.} =

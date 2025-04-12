@@ -1462,18 +1462,24 @@ macro generateInitRedrawWhenPropertyChangedMethod(t: typed) {.used.} =
 method componentTypeName*(this: Uiobj): string {.base.} = "Uiobj"
 
 
-proc formatProperty[T](res: var seq[string], name: string, prop: Property[T]) =
+proc formatProperty[T](res: var seq[string], name: static string, prop: Property[T]) =
   if (prop[] != typeof(prop[]).default or prop.changed.hasExternalHandlers):
-    when compiles($prop[]):
+    when v is Uiobj:
+      result.add name & ": -> " & prop[].componentTypeName
+    
+    elif compiles($prop[]):
       res.add name & ": " & $prop[]
 
 
-proc formatProperty[T](res: var seq[string], name: string, prop: CustomProperty[T]) =
+proc formatProperty[T](res: var seq[string], name: static string, prop: CustomProperty[T]) =
   if (
     prop.get != nil and
     (prop[] != typeof(prop[]).default or prop.changed.hasExternalHandlers)
   ):
-    when compiles($prop[]):
+    when v is Uiobj:
+      result.add name & ": -> " & prop[].componentTypeName
+    
+    elif compiles($prop[]):
       res.add name & ": " & $prop[]
 
 
@@ -1495,7 +1501,17 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
       discard
     
     elif v is Uiobj:
-      ## todo
+      if v == nil:
+        when k != "newChildsObject":
+          result.add k & ": nil.Uiobj"
+      else:
+        result.add k & ": -> " & v.componentTypeName
+    
+    elif v is ChangableChild:
+      if v[] == nil:
+        result.add k & ": nil.Uiobj"
+      else:
+        result.add k & ": -> " & v[].componentTypeName
     
     elif v is Event:
       ## todo
