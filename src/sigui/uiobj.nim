@@ -978,7 +978,11 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
     let c = UiRect.new
     var ooo: ChangableChild[UiRect]
     a.makeLayout:
-      - RectShadow(radius: 7.5'f32.property, blurRadius: 10'f32.property, color: color(0, 0, 0, 0.3).property) as shadowEffect
+      - RectShadow(
+        radius: 7.5'f32.property,  # pre-initialization of properties (not recommended)
+        blurRadius: 10'f32.property,
+        color: color(0, 0, 0, 0.3).property
+      ) as shadowEffect
 
       - newUiRect():
         this.fill(parent)

@@ -1,5 +1,7 @@
-import std/[sequtils]
-import ./[uiobj, properties]
+import std/[sequtils, importutils]
+import pkg/[vmath]
+import ./[uiobj {.all.}, properties, events]
+import ./render/[contexts]
 
 type
   LayoutOrientation* = enum
@@ -19,23 +21,37 @@ type
     
     align*: Property[LayoutAlignment]
     fillContainer*: Property[bool]
+      ## if true, all elements will have same size on second axis (width for vertical layout, height for horizontal layout)
 
     alignContent*, wrapAlignContent*: Property[LayoutAlignment]
 
     gap*, wrapGap*: Property[float32]
     fillWithSpaces*, wrapFillWithSpaces*: Property[bool]
     consistentSpacing*: Property[bool]
+      ## if true, last wrapped row will have same spacing as previous row
     
     wrap*: Property[bool]
       ## become "grid"
     elementsBeforeWrap*: Property[int]
     lengthBeforeWrap*: Property[float32]
 
+    assumeChildsClipped*: Property[bool] = true.property
+      ## for optimization, if true, assume for all children, that child's tree are contained in that child (xy >= 0, wh <= parent wh)
+
     inRepositionProcess: bool
   
   InLayout* = ref object of Uiobj
     align*: Property[LayoutAlignment]
     fillContainer*: Property[bool]
+    grow*: Property[int]
+      ## if >0, element will grow on main axis (width for horizontal layout, height for vertical layout)
+      ## if more than one element has grow >0, they will share free space, proportionally to their grow value
+    minSize*: Property[float32]
+      ## if grow >0, element will not be smaller than this value on main axis (width for horizontal layout, height for vertical layout)
+      ## if 0, this constraint don't apply
+    maxSize*: Property[float32]
+      ## if grow >0, element will not be bigger than this value on main axis (width for horizontal layout, height for vertical layout)
+      ## if 0, this constraint don't apply
     
     isChangingW, isChangingH: bool
 
@@ -43,7 +59,77 @@ registerComponent Layout
 registerComponent InLayout
 
 
-proc reposition(this: Layout) =
+iterator potentially_visible_childs*(this: Layout): Uiobj =
+  block notOptimized:
+    block optimized:
+      if this.lengthBeforeWrap[] == 0 and this.elementsBeforeWrap[] == 0 and this.assumeChildsClipped[]:
+        let win = this.parentUiWindow
+        if win != nil:
+          let boundsXy = vec2(0, 0)
+          let boundsWh = win.wh
+
+          case this.orientation[]
+          of horizontal:
+            for child in this.childs:
+              if child.globalX[] + child.w[] < boundsXy.x:
+                continue
+              if child.globalX > boundsXy.x + boundsWh.x:
+                break
+              yield child
+
+          of vertical:
+            for child in this.childs:
+              if child.globalY[] + child.h[] < boundsXy.y:
+                continue
+              if child.globalY > boundsXy.y + boundsWh.y:
+                break
+              yield child
+
+        else: break optimized
+      break notOptimized
+    
+    for child in this.childs:
+      yield child
+
+
+method draw*(obj: Layout, ctx: DrawContext) =
+  privateAccess Uiobj
+  privateAccess DrawLayering
+  privateAccess DrawLayer
+  privateAccess UiobjCursor
+
+  for x in obj.drawLayering.before:
+    draw(x.obj, ctx)
+  for x in obj.drawLayering.beforeChilds:
+    draw(x.obj, ctx)
+  
+  if obj.visibility notin {hiddenTree, collapsed}:
+    for child in obj.potentially_visible_childs:
+      if child.m_drawLayer.obj == nil:
+        draw(child, ctx)
+
+  for x in obj.drawLayering.after:
+    draw(x.obj, ctx)
+
+
+
+method recieve*(obj: Layout, signal: Signal) =
+  if signal of AttachedToWindow:
+    obj.attachedToWindow = true
+
+  obj.onSignal.emit signal
+
+  if signal of SubtreeSignal:
+    for x in obj.potentially_visible_childs:
+      x.recieve(signal)
+  
+  if signal of UptreeSignal:
+    if obj.parent != nil:
+      obj.parent.recieve(signal)
+
+
+
+proc reposition_old(this: Layout) {.used.} =
   if this.inRepositionProcess: return
   this.inRepositionProcess = true
   defer: this.inRepositionProcess = false
@@ -64,7 +150,7 @@ proc reposition(this: Layout) =
   makeGetAndSet(get_w, set_w, w, h)
   makeGetAndSet(get_h, set_h, h, w)
 
-  var rows: seq[tuple[childs: seq[Uiobj], freeSpace: float32, spaceBetween: float32, h: float32]] = @[(@[], this.get_w, 0'f32, 0'f32)]
+  var rows: seq[tuple[childs: seq[Uiobj]; freeSpace, spaceBetween, h: float32]] = @[(@[], this.get_w, 0'f32, 0'f32)]
 
   block:
     var
@@ -107,8 +193,37 @@ proc reposition(this: Layout) =
   
   for x in rows.mitems:
     x.spaceBetween =
-      if this.childs.len > 1: x.freeSpace / (x.childs.len - 1).float32
+      if x.childs.len > 1: x.freeSpace / (x.childs.len - 1).float32
       else: 0
+    
+    let growSpace =
+      if x.childs.len > 1: x.spaceBetween - this.gap[]
+      elif x.childs.len > 0: this.get_w - x.childs[0].get_w
+      else: 0
+    
+    if growSpace > 0:
+      var totalGrow = 0
+      for child in x.childs:
+        if child of InLayout and child.InLayout.grow[] > 0:
+          totalGrow += child.InLayout.grow[]
+      
+      if totalGrow > 0:
+        if this.childs.len > 1:
+          x.spaceBetween = this.gap[]
+        x.freeSpace = this.gap[] * (x.childs.len - 1).float32
+
+        var growSpaceTaken = 0
+        var lastGrowingChild: Uiobj
+
+        for child in x.childs:
+          if child of InLayout and child.InLayout.grow[] > 0:
+            let grow = child.InLayout.grow[]
+            let growAmmount = (growSpace * (grow / totalGrow)).int
+            child.set_w(child.get_w + growAmmount.float32)
+            growSpaceTaken += growAmmount
+            lastGrowingChild = child
+
+        lastGrowingChild.set_w(lastGrowingChild.get_w + growSpace - growSpaceTaken.float32)
 
   if this.consistentSpacing[] and rows.len > 1:
     rows[^1].spaceBetween = rows[^2].spaceBetween
@@ -186,6 +301,102 @@ proc reposition(this: Layout) =
       this.set_h(0)
 
 
+proc doReposition(this: Layout) =
+  template makeGetAndSet(get, set, horz, vert) =
+    proc get(child: Uiobj): float32 =
+      case this.orientation[]
+      of horizontal: child.horz[]
+      of vertical: child.vert[]
+
+    proc set(child: Uiobj, v: float32) =
+      case this.orientation[]
+      of horizontal: child.horz[] = v
+      of vertical: child.vert[] = v
+
+  makeGetAndSet(get_x, set_x, x, y)
+  makeGetAndSet(get_y, set_y, y, x)
+  makeGetAndSet(get_w, set_w, w, h)
+  makeGetAndSet(get_h, set_h, h, w)
+
+  var rows: seq[tuple[
+    elements: seq[Uiobj],
+    height: float32,
+  ]]
+
+  block split_into_rows:
+    rows.setLen 1
+
+    var count_elements = 0
+    var count_width = 0'f32
+
+    if not this.wrap[] or (this.elementsBeforeWrap[] == 0 and this.lengthBeforeWrap[] == 0):
+      rows[0].elements.add this.childs
+      break split_into_rows
+
+    for child in this.childs:
+      if child.visibility[] == collapsed: continue
+
+      let w =
+        if child of InLayout and child.InLayout.grow[] > 0:
+          if child.InLayout.minSize[] != 0:
+            child.InLayout.minSize[]
+          else:
+            0
+        else:
+          child.get_w
+
+      inc count_elements
+      count_width += w
+
+      var do_wrap = false
+      
+      if this.elementsBeforeWrap[] != 0:
+        do_wrap = do_wrap or count_elements >= this.elementsBeforeWrap[]
+      
+      if this.lengthBeforeWrap[] != 0:
+        do_wrap = do_wrap or count_width + w > this.lengthBeforeWrap[]
+      
+      if do_wrap:
+        rows[^1].elements.add child
+        rows.add rows[0].typeof.default
+        count_width = w
+        count_elements = 1
+      else:
+        rows[^1].elements.add child
+        count_width += this.gap[]
+
+  block get_height_per_row:
+    for row in rows.mitems:
+      for child in row.elements:
+        let h =
+          if this.fillContainer[]:
+            0'f32
+          elif child of InLayout and child.InLayout.fillContainer[]:
+            0
+          else:
+            child.get_h
+
+        row.height = max(row.height, h)
+      
+      if row.height == 0 and row.elements.len > 0:
+        row.height = row.elements[0].get_h
+        
+        for child in row.elements:
+          row.height = min(row.height, child.get_h)
+
+  block set_y_and_h:
+    ## todo
+
+
+
+proc reposition(this: Layout) =
+  this.reposition_old()
+  # if this.inRepositionProcess: return
+  # this.inRepositionProcess = true
+  # this.doReposition()
+  # this.inRepositionProcess = false
+
+
 template spacing*(this: Layout): Property[float32] = this.gap
 template wrapSpacing*(this: Layout): Property[float32] = this.wrapGap
 template alignment*(this: Layout): Property[float32] = this.alignContent
@@ -208,6 +419,9 @@ method addChild*(this: Layout, child: Uiobj) =
   if child of InLayout:
     child.InLayout.align.changed.connectTo this: reposition(this)
     child.InLayout.fillContainer.changed.connectTo this: reposition(this)
+    child.InLayout.grow.changed.connectTo this: reposition(this)
+    child.InLayout.minSize.changed.connectTo this: reposition(this)
+    child.InLayout.maxSize.changed.connectTo this: reposition(this)
   
   reposition(this)
 
