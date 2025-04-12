@@ -42,7 +42,7 @@ type
 
 
   TextArea* = ref object of Uiobj
-    cursorObj*: ChangableChild[UiObj]
+    cursorObj*: ChangableChild[Uiobj]
     selectionObj*: ChangableChild[Uiobj]
     textObj*: ChangableChild[UiText]
 
@@ -492,7 +492,7 @@ method init*(this: TextArea) =
           x := root.offset[]
           
 
-          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF"; r.fillVertical root; r.UiObj):
+          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF"; r.fillVertical root; r.Uiobj):
             x := min(root.selectionStartX[], root.selectionEndX[])
             w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
 
@@ -509,7 +509,7 @@ method init*(this: TextArea) =
           root.binding selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
           
 
-          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.fillVertical root; r.w[] = 2; r.UiObj):
+          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.fillVertical root; r.w[] = 2; r.Uiobj):
             x := root.cursorX[]
 
             visibility = binding:

@@ -1,5 +1,5 @@
-import siwin
-import uibase
+import pkg/[siwin, vmath]
+import ./[events {.all.}, properties, uiobj]
 export MouseButton, MouseMoveEvent
 
 type
@@ -64,7 +64,7 @@ proc mouseXy*(this: MouseArea): CustomProperty[Vec2] =
 method init*(this: MouseArea) =
   procCall this.super.init()
 
-  this.visibility.changed.connectTo this:
+  this.visibility.changed.connect this.eventHandler, flags = {EventConnectionFlag.internal}, f = proc =
     if this.visibility[] == collapsed:
       this.pressed[] = false
       this.hovered[] = false

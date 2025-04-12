@@ -67,7 +67,7 @@ proc parentAnimator*(obj: Uiobj): Animator =
     if obj of Animator: return obj.Animator
     obj = obj.parent
 
-template withAnimator*(obj: UiObj, animVar: untyped, body: untyped) =
+template withAnimator*(obj: Uiobj, animVar: untyped, body: untyped) =
   proc bodyProc(animVar {.inject.}: Animator) =
     body
   let anim = obj.parentAnimator

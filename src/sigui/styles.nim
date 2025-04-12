@@ -2,10 +2,10 @@ import std/[macros]
 import ./[uiobj, properties]
 
 type
-  Styler* = ref object of UiObj
-    style*: Property[proc(obj: UiObj)]
+  Styler* = ref object of Uiobj
+    style*: Property[proc(obj: Uiobj)]
 
-    objsCreatedUsingStyle: seq[UiObj]
+    objsCreatedUsingStyle: seq[Uiobj]
     runningStyle: bool
 
 registerComponent Styler
@@ -34,7 +34,7 @@ method init*(this: Styler) =
     this.objsCreatedUsingStyle = @[]
 
     if this.style[] != nil:
-      proc impl(n: UiObj) =
+      proc impl(n: Uiobj) =
         if n == nil: return
         this.style[](n)
         for x in n.childs:
@@ -43,7 +43,7 @@ method init*(this: Styler) =
       impl(this)
 
 
-macro makeStyle*(body: untyped): proc(obj: UiObj) =
+macro makeStyle*(body: untyped): proc(obj: Uiobj) =
   var styleBody = newStmtList()
 
   for x in body:
@@ -84,7 +84,7 @@ macro makeStyle*(body: untyped): proc(obj: UiObj) =
         newEmptyNode(),
         nnkIdentDefs.newTree(
           ident("obj"),
-          bindSym("UiObj"),
+          bindSym("Uiobj"),
           newEmptyNode()
         )
       ),

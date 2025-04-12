@@ -1,5 +1,5 @@
 import std/[sequtils]
-import ./[uibase, events {.all.}, animations, mouseArea, dolars]
+import ./[uibase, events {.all.}, animations, mouseArea]
 
 type
   ScrollAreaSetting* = enum
@@ -42,7 +42,7 @@ type
       {ScrollAreaSetting.low..ScrollAreaSetting.high}
     ).property
 
-    verticalScrollbarObj*: ChangableChild[UiObj]
+    verticalScrollbarObj*: ChangableChild[Uiobj]
       ## if changed, properties below can be attached by you to new object
     verticalScrollbarOpacity*: Property[float]
       ## has default animation
@@ -52,7 +52,7 @@ type
     verticalScrollBarLastShown*: Property[Time]
     verticalScrollBarHideDelay*: Property[Duration] = initDuration(milliseconds = 1000).property
 
-    horizontalScrollbarObj*: ChangableChild[UiObj]
+    horizontalScrollbarObj*: ChangableChild[Uiobj]
       ## if changed, properties below can be attached by you to new object
     horizontalScrollbarOpacity*: Property[float]
       ## has default animation
@@ -240,7 +240,7 @@ method init*(this: ScrollArea) =
             root.targetX[] = (root.targetX[] + xy.x * root.horizontalScrollSpeed).max(0).min((root.scrollW[] - root.w[]).max(0))
           root.targetY[] = (root.targetY[] + xy.y * root.verticalScrollSpeed).max(0).min((root.scrollH[] - root.h[]).max(0))
 
-        - UiObj.new as container:
+        - Uiobj.new as container:
           x := -root.scrollX[]
           y := -root.scrollY[]
     
@@ -252,7 +252,7 @@ method init*(this: ScrollArea) =
 
       w = 5
 
-      scrollArea.verticalScrollbarObj --- defaultVerticalScrollBar.UiObj:
+      scrollArea.verticalScrollbarObj --- defaultVerticalScrollBar.Uiobj:
         w = binding:
           if (
             shrinkScrollBarWhenNotHovered in scrollArea.settings[] and
@@ -281,7 +281,7 @@ method init*(this: ScrollArea) =
 
       h = 5
 
-      scrollArea.horizontalScrollbarObj --- defaultHorizontalScrollBar.UiObj:
+      scrollArea.horizontalScrollbarObj --- defaultHorizontalScrollBar.Uiobj:
         h = binding:
           if (
             shrinkScrollBarWhenNotHovered in scrollArea.settings[] and

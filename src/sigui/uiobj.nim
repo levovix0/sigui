@@ -1,7 +1,7 @@
 import std/[times, macros, strutils]
 import pkg/[vmath, bumpy, siwin, chroma]
 import pkg/fusion/[astdsl]
-import ./[events, properties]
+import ./[events {.all.}, properties]
 import ./render/[gl, contexts]
 
 when defined(sigui_debug_useLogging):
@@ -17,7 +17,7 @@ type
     `end`
 
   Anchor* = object
-    obj {.cursor.}: UiObj
+    obj {.cursor.}: Uiobj
       # if nil, anchor is disabled
     offsetFrom: AnchorOffsetFrom
     offset: float32
@@ -144,11 +144,8 @@ type
     x.eventHandler is EventHandler
 
 
-var registredComponents {.compileTime.}: seq[NimNode]
-  # type syms
-var registredReflection {.compileTime.}: seq[tuple[f: NimNode, filter: NimNode]]
-  # callable syms
 
+# ------------- Utils ------------- #
 
 proc containsShift*(keyboardPressed: set[Key]): bool =
   Key.lshift in keyboardPressed or Key.rshift in keyboardPressed
@@ -163,9 +160,46 @@ proc containsSystem*(keyboardPressed: set[Key]): bool =
   Key.lsystem in keyboardPressed or Key.rsystem in keyboardPressed
 
 
+proc toColor*(s: string): colortypes.Color =
+  case s.len
+  of 3:
+    result = colortypes.Color(
+      r: ($s[0]).parseHexInt.float32 / 15.0,
+      g: ($s[1]).parseHexInt.float32 / 15.0,
+      b: ($s[2]).parseHexInt.float32 / 15.0,
+      a: 1,
+    )
+  of 4:
+    result = colortypes.Color(
+      r: ($s[0]).parseHexInt.float32 / 15.0,
+      g: ($s[1]).parseHexInt.float32 / 15.0,
+      b: ($s[2]).parseHexInt.float32 / 15.0,
+      a: ($s[3]).parseHexInt.float32 / 15.0,
+    )
+  of 6:
+    result = colortypes.Color(
+      r: (s[0..1].parseHexInt.float32) / 255.0,
+      g: (s[2..3].parseHexInt.float32) / 255.0,
+      b: (s[4..5].parseHexInt.float32) / 255.0,
+      a: 1,
+    )
+  of 8:
+    result = colortypes.Color(
+      r: (s[0..1].parseHexInt.float32) / 255.0,
+      g: (s[2..3].parseHexInt.float32) / 255.0,
+      b: (s[4..5].parseHexInt.float32) / 255.0,
+      a: (s[6..7].parseHexInt.float32) / 255.0,
+    )
+  else:
+    raise ValueError.newException("invalid color: " & s)
+
+
+converter litToColor*(s: string{lit}): colortypes.Color =
+  s.toColor
+
+
 
 #* ------------- Uiobj ------------- *#
-
 
 proc xy*(obj: Uiobj): Vec2 =
   vec2(obj.x[], obj.y[])
@@ -243,12 +277,14 @@ proc lastParent*(obj: Uiobj): Uiobj =
 when defined(sigui_debug_redrawInitiatedBy):
   import std/importutils
   privateAccess Window
-  var sigui_debug_redrawInitiatedBy_formatFunction: proc(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
-    proc(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
-      if alreadyRedrawing:
-        "redraw initiated (already redrawing)"
-      else:
-        "redraw initiated"
+  proc sigui_debug_redrawInitiatedBy_formatFunction(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string
+  
+  # proc sigui_debug_redrawInitiatedBy_formatFunction(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
+  #   proc(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
+  #     if alreadyRedrawing:
+  #       "redraw initiated (already redrawing)"
+  #     else:
+  #       "redraw initiated"
 
 proc redraw*(obj: Uiobj, ifVisible = true) =
   if ifVisible and obj.visibility[] != visible: return
@@ -275,10 +311,6 @@ proc redraw*(obj: Uiobj, ifVisible = true) =
       echo sigui_debug_redrawInitiatedBy_formatFunction(obj, alreadyRedrawing, win != nil)
   
   if win != nil: redraw win
-
-
-proc redrawUiobj(uiobj: FlaggedPointer) {.exportc: "sigui_internal_redrawUiobj".} =
-  redraw(cast[Uiobj](cast[int](uiobj) and (not 1)), (cast[int](uiobj.pointer) and 1) == 0)
 
 
 proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
@@ -310,7 +342,8 @@ proc posToObject*(pos: Vec2, fromObj, toObj: Uiobj): Vec2 {.inline.} =
   posToObject(fromObj, toObj, pos)
 
 
-#--- Events connection ---
+
+#----- Events connection -----
 
 template connectTo*[T](s: var Event[T], obj: HasEventHandler, body: untyped) =
   connect s, obj.eventHandler, proc(e {.inject.}: T) =
@@ -329,9 +362,10 @@ template connectTo*(s: var Event[void], obj: HasEventHandler, argname: untyped, 
     body
 
 
-#--- Reposition ---
 
-proc pos*(anchor: Anchor, isY: bool, toObject: UiObj): float32 =
+#----- Reposition -----
+
+proc pos*(anchor: Anchor, isY: bool, toObject: Uiobj): float32 =
   assert anchor.obj != nil
   let p = case anchor.offsetFrom
   of start:
@@ -434,29 +468,29 @@ proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
     case anchor.offsetFrom:
     of start:
       if anchor.obj != this.parent:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
     of `end`:
       if anchor.obj != this.parent:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors)
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
     of center:
       if anchor.obj != this.parent:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors)
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
   else:
     case anchor.offsetFrom:
     of start:
       if anchor.obj != this.parent:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
     of `end`:
       if anchor.obj != this.parent:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors)
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
     of center:
       if anchor.obj != this.parent:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors)
-  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors)
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
 
 template anchorAssign(anchor: untyped, isY: bool): untyped {.dirty.} =
   proc `anchor=`*(obj: Uiobj, v: Anchor) =
@@ -471,6 +505,22 @@ anchorAssign bottom, true
 anchorAssign centerX, false
 anchorAssign centerY, true
 
+
+proc spreadGlobalXChange(obj: Uiobj, delta: float32) =
+  obj.globalX{} += delta
+  for x in obj.childs:
+    x.spreadGlobalXChange(delta)
+  obj.globalX.changed.emit()
+
+proc spreadGlobalYChange(obj: Uiobj, delta: float32) =
+  obj.globalY{} += delta
+  for x in obj.childs:
+    x.spreadGlobalYChange(delta)
+  obj.globalY.changed.emit()
+
+
+
+#----- receiving signals -----
 
 method recieve*(obj: Uiobj, signal: Signal) {.base.} =
   if signal of AttachedToWindow:
@@ -487,57 +537,62 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
       obj.parent.recieve(signal)
 
 
-proc initRedrawWhenPropertyChangedStatic[T: UiObj](this: T) =
+
+#----- reflection: trigger redraw automatically when property changes -----
+
+proc makeCapturedRedraw(obj: Uiobj): (proc() {.closure.}) {.nimcall.} =
+  result = proc() {.closure.} =
+    obj.redraw()
+
+
+proc initRedrawWhenPropertyChangedStatic[T: Uiobj](this: T) =
+  ## connects update proc to every property.changed that are not marked as `initRedrawWhenPropertyChanged_ignore`
+  mixin initRedrawWhenPropertyChanged_ignore
+
+  # we are iterating over all fields of an object, some of which can be deprecated
+  # we don't care.
   {.push, warning[Deprecated]: off.}
+
   for name, x in this[].fieldPairs:
-    when name == "visibility":
-      x.changed.uiobj = cast[FlaggedPointer](cast[int](this) or 1)
-    
-    elif name == "globalX" or name == "globalY":
+    when name == "globalX" or name == "globalY":
       discard  # will anyway be handled in parent
 
     elif x is Property or x is CustomProperty:
       when compiles(initRedrawWhenPropertyChanged_ignore(T, name)):
         when not initRedrawWhenPropertyChanged_ignore(T, name):
-          x.changed.uiobj = cast[FlaggedPointer](this)
+          x.changed.connect this.eventHandler, makeCapturedRedraw(this), {EventConnectionFlag.internal}
       else:
-        x.changed.uiobj = cast[FlaggedPointer](this)
+        x.changed.connect this.eventHandler, makeCapturedRedraw(this), {EventConnectionFlag.internal}
+  
   {.pop.}
 
 
 method initRedrawWhenPropertyChanged*(obj: Uiobj) {.base.} =
+  ## since properies are *usually* used for the component visual, changing them should trigger a redraw
+  ## `initRedrawWhenPropertyChanged_ignore(T: type, name: string): bool` can be used to exclude specific properties from this behaviour
+  ## override for this method is generated automatically for child classes by `registerComponent`
   initRedrawWhenPropertyChangedStatic(obj)
 
 
-proc spreadGlobalXChange(obj: Uiobj, delta: float32) =
-  obj.globalX{} += delta
-  for x in obj.childs:
-    x.spreadGlobalXChange(delta)
-  obj.globalX.changed.emit()
 
-proc spreadGlobalYChange(obj: Uiobj, delta: float32) =
-  obj.globalY{} += delta
-  for x in obj.childs:
-    x.spreadGlobalYChange(delta)
-  obj.globalY.changed.emit()
-
+#----- Uiobj initialization -----
 
 method init*(obj: Uiobj) {.base.} =
   initRedrawWhenPropertyChanged(obj)
 
-  obj.visibility.changed.connectTo obj:
+  obj.visibility.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc =
     obj.recieve(VisibilityChanged(sender: obj, visibility: obj.visibility))
   
-  obj.w.changed.connectTo obj: obj.applyAnchors()
-  obj.h.changed.connectTo obj: obj.applyAnchors()
+  obj.w.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc = obj.applyAnchors()
+  obj.h.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc = obj.applyAnchors()
 
-  obj.x.changed.connectTo obj:
+  obj.x.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc =
     obj.spreadGlobalXChange(
       if obj.parent == nil or obj.globalTransform[]: obj.x[] - obj.globalX[]
       else: obj.x[] - (obj.globalX[] - obj.parent.globalX[])
     )
 
-  obj.y.changed.connectTo obj:
+  obj.y.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc =
     obj.spreadGlobalYChange(
       if obj.parent == nil or obj.globalTransform[]: obj.y[] - obj.globalY[]
       else: obj.y[] - (obj.globalY[] - obj.parent.globalY[])
@@ -561,8 +616,8 @@ proc initIfNeeded*(obj: Uiobj) =
     obj.parent.recieve(ChildAdded(child: obj))
 
 
-#--- Anchors ---
 
+#----- Anchors -----
 
 proc fillHorizontal*(this: Uiobj, obj: Uiobj, margin: float32 = 0) =
   this.left = obj.left + margin
@@ -585,8 +640,8 @@ proc fill*(this: Uiobj, obj: Uiobj, marginX: float32, marginY: float32) =
   this.fillVertical(obj, marginY)
 
 
-#----- Layers -----
 
+#----- Layers -----
 
 proc `=destroy`(l: DrawLayer) =
   if l.obj != nil:
@@ -628,12 +683,12 @@ proc `drawLayer=`*(this: Uiobj, layer: Layer) =
   of after: layer.obj.drawLayering.after.add UiobjCursor(obj: this)
 
 
+
 #----- Adding childs -----
 
+method deteach*(this: Uiobj) {.base.}
 
-method deteach*(this: UiObj) {.base.}
-
-proc deteachStatic[T: UiObj](this: T) =
+proc deteachStatic[T: Uiobj](this: T) =
   if this == nil: return
 
   this.drawLayer = nil
@@ -655,12 +710,12 @@ proc deteachStatic[T: UiObj](this: T) =
   this.childs = @[]
 
 
-method deteach*(this: UiObj) {.base.} =
+method deteach*(this: Uiobj) {.base.} =
   ## disconnect all events
   deteachStatic(this)
 
 
-proc delete*(this: UiObj) =
+proc delete*(this: Uiobj) =
   if this == nil: return
 
   deteach this
@@ -706,7 +761,7 @@ proc `[]=`*[T](p: var ChangableChild[T], v: T) {.inline.} = p.val = v
 proc val*[T](p: ChangableChild[T]): T {.inline.} =
   result = p.parent.childs[p.childIndex].T
 
-proc val*(p: ChangableChild[UiObj]): UiObj {.inline.} =
+proc val*(p: ChangableChild[Uiobj]): Uiobj {.inline.} =
   # we need this overload to avoid ConvFromXtoItselfNotNeeded warning
   result = p.parent.childs[p.childIndex]
 
@@ -740,7 +795,7 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): ChangableChild[Ui
     result = ChangableChild[Uiobj](parent: parent, childIndex: parent.childs.high)
 
 
-proc addChangableChild*[T: UiObj](parent: Uiobj, child: T): ChangableChild[T] =
+proc addChangableChild*[T: Uiobj](parent: Uiobj, child: T): ChangableChild[T] =
   result = cast[ChangableChild[T]](parent.addChangableChildUntyped(child))
 
 
@@ -755,8 +810,8 @@ macro super*[T: Uiobj](obj: T): auto =
     error("unexpected type impl", obj)
 
 
-#----- Drawing -----
 
+#----- Drawing -----
 
 method draw*(win: UiWindow, ctx: DrawContext) =
   glClearColor(win.clearColor.r, win.clearColor.g, win.clearColor.b, win.clearColor.a)
@@ -839,9 +894,8 @@ proc newUiobj*(): Uiobj = new result
 proc newUiWindow*(): UiWindow = new result
 
 
+
 #----- Macros -----
-
-
 
 proc bindingImpl*(
   obj: NimNode,
@@ -1335,7 +1389,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       )
 
 
-template withWindow*(obj: UiObj, winVar: untyped, body: untyped) =
+template withWindow*(obj: Uiobj, winVar: untyped, body: untyped) =
   proc bodyProc(winVar {.inject.}: UiWindow) =
     body
   if obj.attachedToWindow:
@@ -1345,59 +1399,8 @@ template withWindow*(obj: UiObj, winVar: untyped, body: untyped) =
       bodyProc(obj.parentUiWindow)
 
 
-proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, transparent = false, withWindow: proc(): Uiobj) =
-  let win = newSiwinGlobals().newOpenglWindow(
-    size =
-      if size != ivec2(): size
-      else: ivec2(100, 100),
-    transparent = transparent
-  ).newUiWindow
-  let obj = withWindow()
 
-  if size == ivec2() and obj.wh != vec2():
-    win.siwinWindow.size = (obj.wh + margin * 2).ivec2
-
-  win.clearColor = clearColor
-  win.makeLayout:
-    - obj:
-      this.fill(parent, margin)
-  
-  run win.siwinWindow
-
-
-proc invokeReflection(refl: NimNode, filter: NimNode, t: NimNode): NimNode =
-  proc replaceTree(x, a, to: NimNode): NimNode =
-    if x == a: return to
-    else:
-      result = copy x
-      for i, x in result:
-        result[i] = replaceTree(x, a, to)
-
-  buildAst:
-    whenStmt:
-      elifBranch:
-        filter.replaceTree(ident"T", t).replaceTree(ident"t", newLit t.repr)
-        stmtList:
-          call(refl, t)
-
-
-macro registerComponent*(t: type) =
-  registredComponents.add t
-  result = buildAst(stmtList):
-    for x in registredReflection:
-      invokeReflection(x.f, x.filter, t)
-
-
-macro registerReflection*(x: typed, filter: untyped = true) =
-  registredReflection.add (x, filter)
-  result = buildAst(stmtList):
-    for t in registredComponents:
-      invokeReflection(x, filter, t)
-
-
-registerComponent Uiobj
-registerComponent UiWindow
-
+#----- reflection -----
 
 macro generateDeteachMethod(t: typed) {.used.} =
   nnkMethodDef.newTree(
@@ -1424,11 +1427,6 @@ macro generateDeteachMethod(t: typed) {.used.} =
       )
     )
   )
-
-when defined(nimcheck) or defined(nimsuggest):
-  discard
-else:
-  registerReflection generateDeteachMethod, T is Uiobj and t != "Uiobj"
 
 
 macro generateInitRedrawWhenPropertyChangedMethod(t: typed) {.used.} =
@@ -1457,45 +1455,164 @@ macro generateInitRedrawWhenPropertyChangedMethod(t: typed) {.used.} =
     )
   )
 
-when defined(nimcheck) or defined(nimsuggest):
-  discard
-else:
-  registerReflection generateInitRedrawWhenPropertyChangedMethod, T is Uiobj and t != "Uiobj"
 
 
-proc toColor*(s: string): colortypes.Color =
-  case s.len
-  of 3:
-    result = colortypes.Color(
-      r: ($s[0]).parseHexInt.float32 / 15.0,
-      g: ($s[1]).parseHexInt.float32 / 15.0,
-      b: ($s[2]).parseHexInt.float32 / 15.0,
-      a: 1,
-    )
-  of 4:
-    result = colortypes.Color(
-      r: ($s[0]).parseHexInt.float32 / 15.0,
-      g: ($s[1]).parseHexInt.float32 / 15.0,
-      b: ($s[2]).parseHexInt.float32 / 15.0,
-      a: ($s[3]).parseHexInt.float32 / 15.0,
-    )
-  of 6:
-    result = colortypes.Color(
-      r: (s[0..1].parseHexInt.float32) / 255.0,
-      g: (s[2..3].parseHexInt.float32) / 255.0,
-      b: (s[4..5].parseHexInt.float32) / 255.0,
-      a: 1,
-    )
-  of 8:
-    result = colortypes.Color(
-      r: (s[0..1].parseHexInt.float32) / 255.0,
-      g: (s[2..3].parseHexInt.float32) / 255.0,
-      b: (s[4..5].parseHexInt.float32) / 255.0,
-      a: (s[6..7].parseHexInt.float32) / 255.0,
-    )
+#----- reflection: dolars (formating Uiobj to string) -----
+
+method componentTypeName*(this: Uiobj): string {.base.} = "Uiobj"
+
+
+proc formatProperty[T](res: var seq[string], name: string, prop: Property[T]) =
+  if (prop[] != typeof(prop[]).default or prop.changed.hasExternalHandlers):
+    when compiles($prop[]):
+      res.add name & ": " & $prop[]
+
+
+proc formatProperty[T](res: var seq[string], name: string, prop: CustomProperty[T]) =
+  if (
+    prop.get != nil and
+    (prop[] != typeof(prop[]).default or prop.changed.hasExternalHandlers)
+  ):
+    when compiles($prop[]):
+      res.add name & ": " & $prop[]
+
+
+proc formatValue[T](res: var seq[string], name: string, val: T) =
+  if (val is bool) or (val is enum) or (val != typeof(val).default):
+    when compiles($val):
+      res.add name & ": " & $val
+
+
+proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
+  {.push, warning[Deprecated]: off.}
+  result.add "box: " & $rect(this.x, this.y, this.w, this.h)
+  
+  for k, v in this.fieldPairs:
+    when k in [
+      "eventHandler", "parent", "childs", "x", "y", "w", "h", "globalX", "globalY",
+      "initialized", "attachedToWindow", "anchors", "drawLayering"
+    ] or k.startsWith("m_"):
+      discard
+    
+    elif v is Uiobj:
+      ## todo
+    
+    elif v is Event:
+      ## todo
+    
+    elif v is Property or v is CustomProperty:
+      result.formatProperty(k, v)
+
+    else:
+      result.formatValue(k, v)
+
+  {.pop.}
+
+
+method formatFields*(this: Uiobj): seq[string] {.base.} =
+  formatFieldsStatic(this[])
+
+
+proc `$`*(this: Uiobj): string
+
+
+proc `$`*(x: Color): string =
+  result.add '"'
+  if x.a == 1:
+    result.add x.toHex
   else:
-    raise ValueError.newException("invalid color: " & s)
+    result.add x.toHexAlpha
+  result.add '"'
 
 
-converter litToColor*(s: string{lit}): colortypes.Color =
-  s.toColor
+proc formatChilds(this: Uiobj): string =
+  for x in this.childs:
+    if result != "": result.add "\n\n"
+    result.add $x
+
+
+proc `$`*(this: Uiobj): string =
+  if this == nil: return "nil"
+  result = this.componentTypeName & ":\n"
+  result.add this.formatFields().join("\n").indent(2)
+  if this.childs.len > 0:
+    result.add "\n\n"
+    result.add this.formatChilds().indent(2)
+
+
+macro declareComponentTypeName(t: typed) =
+  result = buildAst:
+    methodDef:
+      let thisSym = genSym(nskParam, "this")
+      ident"componentTypeName"
+      empty(); empty()
+      formalParams:
+        bindSym"string"
+        identDefs:
+          thisSym
+          t
+          empty()
+      empty(); empty()
+      stmtList:
+        newLit $t
+
+
+macro declareFormatFields(t: typed) {.used.} =
+  result = buildAst:
+    methodDef:
+      let thisSym = genSym(nskParam, "this")
+      
+      ident"formatFields"
+      empty(); empty()
+      formalParams:
+        bracketExpr:
+          bindSym"seq"
+          bindSym"string"
+        identDefs:
+          thisSym
+          t
+          empty()
+      empty(); empty()
+      stmtList:
+        call bindSym"formatFieldsStatic":
+          bracketExpr:
+            thisSym
+
+
+when defined(sigui_debug_redrawInitiatedBy):
+  proc sigui_debug_redrawInitiatedBy_formatFunction(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
+    when defined(sigui_debug_redrawInitiatedBy_all):
+      if alreadyRedrawing: result.add "redraw initiated (already redrawing):\n"
+      elif not hasWindow: result.add "redraw initiated (no window):\n"
+      else: result.add "redraw initiated:\n"
+    else:
+      if alreadyRedrawing: return "redraw initiated (already redrawing)"
+      elif not hasWindow: return "redraw initiated (no window)"
+      result.add "redraw initiated:\n"
+  
+    var hierarchy = obj.componentTypeName
+    var parent = obj.parent
+    while parent != nil:
+      hierarchy = parent.componentTypeName & " > " & hierarchy
+      parent = parent.parent
+    result.add "  hierarchy: " & hierarchy & "\n"
+
+    when defined(sigui_debug_redrawInitiatedBy_includeStacktrace):
+      result.add "  stacktrace:\n" & getStackTrace().indent(4)
+  
+    result.add ($obj).indent(2)
+
+
+
+#----- reflection: registerComponent -----
+
+macro registerComponent*(t: typed) =
+  result = newStmtList()
+  result.add nnkCall.newTree(bindSym("generateDeteachMethod"), t)
+  result.add nnkCall.newTree(bindSym("generateInitRedrawWhenPropertyChangedMethod"), t)
+  result.add nnkCall.newTree(bindSym("declareComponentTypeName"), t)
+  result.add nnkCall.newTree(bindSym("declareFormatFields"), t)
+
+
+registerComponent UiWindow
+

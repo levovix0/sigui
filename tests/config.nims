@@ -1,2 +1,2 @@
 switch("path", "$projectDir/../src")
---define:nimPreviewNonVarDestructor
+--experimental:vtables

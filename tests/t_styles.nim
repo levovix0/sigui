@@ -17,7 +17,7 @@ test "styles":
       color = "303030"
       radius = 5
 
-      - UiText():
+      - UiText.new:
         this.centerIn parent
         text = "rect"
         color = "808080"

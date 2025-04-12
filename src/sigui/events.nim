@@ -7,6 +7,7 @@ type
 
   EventConnectionFlag = enum
     transition
+    internal
 
   EventConnection[T] = tuple
     eh: ptr EventHandlerObj
@@ -16,12 +17,8 @@ type
   EventBase = object
     connected: seq[EventConnection[int]]  # type of function argument does not matter for this
 
-  FlaggedPointer* = distinct pointer
-    ## pointer, but first bit is used for a flag (pointers are aligned anyway)
-
   Event*[T] = object  # pointer is wrapped to an object to attach custom destructor
     p: ptr EventObj[T]
-    uiobj*: FlaggedPointer  # most of events is .changed properties, after most of which redraw should happen. If not nil, emit will call redrawUiobj
 
   EventObj*[T] = object
     ## only EventHandler can be connected to event
@@ -30,13 +27,6 @@ type
     ## one event can be connected to one EventHandler multiple times
     ## connection can be removed, but if EventHandler connected to event multiple times, they all will be removed
     connected: seq[EventConnection[T]]
-
-
-proc redrawUiobj(uiobj: FlaggedPointer) {.importc: "sigui_internal_redrawUiobj".}
-  ## cross-module forward declaration, implementation is in uiobj.nim
-
-
-proc `==`*(a, b: FlaggedPointer): bool {.borrow.}
 
 
 #* ------------- Event ------------- *#
@@ -174,8 +164,6 @@ proc emit*[T](s: Event[T], v: T, disableFlags: set[EventConnectionFlag] = {}) =
       if (disableFlags * s.p[].connected[i].flags).len == 0:
         s.p[].connected[i].f(v)
       inc i
-  if s.uiobj.pointer != nil:
-    redrawUiobj s.uiobj
 
 proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
   if s.p != nil:
@@ -184,8 +172,6 @@ proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
       if (disableFlags * s.p[].connected[i].flags).len == 0:
         s.p[].connected[i].f()
       inc i
-  if s.uiobj.pointer != nil:
-    redrawUiobj s.uiobj
 
 
 # todo: -d:sigui_benchmark_event_emits, to see how much and which exactly events are chain-emited
@@ -224,6 +210,13 @@ template connectTo*(s: var Event[void], obj: var EventHandler, argname: untyped,
 proc hasHandlers*(e: Event): bool =
   if e.p == nil: return false
   e.p.connected.len > 0
+
+
+proc hasExternalHandlers*(e: Event): bool =
+  if e.p == nil: return false
+  for x in e.p.connected:
+    if EventConnectionFlag.internal notin x.flags:
+      return true
 
 
 template changed*[T](e: Event[T]): Event[T] =

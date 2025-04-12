@@ -17,7 +17,7 @@ test "anchors":
     this.bindingValue w[]: (this.w[] - margin * 4) / 3
     this.bindingValue h[]: (this.h[] - margin * 4) / 3
 
-    - UiObj.new as background
+    - Uiobj.new as background
 
     proc text(s: string): UiText =
       result = UiText.new

@@ -76,8 +76,31 @@ type
     roundPositionOnDraw*: Property[bool] = true.property
 
 
-#----- DrawContext -----
 
+#----- utils -----
+
+proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, transparent = false, withWindow: proc(): Uiobj) =
+  let win = newSiwinGlobals().newOpenglWindow(
+    size =
+      if size != ivec2(): size
+      else: ivec2(100, 100),
+    transparent = transparent
+  ).newUiWindow
+  let obj = withWindow()
+
+  if size == ivec2() and obj.wh != vec2():
+    win.siwinWindow.size = (obj.wh + margin * 2).ivec2
+
+  win.clearColor = clearColor
+  win.makeLayout:
+    - obj:
+      this.fill(parent, margin)
+  
+  run win.siwinWindow
+
+
+
+#----- DrawContext -----
 
 proc roundRect(pos, size: Vec2, radius: float32): float32 =
   if radius == 0: return 1
@@ -387,7 +410,6 @@ proc drawShadowRect*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
 
 
 #----- Basic Components -----
-
 
 proc `image=`*(obj: UiImage, img: images.Image) =
   if img != nil:
