@@ -131,28 +131,24 @@ test "tab bar":
 
         case tabbar.selectedTab[]:
         of 0:
-          this.makeLayout:
-            - UiText.new:
-              this.centerIn(parent)
-              text = "Overview"
+          - UiText.new:
+            this.centerIn(parent)
+            text = "Overview"
               
         of 1:
-          this.makeLayout:
-            - UiText.new:
-              this.centerIn(parent)
-              text = "Settings"
+          - UiText.new:
+            this.centerIn(parent)
+            text = "Settings"
         
         of 2:
-          this.makeLayout:
-            - UiText.new:
-              this.centerIn(parent)
-              text = "Debug"
+          - UiText.new:
+            this.centerIn(parent)
+            text = "Debug"
         
         of 3:
-          this.makeLayout:
-            - UiText.new:
-              this.centerIn(parent)
-              text = "Help"
+          - UiText.new:
+            this.centerIn(parent)
+            text = "Help"
         
         else:
           discard

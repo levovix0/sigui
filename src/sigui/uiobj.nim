@@ -1346,6 +1346,23 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                           for x in fwd: x
                         impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     x
+
+
+              # case x:
+              # of y: body
+              elif x.kind == nnkCaseStmt:
+                caseStmt:
+                  x[0]
+
+                  for x in x[1..^1]:
+                    x[^1] = buildAst:
+                      stmtList:
+                        letSection:
+                          var fwd: seq[NimNode]
+                          (implFwd(x[^1], fwd))
+                          for x in fwd: x
+                        impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
+                    x
               
 
               # on event: body
