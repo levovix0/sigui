@@ -165,8 +165,8 @@ eh.bindingValue y[]: x[]
 x[] = 10  # both "x changes observed by event handler" and "10"
 ```
 
-`Property[T]` is container for T, wrapping variable into property
-`CustomProperty[T]` instead holds get and set closures
+`Property[T]` is container for T, wrapping variable into property  
+`CustomProperty[T]` instead holds get and set closures  
 `AnyProperty[T]` is concept:
 ```nim
 type AnyProperty[T] = concept a, var v
@@ -179,12 +179,46 @@ type AnyProperty[T] = concept a, var v
 
 `prop{}`/`prop{}=` can be used instead of `prop[]`/`prop[]=` to not emit changed event.
 
-`binding` macros macros group will automatically subscribe to all properties' change events if they are mentioned. It isn't magic, binding macro will determine smth like it is property if you call `[]` on it (which is get proc).
+For regular `Property[T]`, `prop{}` returns `var T`. This is useful if you need to store sequences as properties:
+```nim
+var items: Property[seq[Property[int]]]
+
+# ...
+
+# adding an item
+items{}.add 1.property
+items.changed.emit()
+
+# removing some items
+items{}.delete 1, 5
+items.changed.emit()
+
+# just changing an item
+items{}[2][] = 10
+# we can emit changed here, but since items already stores Property, it should not be neccessary
+```
+
+`binding` macros macros group will automatically subscribe to all properties' change events if they are mentioned. It isn't magic, binding macro will determine if smth is property if you call `[]` on it (which is the get proc).
 
 There is:
 - `uiobj.binding prop: ...`: binds property that is field named `prop` inside `uiobj`
 - `eh.bindingValue val: ...` binds to assignment to `val`
 - `eh.bindingProc f: ...` bind to call f(eh, body). Useful for nim-like properties (image=, len=, etc.)
+
+```nim
+let this = Uiobj()
+var otherProp: Property[float32]
+
+this.binding x: max(this.y[], otherProp[])
+```
+will be translated to something like:
+```nim
+proc update_1() =
+  this.x[] = max(this.y[], otherProp[])
+update_1()
+this.y.changed.connectTo this: update_1()
+otherProp.changed.connectTo this: update_1()
+```
 
 ## Ui Objects
 ```nim
@@ -291,6 +325,8 @@ Built-in interpolation modifiers:
 ```
 
 ## makeLayout
+Make layout is a macro, that transforms tree-structured (ui)object creation into nested clojures
+
 ```nim
 type
   MyComponent = ref object of Uiobj
@@ -301,7 +337,7 @@ registerComponent MyComponent
 
 let x = MyComponent.new
 x.makeLayout:
-  - UiRect():
+  - UiRect.new:
     this.fill parent
     this.binding color: rect2.color[].darken(0.5)  # objects created and aliased using `as` can be referenced before declaration
 
@@ -313,6 +349,57 @@ x.makeLayout:
       root.changableChild --- UiRect.new:
         # actions in this body will be executed when root.changableChild is changed
         this.fill(parent, 2, 4)
+```
+
+makeLayout will produce something like this:
+```nim
+block makeLayoutBlock_1:
+  let
+    root {.used.} = x  # object, passed as a parameter to makeLayout will be called root
+    
+    # forward declare objects, which got a name through `- ... as name`
+    rect2 = new(UiRect)
+  
+  block initializationBlock_2:
+    proc proc_1(parent: typeof(root.parent); this: typeof(root)) =
+      # for each object, `this` is current object, `parent` is this.parent
+      initIfNeeded(this)
+      let tmp_1 = new(UiRect)
+      addChild(this, tmp_1)
+
+      block initializationBlock_3:
+        proc proc_2(parent: typeof(this); this: typeof(tmp_1)) =
+          initIfNeeded(this)
+          fill(this, parent, 0.0)
+          this.binding color: rect2.color[].darken(0.5)  # binding is another macro
+          addChild(this, rect2)
+          
+          block initializationBlock_4:
+            proc proc_3(parent: typeof(this); this: typeof(rect2)) =
+              initIfNeeded(this)
+              this.w[] = 20
+              this.h[] = 30
+              this.color[] = color(1, 1, 1, 1.0)
+              
+              block changableChildInitializationBlock_1:  # changable childs is created like this:
+                root.changableChild = addChangableChild(this, new(UiRect))
+                
+                proc tmp_2(parent: typeof(this); this: typeof(root.changableChild[])) =
+                  block initializationBlock_5:
+                    proc (parent: typeof(parent); this: typeof(this)) =
+                      initIfNeeded(this)
+                      fill(this, parent, 2, 4)(parent, this)
+                
+                tmp_2(this, root.changableChild[])
+                connect(root.changableChild.changed, this.eventHandler, proc () =
+                  tmp_2(this, root.changableChild[]), {}
+                )
+
+            proc_3(this, rect2)
+
+        proc_2(this, tmp_1)
+
+    proc_1(root.parent, root)
 ```
 
 ### changable childs
