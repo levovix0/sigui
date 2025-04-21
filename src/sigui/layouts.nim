@@ -86,6 +86,7 @@ iterator potentially_visible_childs*(this: Layout): Uiobj =
               yield child
 
         else: break optimized
+      else: break optimized
       break notOptimized
     
     for child in this.childs:

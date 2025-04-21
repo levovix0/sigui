@@ -19,8 +19,10 @@ type
 
   Event*[T] = object  # pointer is wrapped to an object to attach custom destructor
     p: ptr EventObj[T]
+    firstHandHandler: proc(env: pointer) {.nimcall.}
+    firstHandHandlerEnv: pointer
 
-  EventObj*[T] = object
+  EventObj[T] = object
     ## only EventHandler can be connected to event
     ## one event can be connected to multiple components
     ## one EventHandler can connect to multiple events
@@ -158,6 +160,7 @@ proc disconnect*[T](s: var Event[T], flags: set[EventConnectionFlag], fullDeteac
 
 
 proc emit*[T](s: Event[T], v: T, disableFlags: set[EventConnectionFlag] = {}) =
+  if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
   if s.p != nil:
     var i = 0
     while i < s.p[].connected.len:
@@ -166,6 +169,7 @@ proc emit*[T](s: Event[T], v: T, disableFlags: set[EventConnectionFlag] = {}) =
       inc i
 
 proc emit*(s: Event[void], disableFlags: set[EventConnectionFlag] = {}) =
+  if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
   if s.p != nil:
     var i = 0
     while i < s.p[].connected.len:
@@ -187,6 +191,13 @@ proc connect*(s: var Event[void], c: var EventHandler, f: proc(), flags: set[Eve
   initIfNeeded s
   initIfNeeded c
   s.p[].connected.add (c.p, f, flags)
+  c.p[].connected.add cast[ptr EventBase](s.p)
+
+proc connect*(s: var Event[void], c: var EventHandler, f: proc(env: pointer) {.nimcall.}, env: pointer, flags: set[EventConnectionFlag] = {}) =
+  initIfNeeded s
+  initIfNeeded c
+  let fe = (f, env)
+  s.p[].connected.add (c.p, cast[ptr proc(v: void) {.closure.}](fe.addr)[], flags)
   c.p[].connected.add cast[ptr EventBase](s.p)
 
 

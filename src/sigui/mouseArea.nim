@@ -1,5 +1,5 @@
 import pkg/[siwin, vmath]
-import ./[events {.all.}, properties, uiobj]
+import ./[events {.all.}, properties, uiobj {.all.}]
 export MouseButton, MouseMoveEvent
 
 type
@@ -48,8 +48,10 @@ type
     pressedPos: Vec2  # press start pos relative to screen
     grabStarted: bool
 
-proc initRedrawWhenPropertyChanged_ignore(t: type MouseArea, name: string): bool {.used.} =
-  name notin ["x", "y"]  # MouseArea doesn't draw anything
+
+proc firstHandHandler_hook_redraw*(obj: typedesc[MouseArea], name: static string): bool =
+  # MouseArea doesn't draw anything
+  false
 
 registerComponent MouseArea
 
@@ -76,7 +78,7 @@ method recieve*(this: MouseArea, signal: Signal) =
   if this.visibility != collapsed:
     template handlePositionalEvent(ev, ev2) =
       let e {.cursor.} = (ref ev)signal.WindowEvent.event
-      let pos = this.xy.posToGlobal(this.parent)
+      let pos = this.globalXy
       if e.window.mouse.pos.x.float32 in pos.x..(pos.x + this.w[]) and e.window.mouse.pos.y.float32 in pos.y..(pos.y + this.h[]):
         this.ev2.emit e[]
     
@@ -93,7 +95,7 @@ method recieve*(this: MouseArea, signal: Signal) =
 
     elif signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent:
       let e {.cursor.} = (ref MouseMoveEvent)signal.WindowEvent.event
-      let pos = this.xy.posToGlobal(this.parent)
+      let pos = this.globalXy
       if e.pos.x.float32 in pos.x..(pos.x + this.w[]) and e.pos.y.float32 in pos.y..(pos.y + this.h[]):
         this.hovered[] = true
       else:
@@ -102,7 +104,7 @@ method recieve*(this: MouseArea, signal: Signal) =
     
     if signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent:
       let e = (ref MouseMoveEvent)signal.WindowEvent.event
-      let d = vec2().posToGlobal(this)
+      let d = this.globalXy
       this.mouseX[] = e.window.mouse.pos.x.float32 - d.x
       this.mouseY[] = e.window.mouse.pos.y.float32 - d.y
 

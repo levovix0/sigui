@@ -1,4 +1,4 @@
-import std/[times, macros, strutils]
+import std/[times, macros, strutils, importutils]
 import pkg/[vmath, bumpy, siwin, chroma]
 import pkg/fusion/[astdsl]
 import ./[events {.all.}, properties]
@@ -55,7 +55,7 @@ type
     obj {.cursor.}: Uiobj
     order: LayerOrder
     this {.cursor.}: Uiobj
-  
+
 
   Uiobj* = ref UiobjObjType
   UiobjObjType = object of RootObj
@@ -460,37 +460,40 @@ proc `-`*(a: Anchor, offset: float32): Anchor =
   Anchor(obj: a.obj, offsetFrom: a.offsetFrom, offset: a.offset - offset)
 
 proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
-  proc applyThisAnchors =
-    this.applyAnchors()
+  proc applyThisAnchors(env: pointer) {.nimcall.} =
+    # closure creation is expensive, but we can pass (proc(evn: pointer) {.nimcall.}, pointer) as a closure, that is cheaper
+    # don't know about possible side effects of it
+    cast[Uiobj](env).applyAnchors()
+  let env = cast[pointer](this)
 
   if anchor.obj == nil: return
   if not isY:
     case anchor.offsetFrom:
     of start:
       if anchor.obj != this.parent:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of `end`:
       if anchor.obj != this.parent:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of center:
       if anchor.obj != this.parent:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
   else:
     case anchor.offsetFrom:
     of start:
       if anchor.obj != this.parent:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of `end`:
       if anchor.obj != this.parent:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of center:
       if anchor.obj != this.parent:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
-  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors, {EventConnectionFlag.internal})
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
 
 template anchorAssign(anchor: untyped, isY: bool): untyped {.dirty.} =
   proc `anchor=`*(obj: Uiobj, v: Anchor) =
@@ -540,63 +543,62 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
 
 #----- reflection: trigger redraw automatically when property changes -----
 
-proc makeCapturedRedraw(obj: Uiobj): (proc() {.closure.}) {.nimcall.} =
-  result = proc() {.closure.} =
-    obj.redraw()
+
+proc firstHandHandler_hook_redraw(obj: typedesc[Uiobj], name: static string): bool =
+  name != "globalX" and name != "globalY"
 
 
-proc initRedrawWhenPropertyChangedStatic[T: Uiobj](this: T) =
-  ## connects update proc to every property.changed that are not marked as `initRedrawWhenPropertyChanged_ignore`
-  mixin initRedrawWhenPropertyChanged_ignore
+proc firstHandHandler_hook*(obj: Uiobj, name: static string, origType: typedesc) =
+  mixin firstHandHandler_hook_redraw
+  
+  when $origType != "Uiobj" and firstHandHandler_hook_redraw(origType, name):
+    redraw obj
+  
+  when name == "visibility":
+    obj.recieve(VisibilityChanged(sender: obj, visibility: obj.visibility))
+  
+  elif name == "w" or name == "h":
+    obj.applyAnchors()
+  
+  elif name == "x":
+    obj.spreadGlobalXChange(
+      if obj.parent == nil or obj.globalTransform[]: obj.x[] - obj.globalX[]
+      else: obj.x[] - (obj.globalX[] - obj.parent.globalX[])
+    )
+  
+  elif name == "y":
+    obj.spreadGlobalYChange(
+      if obj.parent == nil or obj.globalTransform[]: obj.y[] - obj.globalY[]
+      else: obj.y[] - (obj.globalY[] - obj.parent.globalY[])
+    )
+
+
+proc connectFirstHandHandlersStatic[T: Uiobj](this: T) =
+  mixin firstHandHandler_hook
+  privateAccess Event
 
   # we are iterating over all fields of an object, some of which can be deprecated
   # we don't care.
   {.push, warning[Deprecated]: off.}
 
   for name, x in this[].fieldPairs:
-    when name == "globalX" or name == "globalY":
-      discard  # will anyway be handled in parent
-
-    elif x is Property or x is CustomProperty:
-      when compiles(initRedrawWhenPropertyChanged_ignore(T, name)):
-        when not initRedrawWhenPropertyChanged_ignore(T, name):
-          x.changed.connect this.eventHandler, makeCapturedRedraw(this), {EventConnectionFlag.internal}
-      else:
-        x.changed.connect this.eventHandler, makeCapturedRedraw(this), {EventConnectionFlag.internal}
+    when x is Property or x is CustomProperty:
+      x.changed.firstHandHandlerEnv = cast[pointer](this)
+      x.changed.firstHandHandler = proc(env: pointer) {.nimcall.} =
+        firstHandHandler_hook(cast[T](env), name, T)
   
   {.pop.}
 
 
-method initRedrawWhenPropertyChanged*(obj: Uiobj) {.base.} =
-  ## since properies are *usually* used for the component visual, changing them should trigger a redraw
-  ## `initRedrawWhenPropertyChanged_ignore(T: type, name: string): bool` can be used to exclude specific properties from this behaviour
-  ## override for this method is generated automatically for child classes by `registerComponent`
-  initRedrawWhenPropertyChangedStatic(obj)
+method connectFirstHandHandlers*(obj: Uiobj) {.base.} =
+  connectFirstHandHandlersStatic(obj)
 
 
 
 #----- Uiobj initialization -----
 
 method init*(obj: Uiobj) {.base.} =
-  initRedrawWhenPropertyChanged(obj)
-
-  obj.visibility.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc =
-    obj.recieve(VisibilityChanged(sender: obj, visibility: obj.visibility))
-  
-  obj.w.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc = obj.applyAnchors()
-  obj.h.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc = obj.applyAnchors()
-
-  obj.x.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc =
-    obj.spreadGlobalXChange(
-      if obj.parent == nil or obj.globalTransform[]: obj.x[] - obj.globalX[]
-      else: obj.x[] - (obj.globalX[] - obj.parent.globalX[])
-    )
-
-  obj.y.changed.connect obj.eventHandler, flags = {EventConnectionFlag.internal}, f = proc =
-    obj.spreadGlobalYChange(
-      if obj.parent == nil or obj.globalTransform[]: obj.y[] - obj.globalY[]
-      else: obj.y[] - (obj.globalY[] - obj.parent.globalY[])
-    )
+  connectFirstHandHandlers(obj)
 
   obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
   obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
@@ -820,22 +822,6 @@ method draw*(win: UiWindow, ctx: DrawContext) =
   win.drawAfter(ctx)
 
 
-method recieve*(this: UiWindow, signal: Signal) =
-  if signal of WindowEvent and signal.WindowEvent.event of ResizeEvent:
-    let e = (ref ResizeEvent)signal.WindowEvent.event
-    this.wh = e.size.vec2
-    glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
-    this.ctx.updateDrawingAreaSize(e.size)
-
-  elif signal of WindowEvent and signal.WindowEvent.event of RenderEvent:
-    draw(this, this.ctx)
-
-  elif signal of WindowEvent and signal.WindowEvent.event of StateBoolChangedEvent:
-    redraw this.siwinWindow
-
-  procCall this.super.recieve(signal)
-
-
 proc setupEventsHandling*(win: UiWindow) =
   proc toRef[T](e: T): ref AnyWindowEvent =
     result = (ref T)()
@@ -844,7 +830,7 @@ proc setupEventsHandling*(win: UiWindow) =
   win.siwinWindow.eventsHandler = WindowEventsHandler(
     onClose:       proc(e: CloseEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onRender:      proc(e: RenderEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
+      win.draw(win.ctx)
       
       var cursor = GetActiveCursor()
       win.recieve(cursor)
@@ -854,10 +840,19 @@ proc setupEventsHandling*(win: UiWindow) =
         win.siwinWindow.cursor = cursor.cursor[]
     ,
     onTick:        proc(e: TickEvent) = win.onTick.emit(e),
-    onResize:      proc(e: ResizeEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
+    onResize:      proc(e: ResizeEvent) =
+      win.wh = e.size.vec2
+      glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
+      win.ctx.updateDrawingAreaSize(e.size)
+      
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
     onWindowMove:  proc(e: WindowMoveEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
 
-    onStateBoolChanged:   proc(e: StateBoolChangedEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
+    onStateBoolChanged:   proc(e: StateBoolChangedEvent) =
+      redraw win.siwinWindow
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
 
     onMouseMove:    proc(e: MouseMoveEvent) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
@@ -1446,11 +1441,11 @@ macro generateDeteachMethod(t: typed) {.used.} =
   )
 
 
-macro generateInitRedrawWhenPropertyChangedMethod(t: typed) {.used.} =
+macro generateConnectFirstHandHandlersMethod(t: typed) {.used.} =
   nnkMethodDef.newTree(
     nnkPostfix.newTree(
       ident("*"),
-      ident("initRedrawWhenPropertyChanged")
+      ident("connectFirstHandHandlers")
     ),
     newEmptyNode(),
     newEmptyNode(),
@@ -1466,7 +1461,7 @@ macro generateInitRedrawWhenPropertyChangedMethod(t: typed) {.used.} =
     newEmptyNode(),
     nnkStmtList.newTree(
       nnkCall.newTree(
-        bindSym("initRedrawWhenPropertyChangedStatic"),
+        bindSym("connectFirstHandHandlersStatic"),
         ident("this")
       )
     )
@@ -1642,7 +1637,7 @@ when defined(sigui_debug_redrawInitiatedBy):
 macro registerComponent*(t: typed) =
   result = newStmtList()
   result.add nnkCall.newTree(bindSym("generateDeteachMethod"), t)
-  result.add nnkCall.newTree(bindSym("generateInitRedrawWhenPropertyChangedMethod"), t)
+  result.add nnkCall.newTree(bindSym("generateConnectFirstHandHandlersMethod"), t)
   result.add nnkCall.newTree(bindSym("declareComponentTypeName"), t)
   result.add nnkCall.newTree(bindSym("declareFormatFields"), t)
 
