@@ -325,7 +325,7 @@ Built-in interpolation modifiers:
 ```
 
 ## makeLayout
-Make layout is a macro, that transforms tree-structured (ui)object creation into nested clojures
+Make layout is a macro, that transforms tree-structured (ui)object creation into nested closures
 
 ```nim
 type

@@ -476,3 +476,55 @@ method init*(this: Layout) =
   doRepositionWhenChanged wrap
   doRepositionWhenChanged elementsBeforeWrap
   doRepositionWhenChanged lengthBeforeWrap
+
+
+
+proc row*(this: Layout, gap: float32 = 0) =
+  this.gap{} = gap
+  this.orientation{} = LayoutOrientation.horizontal
+
+proc col*(this: Layout, gap: float32 = 0) =
+  this.gap{} = gap
+  this.orientation{} = LayoutOrientation.vertical
+
+
+proc hbox*(this: Layout, gap: float32 = 0) =
+  this.orientation{} = LayoutOrientation.horizontal
+  this.hugContent{} = false
+
+proc vbox*(this: Layout, gap: float32 = 0) =
+  this.gap{} = gap
+  this.orientation{} = LayoutOrientation.vertical
+  this.hugContent{} = false
+
+
+proc grid*(this: Layout, columns: int, gap: float32 = 0) =
+  this.gap{} = gap
+  this.orientation{} = LayoutOrientation.horizontal
+  this.wrap{} = true
+  this.elementsBeforeWrap{} = columns
+
+
+
+proc row*(typ: typedesc[Layout], gap: float32 = 0): Layout =
+  new result
+  result.row(gap)
+
+proc col*(typ: typedesc[Layout], gap: float32 = 0): Layout =
+  new result
+  result.col(gap)
+
+
+proc hbox*(typ: typedesc[Layout], gap: float32 = 0): Layout =
+  new result
+  result.hbox(gap)
+
+proc vbox*(typ: typedesc[Layout], gap: float32 = 0): Layout =
+  new result
+  result.vbox(gap)
+
+
+proc grid*(typ: typedesc[Layout], columns: int, gap: float32 = 0): Layout =
+  new result
+  result.grid(columns, gap)
+

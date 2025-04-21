@@ -8,11 +8,9 @@ test "layouts":
   window.makeLayout:
     clearColor = color(1, 1, 1)
 
-    - Layout.new:
+    - Layout.row(gap = 16):
       this.fill(parent, 16)
       
-      orientation = horizontal
-      gap = 16
       fillContainer = true
 
       - UiRect.new:

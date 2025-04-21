@@ -96,12 +96,10 @@ test "todo app":
       top = taskAdder.bottom + 20
 
       app.layout --- Layout.new:
-        <--- Layout(): app.tasksChanged[]
+        <--- Layout.new: app.tasksChanged[]
+        this.col(gap = 5)
 
         this.binding w: parent.w[]
-
-        orientation = vertical
-        gap = 5
 
         for i in 0..app.tasks.high:
           template task: auto = app.tasks[i]
@@ -109,8 +107,7 @@ test "todo app":
           - DestroyLogger.new as logger:
             this.inner.message = "destroyed: " & $i
 
-          - Layout.new:
-            spacing = 10
+          - Layout.row(gap = 10):
             align = center
             
             - Switch(isOn: task.complete[].property):

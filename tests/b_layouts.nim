@@ -58,10 +58,9 @@ test "layout benchmark":
 
         manyButtons --- Layout.new:
           if generate:
+            this.col(gap = 10)
             this.fillHorizontal(parent)
             
-            orientation = vertical
-            gap = 10
             fillContainer = true
 
             for i in 0 ..< count:
