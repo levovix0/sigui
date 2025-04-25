@@ -4,7 +4,7 @@
   Pure Nim, easy to use and flexible UI framework.
 </p>
 
-*Not quite ready for production*
+*In active development*
 
 Sigui is inspired by QtQuick.
 
@@ -146,6 +146,19 @@ event.emit 10
 ```
 Events can be connected to EventHandler or HasEventHandler object. note that Uiobj fits HasEventHandler concept.
 
+Events can be disconnected
+```nim
+var e: Event[int]
+var eh: EventHandler
+
+# ...
+
+disconnect e, eh  # disconnect all functions that was connected like connect(e, eh, ...)
+disconnect e      # disconnect all functions that was connected to this event
+disconnect eh     # disconnect all functions that was connected to this event handler
+```
+If you have a group of callbacks to diffirent events, that you periodically disconnect all at once, consider creating an EventHandler for this group.
+
 You can check `event.hasHandlers` for optimizing if you need to do complex logic to emit event. Don't do work if no one notice!
 
 ## Properties and bindings
@@ -163,6 +176,7 @@ x.changed.connectTo eh:
 eh.bindingValue y[]: x[]
 
 x[] = 10  # both "x changes observed by event handler" and "10"
+echo y[]  # 1
 ```
 
 `Property[T]` is container for T, wrapping variable into property  
@@ -171,10 +185,10 @@ x[] = 10  # both "x changes observed by event handler" and "10"
 ```nim
 type AnyProperty[T] = concept a, var v
   a[] is T
-  a[] = T
+  v[] = T
   a.changed is Event[T]
   a{} is T
-  a{} = T
+  v{} = T
 ```
 
 `prop{}`/`prop{}=` can be used instead of `prop[]`/`prop[]=` to not emit changed event.
@@ -240,8 +254,8 @@ method init*(this: MyComponent) =
     - UiRect.new:
       this.fill parent
 
-# ...
-- MyComponent():
+# ... in makeLayout
+- MyComponent.new:
   # implicitly called init
   # ...
 ```
@@ -294,6 +308,28 @@ Built-in interpolation modifiers:
 
 ## Layouts
 *not to be confused with makeLayout macro*
+
+simple layouts:
+```nim
+- Layout.col(gap = 10):  # positions elements vertically with gap between them, use Layout.row() for horizontal
+  - UiRect.new:
+    w = 20
+    h = 20
+    color = "ff4040".color
+
+  - UiRect.new:
+    w = 30
+    h = 10
+    color = "40ff40".color
+
+  - UiRect.new:
+    w = 10
+    h = 30
+    color = "4040ff".color
+```
+![image](http://levovix.ru:8000/docs/sigui/simple%20layouts%20example.png)
+
+layouts have many properties, see src/sigui/layouts.nim for all
 ```nim
 - Layout.new:
   h = 720
@@ -400,6 +436,18 @@ block makeLayoutBlock_1:
         proc_2(this, tmp_1)
 
     proc_1(root.parent, root)
+```
+
+makeLayout also provides some sugar
+```nim
+Uiobj.new.makeLayout:
+  on this.x.changed:
+    ## this.x.changed.connectTo this: ...
+  
+  - MouseArea.new:
+    on this.grabbed[] == true:
+      ## this.grabbed.changed.connectTo this:
+      ##   if this.grabbed[] == true: ...
 ```
 
 ### changable childs

@@ -107,6 +107,9 @@ type
 
   SubtreeSignal* = ref object of Signal
     ## signal sends to all childs recursively (by default)
+
+  SubtreeReverseSignal* = ref object of SubtreeSignal
+    ## signal sends to all childs recursively in reverse order (by default)
   
   AttachedToWindow* = ref object of SubtreeSignal
     window*: UiWindow
@@ -114,13 +117,14 @@ type
   ParentChanged* = ref object of SubtreeSignal
     newParentInTree*: Uiobj
   
-  WindowEvent* = ref object of SubtreeSignal
+  WindowEvent* = ref object of SubtreeReverseSignal
     event*: ref AnyWindowEvent
     handled*: bool
     fake*: bool
   
-  GetActiveCursor* = ref object of SubtreeSignal
+  GetActiveCursor* = ref object of SubtreeReverseSignal
     cursor*: ref Cursor
+    handled*: bool
   
   VisibilityChanged* = ref object of SubtreeSignal
     visibility*: Visibility
@@ -196,6 +200,10 @@ proc toColor*(s: string): colortypes.Color =
 
 converter litToColor*(s: string{lit}): colortypes.Color =
   s.toColor
+
+
+macro color*(s: static string): colortypes.Color =
+  s.toColor.newLit
 
 
 
@@ -340,6 +348,9 @@ proc posToObject*(fromObj, toObj: Uiobj, pos: Vec2): Vec2 =
 
 proc posToObject*(pos: Vec2, fromObj, toObj: Uiobj): Vec2 {.inline.} =
   posToObject(fromObj, toObj, pos)
+
+
+proc `$`*(this: Uiobj): string
 
 
 
@@ -531,7 +542,11 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
 
   obj.onSignal.emit signal
 
-  if signal of SubtreeSignal:
+  if signal of SubtreeReverseSignal:
+    for i in countdown(obj.childs.high, 0):
+      obj.childs[i].recieve(signal)
+
+  elif signal of SubtreeSignal:
     for x in obj.childs:
       x.recieve(signal)
   
@@ -544,32 +559,32 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
 #----- reflection: trigger redraw automatically when property changes -----
 
 
-proc firstHandHandler_hook_redraw(obj: typedesc[Uiobj], name: static string): bool =
+proc firstHandHandler_hook_redraw(thisT: typedesc[Uiobj], name: static string): bool =
   name != "globalX" and name != "globalY"
 
 
-proc firstHandHandler_hook*(obj: Uiobj, name: static string, origType: typedesc) =
+proc firstHandHandler_hook*(this: Uiobj, name: static string, origType: typedesc) =
   mixin firstHandHandler_hook_redraw
   
   when $origType != "Uiobj" and firstHandHandler_hook_redraw(origType, name):
-    redraw obj
+    redraw(this, ifVisible = (name != "visibility").static)
   
   when name == "visibility":
-    obj.recieve(VisibilityChanged(sender: obj, visibility: obj.visibility))
+    this.recieve(VisibilityChanged(sender: this, visibility: this.visibility))
   
   elif name == "w" or name == "h":
-    obj.applyAnchors()
+    this.applyAnchors()
   
   elif name == "x":
-    obj.spreadGlobalXChange(
-      if obj.parent == nil or obj.globalTransform[]: obj.x[] - obj.globalX[]
-      else: obj.x[] - (obj.globalX[] - obj.parent.globalX[])
+    this.spreadGlobalXChange(
+      if this.parent == nil or this.globalTransform[]: this.x[] - this.globalX[]
+      else: this.x[] - (this.globalX[] - this.parent.globalX[])
     )
   
   elif name == "y":
-    obj.spreadGlobalYChange(
-      if obj.parent == nil or obj.globalTransform[]: obj.y[] - obj.globalY[]
-      else: obj.y[] - (obj.globalY[] - obj.parent.globalY[])
+    this.spreadGlobalYChange(
+      if this.parent == nil or this.globalTransform[]: this.y[] - this.globalY[]
+      else: this.y[] - (this.globalY[] - this.parent.globalY[])
     )
 
 
@@ -590,8 +605,8 @@ proc connectFirstHandHandlersStatic[T: Uiobj](this: T) =
   {.pop.}
 
 
-method connectFirstHandHandlers*(obj: Uiobj) {.base.} =
-  connectFirstHandHandlersStatic(obj)
+method connectFirstHandHandlers*(this: Uiobj) {.base.} =
+  connectFirstHandHandlersStatic(this)
 
 
 
@@ -831,15 +846,10 @@ proc setupEventsHandling*(win: UiWindow) =
     onClose:       proc(e: CloseEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onRender:      proc(e: RenderEvent) =
       win.draw(win.ctx)
-      
-      var cursor = GetActiveCursor()
-      win.recieve(cursor)
-      if cursor.cursor == nil:
-        win.siwinWindow.cursor = Cursor()
-      else:
-        win.siwinWindow.cursor = cursor.cursor[]
     ,
-    onTick:        proc(e: TickEvent) = win.onTick.emit(e),
+    onTick:        proc(e: TickEvent) =
+      win.onTick.emit(e)
+    ,
     onResize:      proc(e: ResizeEvent) =
       win.wh = e.size.vec2
       glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
@@ -854,16 +864,7 @@ proc setupEventsHandling*(win: UiWindow) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
 
-    onMouseMove:    proc(e: MouseMoveEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    
-      var cursor = GetActiveCursor()
-      win.recieve(cursor)
-      if cursor.cursor == nil:
-        win.siwinWindow.cursor = Cursor()
-      else:
-        win.siwinWindow.cursor = cursor.cursor[]
-    ,
+    onMouseMove:    proc(e: MouseMoveEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onMouseButton:  proc(e: MouseButtonEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onScroll:       proc(e: ScrollEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
     onClick:        proc(e: ClickEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
@@ -1360,6 +1361,28 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                     x
               
 
+              # on property[] == value: body
+              elif x.kind == nnkCommand and x.len == 3 and x[0] == ident("on") and x[1].kind == nnkInfix and x[1][1].kind == nnkBracketExpr:
+                let cond = x[1]
+                let property = x[1][1]
+                let body = x[2]
+
+                let connectCall = nnkCall.newTree(
+                  bindSym("connectTo"),
+                  nnkDotExpr.newTree(property[0], ident("changed")),
+                  ident "this",
+                  nnkIfStmt.newTree(
+                    nnkElifBranch.newTree(
+                      cond,
+                      body,
+                    )
+                  )
+                )
+                (connectCall[0].copyLineInfo(x[0]))
+                
+                connectCall
+
+
               # on event: body
               elif x.kind == nnkCommand and x.len == 3 and x[0] == ident("on"):
                 let event = x[1]
@@ -1539,9 +1562,6 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
 
 method formatFields*(this: Uiobj): seq[string] {.base.} =
   formatFieldsStatic(this[])
-
-
-proc `$`*(this: Uiobj): string
 
 
 proc `$`*(x: Color): string =

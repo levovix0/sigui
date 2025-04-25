@@ -4,11 +4,13 @@ type
   Property*[T] = object
     unsafeVal*: T
     changed*: Event[void]
+    # todo: replacable bindings
 
   CustomProperty*[T] = object
     get*: proc(): T
     set*: proc(v: T)
     changed*: Event[void]
+    # todo: replacable bindings
 
   AnyProperty*[T] = concept a, var v
     a[] is T

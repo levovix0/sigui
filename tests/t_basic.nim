@@ -22,8 +22,10 @@ win.makeLayout:
 
     - MouseArea.new as mouse:
       this.fill(parent)
+      
       on this.mouseDownAndUpInside:
         state[] = (state[] + 1) mod 3
-      this.cursor = (ref Cursor)(kind: builtin, builtin: BuiltinCursor.pointingHand)
+      
+      cursor = (ref Cursor)(kind: builtin, builtin: BuiltinCursor.pointingHand)
 
 run win.siwinWindow

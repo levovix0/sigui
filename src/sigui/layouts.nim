@@ -481,25 +481,33 @@ method init*(this: Layout) =
 
 
 proc row*(this: Layout, gap: float32 = 0) =
+  ## horizontal layout, size of which depends of clidren
   this.gap{} = gap
   this.orientation{} = LayoutOrientation.horizontal
 
 proc col*(this: Layout, gap: float32 = 0) =
+  ## vertical layout, size of which depends of clidren
   this.gap{} = gap
   this.orientation{} = LayoutOrientation.vertical
 
 
-proc hbox*(this: Layout, gap: float32 = 0) =
+proc hbox*(this: Layout, gap: float32 = 0, fillWithSpaces: bool = false) =
+  ## horizontal layout, size of which is fixed
+  this.gap{} = gap
   this.orientation{} = LayoutOrientation.horizontal
   this.hugContent{} = false
+  this.fillWithSpaces{} = fillWithSpaces
 
-proc vbox*(this: Layout, gap: float32 = 0) =
+proc vbox*(this: Layout, gap: float32 = 0, fillWithSpaces: bool = false) =
+  ## vertical layout, size of which is fixed
   this.gap{} = gap
   this.orientation{} = LayoutOrientation.vertical
   this.hugContent{} = false
+  this.fillWithSpaces{} = fillWithSpaces
 
 
 proc grid*(this: Layout, columns: int, gap: float32 = 0) =
+  ## horizontal + vertical when overflow layout, size of which depends of clidren
   this.gap{} = gap
   this.orientation{} = LayoutOrientation.horizontal
   this.wrap{} = true
@@ -516,16 +524,45 @@ proc col*(typ: typedesc[Layout], gap: float32 = 0): Layout =
   result.col(gap)
 
 
-proc hbox*(typ: typedesc[Layout], gap: float32 = 0): Layout =
+proc hbox*(typ: typedesc[Layout], gap: float32 = 0, fillWithSpaces: bool = false): Layout =
   new result
-  result.hbox(gap)
+  result.hbox(gap, fillWithSpaces)
 
-proc vbox*(typ: typedesc[Layout], gap: float32 = 0): Layout =
+proc vbox*(typ: typedesc[Layout], gap: float32 = 0, fillWithSpaces: bool = false): Layout =
   new result
-  result.vbox(gap)
+  result.vbox(gap, fillWithSpaces)
 
 
 proc grid*(typ: typedesc[Layout], columns: int, gap: float32 = 0): Layout =
   new result
   result.grid(columns, gap)
 
+
+
+when isMainModule:
+  import pkg/siwin, ./uibase
+
+  let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 700)).newUiWindow
+
+  win.makeLayout:
+    clearColor = "202020".color
+
+    - Layout.col(gap = 25):  # positions elements vertically with gap between them, use Layout.row() for horizontal
+      - UiRect.new:
+        w = 200
+        h = 200
+        color = "ff4040".color
+
+      - UiRect.new:
+        w = 300
+        h = 100
+        color = "40ff40".color
+
+      - UiRect.new:
+        w = 100
+        h = 300
+        color = "4040ff".color
+      
+      echo "w: ", this.w[], ", h: ", this.h[]  # already non-zero!
+  
+  run win.siwinWindow

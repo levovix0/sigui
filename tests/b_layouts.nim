@@ -10,7 +10,7 @@ test "layout benchmark":
   let typeface = parseTtf(typefaceFile)
 
   window.makeLayout:
-    clearColor = "202020".litToColor.static
+    clearColor = "202020".color
     
     - Styler.new:
       this.fill(parent)
@@ -18,7 +18,7 @@ test "layout benchmark":
       style = makeStyle:
         UiText:
           font = typeface.withSize(16)
-          color = "ffffff".litToColor.static
+          color = "ffffff".color
 
       var manyButtons: ChangableChild[Layout]
       var generate = false
@@ -29,9 +29,9 @@ test "layout benchmark":
         y = 10
         radius = 5
         color = binding:
-          if recreate.pressed[]: "282828".litToColor.static
-          elif recreate.hovered[]: "404040".litToColor.static
-          else: "303030".litToColor.static
+          if recreate.pressed[]: "282828".color
+          elif recreate.hovered[]: "404040".color
+          else: "303030".color
 
         - MouseArea.new as recreate:
           this.fill(parent)
@@ -54,7 +54,7 @@ test "layout benchmark":
         this.fill(parent, 10)
         this.top = recreate.bottom + 10
 
-        this.verticalScrollbarObj[].UiRect.color[] = "808080".litToColor.static
+        this.verticalScrollbarObj[].UiRect.color[] = "808080".color
 
         manyButtons --- Layout.new:
           if generate:
@@ -68,9 +68,9 @@ test "layout benchmark":
                 h = 30
                 radius = 5
                 color = binding:
-                  if mouse.pressed[]: "282828".litToColor.static
-                  elif mouse.hovered[]: "383838".litToColor.static
-                  else: "101010".litToColor.static
+                  if mouse.pressed[]: "282828".color
+                  elif mouse.hovered[]: "383838".color
+                  else: "101010".color
                 
                 - UiText.new as txt:
                   this.centerIn(parent)
