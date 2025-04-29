@@ -50,8 +50,8 @@ type
 
 
 proc firstHandHandler_hook_redraw*(thisT: typedesc[MouseArea], name: static string): bool =
-  # MouseArea doesn't draw anything
-  false
+  # MouseArea doesn't draw anything directly
+  name == "visibility"
 
 proc firstHandHandler_hook*(this: MouseArea, name: static string, origType: typedesc)
 

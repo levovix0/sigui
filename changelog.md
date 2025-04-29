@@ -10,3 +10,6 @@ changelog created at 2025/04/23, [0a8b0b7d](https://github.com/levovix0/sigui/co
 [28e3c761](https://github.com/levovix0/sigui/commit/28e3c761):
 - add: UiPath
 
+[a70c1377](https://github.com/levovix0/sigui/commit/a70c1377):
+- add: BeforeDraw signal
+

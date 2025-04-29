@@ -129,6 +129,11 @@ type
   VisibilityChanged* = ref object of SubtreeSignal
     visibility*: Visibility
 
+  BeforeDraw* = ref object of SubtreeSignal
+    ## this signal sends after onTick, just before draw
+    ## this signal should be used to trigger compute-heavy private data updates that will be displayed on an upcoming frame
+    ## call procCall this.super.recieve(signal) before handling it (unless you know what you're doing)
+
   
   UptreeSignal* = ref object of Signal
     ## signal sends to all parents recursively (by default)
@@ -234,6 +239,8 @@ proc `globalXy=`*(obj: Uiobj, v: Vec2) =
 
 
 method draw*(obj: Uiobj, ctx: DrawContext) {.base.}
+  ## draw current state to a window or framebuffer
+  ## ! do not update state of ui objects on draw() !  handle BeforeDraw signal instead
 
 proc drawBefore*(obj: Uiobj, ctx: DrawContext) =
   for x in obj.drawLayering.before:
@@ -559,7 +566,7 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
 #----- reflection: trigger redraw automatically when property changes -----
 
 
-proc firstHandHandler_hook_redraw(thisT: typedesc[Uiobj], name: static string): bool =
+proc firstHandHandler_hook_redraw*(thisT: typedesc[Uiobj], name: static string): bool =
   name != "globalX" and name != "globalY"
 
 
@@ -843,34 +850,51 @@ proc setupEventsHandling*(win: UiWindow) =
     (ref T)(result)[] = e
 
   win.siwinWindow.eventsHandler = WindowEventsHandler(
-    onClose:       proc(e: CloseEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
-    onRender:      proc(e: RenderEvent) =
+    onClose: proc(e: CloseEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
+    onRender: proc(e: RenderEvent) =
+      win.recieve(BeforeDraw(sender: win))
       win.draw(win.ctx)
     ,
-    onTick:        proc(e: TickEvent) =
+    onTick: proc(e: TickEvent) =
       win.onTick.emit(e)
     ,
-    onResize:      proc(e: ResizeEvent) =
+    onResize: proc(e: ResizeEvent) =
       win.wh = e.size.vec2
       glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
       win.ctx.updateDrawingAreaSize(e.size)
-      
+
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
-    onWindowMove:  proc(e: WindowMoveEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
+    onWindowMove: proc(e: WindowMoveEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
 
-    onStateBoolChanged:   proc(e: StateBoolChangedEvent) =
+    onStateBoolChanged: proc(e: StateBoolChangedEvent) =
       redraw win.siwinWindow
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
 
-    onMouseMove:    proc(e: MouseMoveEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
-    onMouseButton:  proc(e: MouseButtonEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
-    onScroll:       proc(e: ScrollEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
-    onClick:        proc(e: ClickEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
+    onMouseMove: proc(e: MouseMoveEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
+    onMouseButton: proc(e: MouseButtonEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
+    onScroll: proc(e: ScrollEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
+    onClick: proc(e: ClickEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
 
-    onKey:   proc(e: KeyEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
-    onTextInput:  proc(e: TextInputEvent) = win.recieve(WindowEvent(sender: win, event: e.toRef)),
+    onKey: proc(e: KeyEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
+    onTextInput: proc(e: TextInputEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
   )
 
 proc newUiWindow*(siwinWindow: Window): UiWindow =

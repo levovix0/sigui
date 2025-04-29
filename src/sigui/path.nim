@@ -88,14 +88,19 @@ proc firstHandHandler_hook(obj: UiPath, name: static string, origType: typedesc)
     obj.changed = true
 
 
+method recieve*(this: UiPath, signal: Signal) =
+  procCall this.super.recieve(signal)
+
+  if signal of BeforeDraw:
+    if this.changed and this.visibility[] == visible:
+      this.updateTexture()
+      this.changed = false
+
+
 method draw*(this: UiPath, ctx: DrawContext) =
   this.drawBefore(ctx)
   
   if this.visibility[] == visible:
-    if this.changed:
-      this.updateTexture()
-      this.changed = false
-
     if this.tex != nil:
       ctx.drawImage(
         (this.globalXy + ctx.offset + this.offset).round, this.texWh.vec2, this.tex.raw,
