@@ -32,6 +32,19 @@ Libraries to see also: [siwin](https://github.com/levovix0/siwin), [localize](ht
 # Examples
 see also: [tests](https://github.com/levovix0/sigui/tree/main/tests)
 
+## Minimal
+
+```nim
+import sigui, siwin
+
+let win = newSiwinGlobals().newOpenglWindow().newUiWindow
+
+win.makeLayout:
+  clearColor = "202020".color
+
+run win.siwinWindow
+```
+
 ## Basic
 https://github.com/levovix0/sigui/assets/53170138/9509e245-2701-4dba-8237-a83f480aa635
 ```nim
@@ -68,6 +81,19 @@ run win.siwinWindow
 
 
 ## Custom component
+Minimal example:
+```nim
+import sigui/[uibase]
+
+type
+  MyComponent* = ref object of Uiobj
+
+registerComponent MyComponent
+
+method init*(this: Switch) =
+  procCall this.super.init()
+```
+
 https://github.com/levovix0/sigui/assets/53170138/409cb2a3-5299-48a6-b01e-d8b7bb951fbb
 ```nim
 import sigui/[uibase, mouseArea, animations, dolars]
@@ -82,7 +108,6 @@ registerComponent Switch
 
 
 method init*(this: Switch) =
-  if this.initialized: return
   procCall this.super.init()
   
   this.isOn.changed.connectTo this:
