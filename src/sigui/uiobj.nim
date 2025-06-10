@@ -79,6 +79,7 @@ type
 
     initialized*: bool
     attachedToWindow*: bool
+    # todo: add a pointer to UiRoot
     
     anchors: Anchors
 
@@ -90,11 +91,14 @@ type
     obj {.cursor.}: Uiobj
 
 
-  UiWindow* = ref object of Uiobj
+  UiRoot* = ref object of Uiobj
+    onTick*: Event[TickEvent]
+
+
+  UiWindow* = ref object of UiRoot
     siwinWindow*: Window
     ctx*: DrawContext
     clearColor*: Col
-    onTick*: Event[TickEvent]
 
 
   ChangableChild*[T] = object
