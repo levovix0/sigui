@@ -64,7 +64,7 @@ proc render(familyBuffer: var GlyphFamilyBuffer, placement: var GlyphPlacement, 
   placement.x = familyBuffer.freeX
   placement.y = familyBuffer.freeY
   
-  familyBuffer.freeX = familyBuffer.freeX + w
+  familyBuffer.freeX = familyBuffer.freeX + w + 1
   if h > familyBuffer.freeH:
     familyBuffer.freeH = h
   

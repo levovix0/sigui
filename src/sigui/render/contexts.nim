@@ -360,7 +360,7 @@ proc drawText*(ctx: DrawContext, pos: Vec2, arrangement: Arrangement, color: Vec
     
     if prevTexture != placement.texture:
       glBindTexture(GlTexture2d, placement.texture)
-      glTextureParameteri(placement.texture, GlTextureMinFilter, GlNearest)
+      glTexParameteri(GlTexture2d, GlTextureMinFilter, GlNearest)
       prevTexture = placement.texture
 
     draw ctx.rect
