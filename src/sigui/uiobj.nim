@@ -624,10 +624,10 @@ method connectFirstHandHandlers*(this: Uiobj) {.base.} =
 #----- Uiobj initialization -----
 
 method init*(obj: Uiobj) {.base.} =
-  connectFirstHandHandlers(obj)
-
   obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
   obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
+
+  connectFirstHandHandlers(obj)
   
   if not obj.attachedToWindow:
     let win = obj.parentUiWindow
