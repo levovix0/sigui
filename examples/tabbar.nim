@@ -94,7 +94,7 @@ method init*(this: TabBar) =
 
 
 test "tab bar":
-  const typefaceFile = staticRead "Roboto-Regular.ttf"
+  const typefaceFile = staticRead "../tests/Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
 
   let lightTheme = makeStyle:

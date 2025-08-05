@@ -6,7 +6,7 @@ const count {.intdefine.} = 1000
 test "layout benchmark":
   let window = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 720), title = "layouts benchmark").newUiWindow
 
-  const typefaceFile = staticRead "Roboto-Regular.ttf"
+  const typefaceFile = staticRead "../tests/Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
 
   window.makeLayout:

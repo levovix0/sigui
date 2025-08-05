@@ -1,5 +1,5 @@
-import unittest, json
-import sigui, siwin, localize
+import std/[unittest, json]
+import pkg/[sigui, siwin, localize]
 
 test "localize":
   var locale = globalLocale.property
@@ -7,7 +7,7 @@ test "localize":
     "ru", "",
     parseLocaleTable %*{
       "sigui": {
-        "tests/ot_localize.nim": {
+        "examples/localize.nim": {
           "Hello, world!": {
             "": "Привет, мир!"
           },
@@ -20,7 +20,7 @@ test "localize":
 
   win.clearColor = "202020"
 
-  const typefaceFile = staticRead "Roboto-Regular.ttf"
+  const typefaceFile = staticRead "../tests/Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
 
   win.makeLayout:
