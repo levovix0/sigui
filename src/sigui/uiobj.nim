@@ -1020,6 +1020,13 @@ proc bindingImpl*(
         call updateProc, objCursor
 
 
+# todo: instead of this nonesence, make a single binding: block that can be attached to specific event handler and executes statements istead of expression
+when false:
+  - UiRect.new:
+    binding: w = this.h[]
+    var eh = EventHandler()
+    eh.binding: radius = this.w[]
+
 macro binding*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
   bindingImpl(obj, target, body, init, bindProperty)
 

@@ -38,6 +38,7 @@ type
     assumeChildsClipped*: Property[bool] = true.property
       ## for optimization, if true, assume for all children, that child's tree are contained in that child (xy >= 0, wh <= parent wh)
 
+    lockFromReposition*: bool
     inRepositionProcess: bool
   
   InLayout* = ref object of Uiobj
@@ -54,9 +55,14 @@ type
       ## if 0, this constraint don't apply
     
     isChangingW, isChangingH: bool
+  
+  LayoutGap* = ref object of Uiobj
+    ## component that replaces gap in Layout
+
 
 registerComponent Layout
 registerComponent InLayout
+registerComponent LayoutGap
 
 
 iterator potentially_visible_childs*(this: Layout): Uiobj =
@@ -130,11 +136,7 @@ method recieve*(obj: Layout, signal: Signal) =
 
 
 
-proc reposition_old(this: Layout) {.used.} =
-  if this.inRepositionProcess: return
-  this.inRepositionProcess = true
-  defer: this.inRepositionProcess = false
-
+proc doReposition(this: Layout) {.used.} =
   template makeGetAndSet(get, set, horz, vert) =
     proc get(child: Uiobj): float32 =
       case this.orientation[]
@@ -151,19 +153,22 @@ proc reposition_old(this: Layout) {.used.} =
   makeGetAndSet(get_w, set_w, w, h)
   makeGetAndSet(get_h, set_h, h, w)
 
-  var rows: seq[tuple[childs: seq[Uiobj]; freeSpace, spaceBetween, h: float32]] = @[(@[], this.get_w, 0'f32, 0'f32)]
+  var rows: seq[tuple[childs: seq[Uiobj]; freeSpace, spaceBetween, h: float32]] =
+    @[(@[], this.get_w, 0'f32, 0'f32)]
 
   block:
     var
       i = 0
       x = 0'f32
       h = 0'f32
+      shouldMakeGap = false
 
     for child in this.childs:
       if child.visibility == collapsed: continue
-      if x != 0:
+      if shouldMakeGap and not(child of LayoutGap):
         x += this.gap[]
         rows[^1].freeSpace -= this.gap[]
+
       x += child.get_w
       inc i
 
@@ -174,7 +179,8 @@ proc reposition_old(this: Layout) {.used.} =
           (this.lengthBeforeWrap[] > 0 and x > this.lengthBeforeWrap[])
         )
       ):
-        rows[^1].freeSpace += this.gap[]
+        if shouldMakeGap and not(child of LayoutGap):
+          rows[^1].freeSpace += this.gap[]
         rows[^1].h = h
         i = 1
         x = child.get_w
@@ -182,9 +188,11 @@ proc reposition_old(this: Layout) {.used.} =
         rows.add (@[], this.get_w, 0'f32, 0'f32)
       
       rows[^1].childs.add child
-      if not(child of InLayout) or not(child.InLayout.fillContainer[]):
+      if not(child of InLayout and child.InLayout.fillContainer[]):
         h = max(h, child.get_h)
       rows[^1].freeSpace -= child.get_w
+
+      shouldMakeGap = not(child of LayoutGap)
     
     if not this.wrapHugContent[]:
       h = this.get_h
@@ -193,8 +201,13 @@ proc reposition_old(this: Layout) {.used.} =
   
   
   for x in rows.mitems:
+    var elementCount = 0
+    for child in x.childs:
+      if not(child of LayoutGap):
+        inc elementCount
+
     x.spaceBetween =
-      if x.childs.len > 1: x.freeSpace / (x.childs.len - 1).float32
+      if elementCount > 1: x.freeSpace / (elementCount - 1).float32
       else: 0
     
     let growSpace =
@@ -211,7 +224,7 @@ proc reposition_old(this: Layout) {.used.} =
       if totalGrow > 0:
         if this.childs.len > 1:
           x.spaceBetween = this.gap[]
-        x.freeSpace = this.gap[] * (x.childs.len - 1).float32
+        x.freeSpace = this.gap[] * (elementCount - 1).float32
 
         var growSpaceTaken = 0
         var lastGrowingChild: Uiobj
@@ -251,12 +264,16 @@ proc reposition_old(this: Layout) {.used.} =
             of start: 0'f32
             of center: freeSpace / 2
             of `end`: freeSpace
+        shouldMakeGap = false
 
       let spaceBetween =
         if this.fillWithSpaces[]: spaceBetween
         else: 0'f32
       
-      for child in row:
+      for childI, child in row:
+        if shouldMakeGap and not(child of LayoutGap):
+          x += this.gap[] + spaceBetween
+
         child.set_x(x)
         
         let fillContainer =
@@ -285,7 +302,9 @@ proc reposition_old(this: Layout) {.used.} =
           of `end`:
             child.set_y(y + h - child.get_h)
         
-        x += child.get_w + this.gap[] + spaceBetween
+        x += child.get_w
+
+        shouldMakeGap = not(child of LayoutGap)
       
       y += h + this.wrapGap[] + (if rows.len > 1: freeYSpace / (rows.len.float32 - 1) else: 0)
   
@@ -293,109 +312,26 @@ proc reposition_old(this: Layout) {.used.} =
     if this.childs.len > 0:
       this.set_w(rows.mapit(it.childs[^1].get_x + it.childs[^1].get_w).foldl(max(a, b), 0'f32))
     else:
-      this.set_w(0)
+      discard
 
   if this.wrapHugContent[]:
     if this.childs.len > 0:
       this.set_h(rows[^1].childs.mapit(it.get_y + it.get_h).foldl(max(a, b), 0'f32))
     else:
-      this.set_h(0)
-
-
-proc doReposition(this: Layout) =
-  template makeGetAndSet(get, set, horz, vert) =
-    proc get(child: Uiobj): float32 =
-      case this.orientation[]
-      of horizontal: child.horz[]
-      of vertical: child.vert[]
-
-    proc set(child: Uiobj, v: float32) =
-      case this.orientation[]
-      of horizontal: child.horz[] = v
-      of vertical: child.vert[] = v
-
-  makeGetAndSet(get_x, set_x, x, y)
-  makeGetAndSet(get_y, set_y, y, x)
-  makeGetAndSet(get_w, set_w, w, h)
-  makeGetAndSet(get_h, set_h, h, w)
-
-  var rows: seq[tuple[
-    elements: seq[Uiobj],
-    height: float32,
-  ]]
-
-  block split_into_rows:
-    rows.setLen 1
-
-    var count_elements = 0
-    var count_width = 0'f32
-
-    if not this.wrap[] or (this.elementsBeforeWrap[] == 0 and this.lengthBeforeWrap[] == 0):
-      rows[0].elements.add this.childs
-      break split_into_rows
-
-    for child in this.childs:
-      if child.visibility[] == collapsed: continue
-
-      let w =
-        if child of InLayout and child.InLayout.grow[] > 0:
-          if child.InLayout.minSize[] != 0:
-            child.InLayout.minSize[]
-          else:
-            0
-        else:
-          child.get_w
-
-      inc count_elements
-      count_width += w
-
-      var do_wrap = false
-      
-      if this.elementsBeforeWrap[] != 0:
-        do_wrap = do_wrap or count_elements >= this.elementsBeforeWrap[]
-      
-      if this.lengthBeforeWrap[] != 0:
-        do_wrap = do_wrap or count_width + w > this.lengthBeforeWrap[]
-      
-      if do_wrap:
-        rows[^1].elements.add child
-        rows.add rows[0].typeof.default
-        count_width = w
-        count_elements = 1
-      else:
-        rows[^1].elements.add child
-        count_width += this.gap[]
-
-  block get_height_per_row:
-    for row in rows.mitems:
-      for child in row.elements:
-        let h =
-          if this.fillContainer[]:
-            0'f32
-          elif child of InLayout and child.InLayout.fillContainer[]:
-            0
-          else:
-            child.get_h
-
-        row.height = max(row.height, h)
-      
-      if row.height == 0 and row.elements.len > 0:
-        row.height = row.elements[0].get_h
-        
-        for child in row.elements:
-          row.height = min(row.height, child.get_h)
-
-  block set_y_and_h:
-    ## todo
-
+      discard
 
 
 proc reposition(this: Layout) =
-  this.reposition_old()
-  # if this.inRepositionProcess: return
-  # this.inRepositionProcess = true
-  # this.doReposition()
-  # this.inRepositionProcess = false
+  # todo: optimization: disable repositioning while being constructed, then run reposition once
+  # todo: somehow detect situation when children's h is dependant on layout's h, but wrapHugContent is enabled, throw an exception to tell usercode to disable wrapHugContent. or adapt.
+  if this.lockFromReposition: return
+  if this.inRepositionProcess: return
+
+  this.inRepositionProcess = true
+  try:
+    this.doReposition()
+  finally:
+    this.inRepositionProcess = false
 
 
 template spacing*(this: Layout): Property[float32] = this.gap
