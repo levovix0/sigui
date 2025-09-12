@@ -1,5 +1,5 @@
 import unittest
-import sigui/[uibase, mouseArea], siwin, shady
+import sigui/[uibase, mouseArea, globalShortcut], siwin, shady
 import ./commonGeometry
 
 type
@@ -14,6 +14,8 @@ type
     axisY: Vec3
     w: float32  # in 3d units, not in pixels
     h: float32
+    fovDistance: float32
+    fovExtends: Vec2
 
   Sandbox = ref object of Uiobj
     triangles: Property[seq[Triangle]]
@@ -59,12 +61,14 @@ method init*(this: Sandbox) =
   this.triangles.changed.emit()
 
   this.camera[] = Camera(
-    # center: vec3(0, 0, 3),
+    center: vec3(0, 0, 2),
     direction: vec3(0, 0, -1),
     axisX: vec3(1, 0, 0),
     axisY: vec3(0, 1, 0),
     w: 4,
     h: 3,
+    fovDistance: 4,
+    fovExtends: vec2(4, 3),
   )
 
   this.makeLayout:
@@ -104,6 +108,10 @@ method init*(this: Sandbox) =
             cam.center = center_l * cam.direction
             
             root.camera.changed.emit()
+          
+          elif this.pressedButtons == {MouseButton.left, MouseButton.right}:
+            cam.fovDistance += dx * speed
+            root.camera.changed.emit()
 
         prevPos = newPos
       
@@ -112,6 +120,12 @@ method init*(this: Sandbox) =
       on this.pressed[] == true:
         prevPos = vec2(this.mouseX[], this.mouseY[])
         update()
+
+    - globalShortcut({Key.space}):
+      var extends2 = vec2(0, 0)
+      this.activated.connectTo root:
+        swap root.camera{}.fovExtends, extends2
+        root.camera.changed.emit()
 
 
 
@@ -148,6 +162,8 @@ method draw*(this: Sandbox, ctx: DrawContext) =
         p2: Uniform[Vec3],
         p3: Uniform[Vec3],
         color: Uniform[Vec4],
+        fovDistance: Uniform[float32],
+        fovExtends: Uniform[Vec2],
         pass: Uniform[float32], # 0 - color buffer, 1 - depth buffer
       ) =
         let texDepth = gltex.texture(uv)
@@ -157,12 +173,17 @@ method draw*(this: Sandbox, ctx: DrawContext) =
         else:  # depth
           glCol = texDepth
 
-        let rayStart = camOrigin + (pos.x / size.x) * camW + (pos.y / size.y) * camH
+        let rayStart = camOrigin + (pos.x / size.x - 0.5'f32) * camW + (pos.y / size.y - 0.5'f32) * camH
+        let rayDir = (
+          camDir * fovDistance +
+          (pos.x / size.x - 0.5'f32) * fovExtends.x * camW.normal3 +
+          (pos.y / size.y - 0.5'f32) * fovExtends.y * camH.normal3
+        ).normal3
         
-        let hit = raycast_hit(rayStart, camDir, p1, p2, p3)
+        let hit = raycast_hit(rayStart, rayDir, p1, p2, p3)
         if hit:
-          let depth = raycast_depth(rayStart, camDir, p1, p2, p3)
-          if depth <= texDepth.r:
+          let depth = raycast_depth(rayStart, rayDir, p1, p2, p3)
+          if depth <= texDepth.r:  # `depth >= 0` can be added to exclude parts of triangle behind camera from drawing
             if pass < 0.5:  # color
               glCol = color
             else:
@@ -198,10 +219,12 @@ method draw*(this: Sandbox, ctx: DrawContext) =
 
     let cam = this.camera{}.addr
 
-    shader.camOrigin.uniform = cam.center - (cam.w / 2) * cam.axisX + (cam.h / 2) * cam.axisY
+    shader.camOrigin.uniform = cam.center
     shader.camDir.uniform = cam.direction
     shader.camW.uniform = cam.axisX * cam.w
     shader.camH.uniform = (-cam.axisY) * cam.h
+    shader.fovDistance.uniform = cam.fovDistance
+    shader.fovExtends.uniform = cam.fovExtends
 
     for tri in this.triangles{}:
       shader.p1.uniform = tri.points[0]

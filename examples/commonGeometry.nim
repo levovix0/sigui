@@ -21,7 +21,7 @@ proc projectToAxis3*(v: Vec3, axis: Vec3): Vec3 =
   return axis.normal3 * v.lenOnAxis3(axis.normal3)
 
 
-proc crossProduct*(a, b: Vec3): Vec3 =
+proc cross3*(a, b: Vec3): Vec3 =
   vec3(
     a.y * b.z - a.z * b.y,
     a.z * b.x - a.x * b.z,
@@ -30,7 +30,7 @@ proc crossProduct*(a, b: Vec3): Vec3 =
 
 
 proc rotate*(v: Vec3, axis: Vec3, angle: float32): Vec3 =
-  v * cos(angle) + cross(v, axis) * sin(angle) + axis * v.lenOnAxis3(axis) * (1 - cos(angle))
+  v * cos(angle) + cross3(v, axis) * sin(angle) + axis * v.lenOnAxis3(axis) * (1 - cos(angle))
 
 
 
@@ -66,7 +66,7 @@ proc signedDistanceToPlane*(ray_start: Vec3, ray_dir: Vec3, origin: Vec3, normal
   ## a distance to hit a point on a plane via `ray`
   let l = (origin - ray_start).lenOnAxis3(normal)
 
-  let dl = ray_dir.normal3.lenOnAxis3(normal)
+  let dl = ray_dir.lenOnAxis3(normal) / ray_dir.length
   return l / dl
 
 
@@ -110,12 +110,12 @@ proc raycast_depth*(ray_start: Vec3, ray_dir: Vec3, tri_p1: Vec3, tri_p2: Vec3, 
   let x = (tri_p2 - tri_p1).normal3
   var y = (tri_p3 - tri_p1).normal3
   y = (y - y.projectToAxis3(x)).normal3
-  var triNormal = x.crossProduct(y)
+  var triNormal = x.cross3(y)
   return signedDistanceToPlane(ray_start, ray_dir, tri_p1, triNormal)
 
 
 proc raycast_hit*(ray_start: Vec3, ray_dir: Vec3, tri_p1: Vec3, tri_p2: Vec3, tri_p3: Vec3): bool =
-  var triNormal = (tri_p2 - tri_p1).crossProduct(tri_p3 - tri_p1).normal3
+  var triNormal = (tri_p2 - tri_p1).cross3(tri_p3 - tri_p1).normal3
 
   let distance = signedDistanceToPlane(ray_start, ray_dir, tri_p1, triNormal)
   let point = ray_start + ray_dir * distance
