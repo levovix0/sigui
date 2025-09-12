@@ -907,6 +907,9 @@ proc newUiWindow*(siwinWindow: Window): UiWindow =
   result.setupEventsHandling
   result.ctx = newDrawContext()
 
+template newUiRoot*(siwinWindow: Window): UiWindow =
+  newUiWindow(siwinWindow)
+
 
 method addChild*(this: UiWindow, child: Uiobj) =
   procCall this.super.addChild(child)

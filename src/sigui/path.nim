@@ -113,7 +113,7 @@ method draw*(this: UiPath, ctx: DrawContext) =
 when isMainModule:
   import pkg/siwin, ./mouseArea
 
-  let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 600)).newUiWindow
+  let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 600)).newUiRoot
 
   var angle = 0'f32.property
   

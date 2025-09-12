@@ -103,7 +103,7 @@ test "tab bar":
       color = "000000"
 
 
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "tab bar").newUiWindow
+  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "tab bar").newUiRoot
 
   window.makeLayout:
     clearColor = color(1, 1, 1)

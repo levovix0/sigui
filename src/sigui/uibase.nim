@@ -85,7 +85,7 @@ proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, t
       if size != ivec2(): size
       else: ivec2(100, 100),
     transparent = transparent
-  ).newUiWindow
+  ).newUiRoot
   let obj = withWindow()
 
   if size == ivec2() and obj.wh != vec2():

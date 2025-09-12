@@ -187,7 +187,7 @@ when isMainModule:
   import siwin
   import ./[uibase, globalKeybinding]
 
-  let animator = newSiwinGlobals().newOpenglWindow(size = ivec2(300, 40)).newUiWindow
+  let animator = newSiwinGlobals().newOpenglWindow(size = ivec2(300, 40)).newUiRoot
   animator.makeLayout:
     - UiRect.new as rect:
       w = 40

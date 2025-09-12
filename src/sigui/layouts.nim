@@ -478,7 +478,7 @@ proc grid*(typ: typedesc[Layout], columns: int, gap: float32 = 0): Layout =
 when isMainModule:
   import pkg/siwin, ./uibase
 
-  let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 700)).newUiWindow
+  let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 700)).newUiRoot
 
   win.makeLayout:
     clearColor = "202020".color

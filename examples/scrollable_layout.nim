@@ -1,7 +1,7 @@
 import sigui, siwin, chroma
 
 
-let win = newSiwinGlobals().newOpenglWindow(title = "sigui scroll area example").newUiWindow
+let win = newSiwinGlobals().newOpenglWindow(title = "sigui scroll area example").newUiRoot
 
 makeLayout win:
   clearColor = "ffffff".color

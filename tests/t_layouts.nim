@@ -3,7 +3,7 @@ import siwin, sigui/[uibase, uiobj, layouts]
 
 
 test "layouts":
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "layouts").newUiWindow
+  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "layouts").newUiRoot
 
   window.makeLayout:
     clearColor = color(1, 1, 1)
