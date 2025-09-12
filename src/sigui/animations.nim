@@ -185,7 +185,7 @@ template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
 
 when isMainModule:
   import siwin
-  import ./[uibase, globalShortcut]
+  import ./[uibase, globalKeybinding]
 
   let animator = newSiwinGlobals().newOpenglWindow(size = ivec2(300, 40)).newUiWindow
   animator.makeLayout:
@@ -201,12 +201,12 @@ when isMainModule:
       - this.color.transition(0.4's):
         easing = outCubicEasing
 
-      - globalShortcut({Key.a}, exact=false):
+      - globalKeybinding({Key.a}, exact=false):
         this.activated.connectTo root:
           rect.x[] = 10
           rect.color[] = color(1, 1, 1)
 
-      - globalShortcut({Key.d}, exact=false):
+      - globalKeybinding({Key.d}, exact=false):
         this.activated.connectTo root:
           rect.x[] = root.w[] - 10 - rect.w[]
           rect.color[] = color(1, 0, 0)

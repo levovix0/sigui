@@ -1,2 +1,2 @@
-import sigui/[events, properties, uibase, animations, mouseArea, globalShortcut, layouts, textArea, styles, scrollArea, path]
-export events, properties, uibase, animations, mouseArea, globalShortcut, layouts, textArea, styles, scrollArea, path
+import sigui/[events, properties, uibase, animations, mouseArea, globalKeybinding, layouts, textArea, styles, scrollArea, path]
+export events, properties, uibase, animations, mouseArea, globalKeybinding, layouts, textArea, styles, scrollArea, path

@@ -2,19 +2,19 @@ import pkg/[siwin]
 import ./[uiobj, properties, events]
 
 type
-  GlobalShortcut* = ref object of Uiobj
+  GlobalKeybinding* = ref object of Uiobj
     sequence*: Property[set[Key]]
     exact*: Property[bool]
     activated*: Event[void]
 
-registerComponent GlobalShortcut
+registerComponent GlobalKeybinding
 
 
-proc globalShortcut*(sequence: set[Key], exact: bool = true): GlobalShortcut =
-  result = GlobalShortcut(sequence: sequence.property, exact: exact.property)
+proc globalKeybinding*(sequence: set[Key], exact: bool = true): GlobalKeybinding =
+  result = GlobalKeybinding(sequence: sequence.property, exact: exact.property)
 
 
-method recieve*(this: GlobalShortcut, signal: Signal) =
+method recieve*(this: GlobalKeybinding, signal: Signal) =
   if signal of WindowEvent and signal.WindowEvent.event of KeyEvent and signal.WindowEvent.handled == false:
     let e = (ref KeyEvent)signal.WindowEvent.event
     

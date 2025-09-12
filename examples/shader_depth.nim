@@ -1,5 +1,5 @@
 import unittest
-import sigui/[uibase, mouseArea, globalShortcut], siwin, shady
+import sigui/[uibase, mouseArea, globalKeybinding], siwin, shady
 import ./commonGeometry
 
 type
@@ -121,7 +121,7 @@ method init*(this: Sandbox) =
         prevPos = vec2(this.mouseX[], this.mouseY[])
         update()
 
-    - globalShortcut({Key.space}):
+    - globalKeybinding({Key.space}):
       var extends2 = vec2(0, 0)
       this.activated.connectTo root:
         swap root.camera{}.fovExtends, extends2
