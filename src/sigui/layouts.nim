@@ -36,10 +36,12 @@ type
     lengthBeforeWrap*: Property[float32]
 
     assumeChildsClipped*: Property[bool] = true.property
-      ## for optimization, if true, assume for all children, that child's tree are contained in that child (xy >= 0, wh <= parent wh)
+      ## for optimization, if true, assume for all children, that every child's tree is contained in that child (xy >= 0, wh <= parent wh)
 
     lockFromReposition*: bool
     inRepositionProcess: bool
+
+    # todo: padding
   
   InLayout* = ref object of Uiobj
     align*: Property[LayoutAlignment]

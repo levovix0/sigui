@@ -27,6 +27,19 @@ type
 registerComponent Sandbox
 
 
+proc default(t: typedesc[Camera]): Camera =
+  Camera(
+    center: vec3(0, 0, 2),
+    direction: vec3(0, 0, -1),
+    axisX: vec3(1, 0, 0),
+    axisY: vec3(0, 1, 0),
+    w: 4,
+    h: 3,
+    fovDistance: 4,
+    fovExtends: vec2(4, 3),
+  )
+
+
 
 method init*(this: Sandbox) =
   procCall this.super.init
@@ -60,16 +73,7 @@ method init*(this: Sandbox) =
     )
   this.triangles.changed.emit()
 
-  this.camera[] = Camera(
-    center: vec3(0, 0, 2),
-    direction: vec3(0, 0, -1),
-    axisX: vec3(1, 0, 0),
-    axisY: vec3(0, 1, 0),
-    w: 4,
-    h: 3,
-    fovDistance: 4,
-    fovExtends: vec2(4, 3),
-  )
+  this.camera[] = default Camera
 
   this.makeLayout:
     - MouseArea.new:
@@ -123,9 +127,13 @@ method init*(this: Sandbox) =
 
     - globalKeybinding({Key.space}):
       var extends2 = vec2(0, 0)
-      this.activated.connectTo root:
+      on this.activated:
         swap root.camera{}.fovExtends, extends2
         root.camera.changed.emit()
+
+    - globalKeybinding({Key.escape}):
+      on this.activated:
+        root.camera[] = default Camera
 
 
 
