@@ -20,10 +20,12 @@ method recieve*(this: GlobalKeybinding, signal: Signal) =
     
     if this.exact[]:
       if e.pressed and e.window.keyboard.pressed == this.sequence[]:
+        signal.WindowEvent.handled = true
         this.activated.emit()
     
     else:
       if e.pressed and (this.sequence[] * e.window.keyboard.pressed) == this.sequence[] and e.key in this.sequence[]:
+        signal.WindowEvent.handled = true
         this.activated.emit()
 
   procCall this.super.recieve(signal)
