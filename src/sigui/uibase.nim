@@ -79,12 +79,20 @@ type
 
 #----- utils -----
 
-proc preview*(size = ivec2(), clearColor = color(0, 0, 0, 0), margin = 10'f32, transparent = false, withWindow: proc(): Uiobj) =
+proc preview*(
+  size = ivec2(),
+  clearColor = color(0, 0, 0, 0),
+  margin = 10'f32,
+  transparent = false,
+  withWindow: proc(): Uiobj,
+  title: string = "",
+) =
   let win = newSiwinGlobals().newOpenglWindow(
     size =
       if size != ivec2(): size
       else: ivec2(100, 100),
-    transparent = transparent
+    transparent = transparent,
+    title = title,
   ).newUiRoot
   let obj = withWindow()
 

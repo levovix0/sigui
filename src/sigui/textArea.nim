@@ -498,7 +498,7 @@ method init*(this: TextArea) =
 
 
           root.textObj --- UiText.new:
-            centerY = parent.center
+            this.centerY = parent.center
             text = binding:
               if root.text[].len == 0: ""  # workaround https://github.com/nim-lang/Nim/issues/24080
               else: root.text[]

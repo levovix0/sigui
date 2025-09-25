@@ -6,7 +6,7 @@ test "layouts":
   let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "layouts").newUiRoot
 
   window.makeLayout:
-    clearColor = color(1, 1, 1)
+    this.clearColor = color(1, 1, 1)
 
     - Layout.row(gap = 16):
       this.fill(parent, 16)

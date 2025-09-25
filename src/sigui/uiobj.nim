@@ -1266,22 +1266,17 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 
                 else: false
               ):
-                whenStmt:
-                  elifBranch:
-                    call bindSym"compiles":
-                      call ident"[]=":
-                        dotExpr(ident "this", name)
-                        val
-                    call bindSym"bindingValue":
-                      ident "this"
-                      bracketExpr:
-                        dotExpr(ident "this", name)
-                      val
-                  Else:
-                    call bindSym"bindingValue":
-                      ident "this"
-                      name
-                      val
+                if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:  # name should be resolved to this.name[]
+                  call bindSym"bindingValue":
+                    ident "this"
+                    bracketExpr:
+                      dotExpr(ident "this", name)
+                    val
+                else:  # name should be as is
+                  call bindSym"bindingValue":
+                    ident "this"
+                    name
+                    val
               
 
               # name = val
@@ -1298,15 +1293,37 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   val
                 )
 
-                let asgnField = nnkAsgn.newTree(
+                var asgnField = nnkAsgn.newTree(
                   nnkDotExpr.newTree(ident("this"), name),
                   val
                 )
 
-                let asgnSimple = nnkAsgn.newTree(
+                var asgnSimple = nnkAsgn.newTree(
                   name,
                   val
                 )
+
+                if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:
+                  if $name notin ["drawLayer", "top", "left", "bottom", "right", "centerX", "centerY"]:
+                    asgnField = nnkStmtList.newTree(
+                      asgnField,
+                      nnkPragma.newTree(
+                        nnkExprColonExpr.newTree(
+                          newIdentNode("warning"),
+                          newLit("deprecated, use this.field_name = ... instead")
+                        )
+                      )
+                    )
+
+                  asgnSimple = nnkStmtList.newTree(
+                    asgnSimple,
+                    nnkPragma.newTree(
+                      nnkExprColonExpr.newTree(
+                        newIdentNode("warning"),
+                        newLit("deprecated, use (var_name) = ... instead")
+                      )
+                    )
+                  )
 
                 let selector = nnkWhenStmt.newTree(
                   nnkElifBranch.newTree(

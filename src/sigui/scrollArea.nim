@@ -117,7 +117,7 @@ method init*(this: ScrollArea) =
 
     let defaultSb {.inject.} = UiRect()
     defaultSb.makeLayout:
-      right = scrollArea.sbArea.right
+      this.right = scrollArea.sbArea.right
       
       this.binding radius: this.w[] / 2
 
