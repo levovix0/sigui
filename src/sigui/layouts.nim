@@ -20,10 +20,13 @@ type
     wrapHugContent*: Property[bool] = true.property
     
     align*: Property[LayoutAlignment]
+      ## the baseline for aligning each individual element, can be replaced for with InLayout.align
     fillContainer*: Property[bool]
       ## if true, all elements will have same size on second axis (width for vertical layout, height for horizontal layout)
 
     alignContent*, wrapAlignContent*: Property[LayoutAlignment]
+      ## align whole content of layout in main/wrap axis of layout (when layout is not hugging it's contents)
+      ## can be thought like a justify property in css
 
     gap*, wrapGap*: Property[float32]
     fillWithSpaces*, wrapFillWithSpaces*: Property[bool]
@@ -338,10 +341,11 @@ proc reposition(this: Layout) =
 
 template spacing*(this: Layout): Property[float32] = this.gap
 template wrapSpacing*(this: Layout): Property[float32] = this.wrapGap
-template alignment*(this: Layout): Property[float32] = this.alignContent
-template wrapAlignment*(this: Layout): Property[float32] = this.wrapAlignContent
+template alignment*(this: Layout): Property[LayoutAlignment] = this.align
+template justify*(this: Layout): Property[LayoutAlignment] = this.wrapAlign
+template justifyContent*(this: Layout): Property[LayoutAlignment] = this.wrapAlignContent
 
-template alignment*(this: InLayout): Property[float32] = this.align
+template alignment*(this: InLayout): Property[LayoutAlignment] = this.align
 
 
 method addChild*(this: Layout, child: Uiobj) =
@@ -483,7 +487,7 @@ when isMainModule:
   let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 700)).newUiRoot
 
   win.makeLayout:
-    clearColor = "202020".color
+    this.clearColor = "202020".color
 
     - Layout.col(gap = 25):  # positions elements vertically with gap between them, use Layout.row() for horizontal
       - UiRect.new:

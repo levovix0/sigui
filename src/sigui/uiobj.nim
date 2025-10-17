@@ -1,4 +1,4 @@
-import std/[times, macros, strutils, importutils]
+import std/[times, macros, strutils, importutils, macrocache]
 import pkg/[vmath, bumpy, siwin, chroma]
 import pkg/fusion/[astdsl]
 import ./[events {.all.}, properties]
@@ -570,33 +570,155 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
 #----- reflection: trigger redraw automatically when property changes -----
 
 
-proc firstHandHandler_hook_redraw*(thisT: typedesc[Uiobj], name: static string): bool =
-  name != "globalX" and name != "globalY"
+method shouldAutoredraw*(obj: Uiobj): bool {.base.} = false
 
 
-proc firstHandHandler_hook*(this: Uiobj, name: static string, origType: typedesc) =
-  mixin firstHandHandler_hook_redraw
+proc autoredraw*(obj: Uiobj) =
+  if shouldAutoredraw(obj): redraw(obj)
+
+
+proc firstHandHandler_redrawOnly*(env: pointer) {.nimcall.} =
+  autoredraw(cast[Uiobj](env))
+
+
+macro disableAutoRedrawHook*[T: Uiobj](typ: typedesc[T]) =
+  CacheSeq("disableAutoRedrawHook").incl typ
+
+
+proc getTypeName(t: NimNode): string =
+  var t = t.getTypeInst
+  if t.kind == nnkBracketExpr and t.len == 2 and ident(t[0].repr) == ident("typeDesc"):
+    t = t[1]
+  t.repr
+
+
+macro addFirstHandHandler*[T: Uiobj](objtyp: typedesc[T], propname: static string, body: untyped) =
+  for i in 0 .. body.len-1:
+    if body[i].kind in nnkCallKinds and body[i].len == 1 and body[i][0] == ident("superHook"):
+      body[i] = newEmptyNode()
+      
+      var typ = objtyp.getTypeInst[1]
+      while true:
+        var t = typ.getImpl
+        if t.kind == nnkRefTy and t[0].kind == nnkSym: t = t[0].getImpl
+        if t.kind == nnkTypeDef and t[2].kind == nnkRefTy: t[2] = t[2][0]
+        if t.kind == nnkTypeDef and t[2].kind == nnkObjectTy and t[2][1].kind == nnkOfInherit:
+          typ = t[2][1][0]
+          if CacheTable("firstHandHandlers").hasKey(typ.getTypeName & "_" & propname):
+            body[i] = newCall(CacheTable("firstHandHandlers")[typ.getTypeName & "_" & propname], ident("env"))
+            break
+        else: break
   
-  when $origType != "Uiobj" and firstHandHandler_hook_redraw(origType, name):
-    redraw(this, ifVisible = (name != "visibility").static)
+  let procName = "firstHandHandler" & "_" & objtyp.getTypeName & "_" & propname
+
+  result = nnkProcDef.newTree(
+    nnkPostfix.newTree(
+      ident("*"),
+      nnkAccQuoted.newTree(ident(procName)),
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkFormalParams.newTree(
+      newEmptyNode(),
+      nnkIdentDefs.newTree(
+        ident("env"),
+        ident("pointer"),
+        newEmptyNode()
+      )
+    ),
+    nnkPragma.newTree(
+      ident("nimcall")
+    ),
+    newEmptyNode(),
+    nnkStmtList.newTree(
+      nnkLetSection.newTree(
+        nnkIdentDefs.newTree(
+          nnkPragmaExpr.newTree(
+            ident("this"),
+            nnkPragma.newTree(
+              ident("used")
+            )
+          ),
+          newEmptyNode(),
+          nnkCast.newTree(
+            objtyp,
+            ident("env")
+          )
+        )
+      ),
+      body
+    )
+  )
+
+  CacheTable("firstHandHandlers")[objtyp.getTypeName & "_" & propname] = nnkAccQuoted.newTree(ident(procName))
+
+
+macro connectFirstHandHandler*[T: Uiobj](objtyp: typedesc[T], propname: static string, prop: untyped) =
+  var bodyProc: NimNode
+
+  block traverseHierarchy:
+    var typ = objtyp.getTypeInst[1]
+    while true:
+      if CacheTable("firstHandHandlers").hasKey(typ.getTypeName & "_" & propname):
+        bodyProc = CacheTable("firstHandHandlers")[typ.getTypeName & "_" & propname]
+        break
+      
+      var t = typ.getImpl
+      if t.kind == nnkRefTy and t[0].kind == nnkSym: t = t[0].getImpl
+      if t.kind == nnkTypeDef and t[2].kind == nnkRefTy: t[2] = t[2][0]
+      if t.kind == nnkTypeDef and t[2].kind == nnkObjectTy and t[2][1].kind == nnkOfInherit:
+        typ = t[2][1][0]
+      else: break
   
-  when name == "visibility":
-    this.recieve(VisibilityChanged(sender: this, visibility: this.visibility))
+  var redraw = true
+  for x in CacheSeq("disableAutoRedrawHook"):
+    if objtyp.getTypeName == x.getTypeName: redraw = false
+
+  if redraw:
+    if bodyProc == nil:
+      bodyProc = bindSym("firstHandHandler_redrawOnly")
   
-  elif name == "w" or name == "h":
-    this.applyAnchors()
-  
-  elif name == "x":
-    this.spreadGlobalXChange(
-      if this.parent == nil or this.globalTransform[]: this.x[] - this.globalX[]
-      else: this.x[] - (this.globalX[] - this.parent.globalX[])
+  if bodyProc != nil:
+    result = newStmtList(
+      nnkAsgn.newTree(
+        nnkDotExpr.newTree(prop, ident("firstHandHandlerEnv")),
+        nnkCast.newTree(ident("pointer"), ident("this")),
+      ),
+      nnkAsgn.newTree(
+        nnkDotExpr.newTree(prop, ident("firstHandHandler")),
+        bodyProc,
+      ),
     )
   
-  elif name == "y":
-    this.spreadGlobalYChange(
-      if this.parent == nil or this.globalTransform[]: this.y[] - this.globalY[]
-      else: this.y[] - (this.globalY[] - this.parent.globalY[])
-    )
+  else:
+    result = newEmptyNode()
+
+
+disableAutoRedrawHook Uiobj
+
+addFirstHandHandler Uiobj, "globalX": discard  # disable auto-redraw
+addFirstHandHandler Uiobj, "globalY": discard  # disable auto-redraw
+
+addFirstHandHandler Uiobj, "visibility":
+  this.recieve(VisibilityChanged(sender: this, visibility: this.visibility[]))
+  redraw(this, ifVisible = false)
+
+addFirstHandHandler Uiobj, "w": this.applyAnchors(); autoredraw(this)
+addFirstHandHandler Uiobj, "h": this.applyAnchors(); autoredraw(this)
+
+addFirstHandHandler Uiobj, "x":
+  this.spreadGlobalXChange(
+    if this.parent == nil or this.globalTransform[]: this.x[] - this.globalX[]
+    else: this.x[] - (this.globalX[] - this.parent.globalX[])
+  )
+  autoredraw(this)
+
+addFirstHandHandler Uiobj, "y":
+  this.spreadGlobalYChange(
+    if this.parent == nil or this.globalTransform[]: this.y[] - this.globalY[]
+    else: this.y[] - (this.globalY[] - this.parent.globalY[])
+  )
+  autoredraw(this)
 
 
 proc connectFirstHandHandlersStatic[T: Uiobj](this: T) =
@@ -609,9 +731,7 @@ proc connectFirstHandHandlersStatic[T: Uiobj](this: T) =
 
   for name, x in this[].fieldPairs:
     when x is Property or x is CustomProperty:
-      x.changed.firstHandHandlerEnv = cast[pointer](this)
-      x.changed.firstHandHandler = proc(env: pointer) {.nimcall.} =
-        firstHandHandler_hook(cast[T](env), name, T)
+      connectFirstHandHandler(T, name, x.changed)
   
   {.pop.}
 
@@ -1309,7 +1429,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       asgnField,
                       nnkPragma.newTree(
                         nnkExprColonExpr.newTree(
-                          newIdentNode("warning"),
+                          ident("warning"),
                           newLit("deprecated, use this.field_name = ... instead")
                         )
                       )
@@ -1319,7 +1439,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                     asgnSimple,
                     nnkPragma.newTree(
                       nnkExprColonExpr.newTree(
-                        newIdentNode("warning"),
+                        ident("warning"),
                         newLit("deprecated, use (var_name) = ... instead")
                       )
                     )
@@ -1546,6 +1666,34 @@ macro generateConnectFirstHandHandlersMethod(t: typed) {.used.} =
   )
 
 
+macro generateShouldAutoredrawMethod(t: typed) {.used.} =
+  var redraw = true
+  for x in CacheSeq("disableAutoRedrawHook"):
+    if t.getTypeName == x.getTypeName: redraw = false
+
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(
+      ident("*"),
+      ident("shouldAutoredraw")
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkFormalParams.newTree(
+      ident("bool"),
+      nnkIdentDefs.newTree(
+        ident("obj"),
+        t,
+        newEmptyNode()
+      )
+    ),
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkStmtList.newTree(
+      if redraw: ident("true") else: ident("false")
+    )
+  )
+
+
 
 #----- reflection: dolars (formating Uiobj to string) -----
 
@@ -1713,6 +1861,7 @@ macro registerComponent*(t: typed) =
   result = newStmtList()
   result.add nnkCall.newTree(bindSym("generateDeteachMethod"), t)
   result.add nnkCall.newTree(bindSym("generateConnectFirstHandHandlersMethod"), t)
+  result.add nnkCall.newTree(bindSym("generateShouldAutoredrawMethod"), t)
   result.add nnkCall.newTree(bindSym("declareComponentTypeName"), t)
   result.add nnkCall.newTree(bindSym("declareFormatFields"), t)
 

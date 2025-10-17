@@ -1,3 +1,4 @@
+import macros
 import pkg/[siwin, vmath]
 import ./[events {.all.}, properties, uiobj {.all.}]
 export MouseButton, MouseMoveEvent
@@ -49,11 +50,36 @@ type
     pressWindowPos*: Vec2  # press pos relative to window
 
 
-proc firstHandHandler_hook_redraw*(thisT: typedesc[MouseArea], name: static string): bool =
-  # MouseArea doesn't draw anything directly
-  name == "visibility"
+proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal)
 
-proc firstHandHandler_hook*(this: MouseArea, name: static string, origType: typedesc)
+
+disableAutoRedrawHook MouseArea
+
+addFirstHandHandler MouseArea, "globalX":
+  handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiWindow.siwinWindow.mouse.pos), nil)
+  superHook()
+
+addFirstHandHandler MouseArea, "globalY":
+  handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiWindow.siwinWindow.mouse.pos), nil)
+  superHook()
+
+proc onHoveredOrCursorChanged(this: MouseArea)
+
+addFirstHandHandler MouseArea, "hovered":
+  onHoveredOrCursorChanged(this)
+  autoredraw(this)
+
+addFirstHandHandler MouseArea, "cursor":
+  onHoveredOrCursorChanged(this)
+  autoredraw(this)
+  
+addFirstHandHandler MouseArea, "visibility":
+  if this.visibility[] == collapsed:
+    this.pressed[] = false
+    this.hovered[] = false
+    this.grabbed[] = false
+  superHook()
+
 
 registerComponent MouseArea
 
@@ -118,26 +144,14 @@ proc handleMouseButtonEvent(this: MouseArea, e: MouseButtonEvent, signal: Signal
             signal.WindowEvent.handled = true
 
 
-proc firstHandHandler_hook*(this: MouseArea, name: static string, origType: typedesc) =
-  this.super.firstHandHandler_hook(name, origType)
-
-  when name == "globalX" or name == "globalY":
-    handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiWindow.siwinWindow.mouse.pos), nil)
-  
-  when name == "hovered" or name == "cursor":
-    if (let win = this.parentUiWindow; win != nil):
-      var cursor = GetActiveCursor()
-      win.recieve(cursor)
-      if cursor.handled and cursor.cursor != nil:
-        win.siwinWindow.cursor = cursor.cursor[]
-      else:
-        win.siwinWindow.cursor = Cursor()
-  
-  when name == "visibility":
-    if this.visibility[] == collapsed:
-      this.pressed[] = false
-      this.hovered[] = false
-      this.grabbed[] = false
+proc onHoveredOrCursorChanged(this: MouseArea) =
+  if (let win = this.parentUiWindow; win != nil):
+    var cursor = GetActiveCursor()
+    win.recieve(cursor)
+    if cursor.handled and cursor.cursor != nil:
+      win.siwinWindow.cursor = cursor.cursor[]
+    else:
+      win.siwinWindow.cursor = Cursor()
 
 
 method recieve*(this: MouseArea, signal: Signal) =

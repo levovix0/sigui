@@ -24,7 +24,11 @@ type
     offset: Vec2
     texWh: IVec2
 
-proc firstHandHandler_hook(obj: UiPath, name: static string, origType: typedesc)
+
+addFirstHandHandler UiPath, "path": this.changed = true; redraw(this)
+addFirstHandHandler UiPath, "transform": this.changed = true; redraw(this)
+addFirstHandHandler UiPath, "strokeWidth": this.changed = true; redraw(this)
+
 
 registerComponent UiPath
 
@@ -78,14 +82,6 @@ proc updateTexture(this: UiPath) =
     )
 
   this.tex.load(img)
-
-
-
-proc firstHandHandler_hook(obj: UiPath, name: static string, origType: typedesc) =
-  obj.super.firstHandHandler_hook(name, origType)
-
-  when name == "path" or name == "transform" or name == "strokeWidth":
-    obj.changed = true
 
 
 method recieve*(this: UiPath, signal: Signal) =
