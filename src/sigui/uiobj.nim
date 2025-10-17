@@ -609,48 +609,14 @@ macro addFirstHandHandler*[T: Uiobj](objtyp: typedesc[T], propname: static strin
             break
         else: break
   
-  let procName = "firstHandHandler" & "_" & objtyp.getTypeName & "_" & propname
+  let procName = ident("firstHandHandler" & "_" & objtyp.getTypeName & "_" & propname)
 
-  result = nnkProcDef.newTree(
-    nnkPostfix.newTree(
-      ident("*"),
-      nnkAccQuoted.newTree(ident(procName)),
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkFormalParams.newTree(
-      newEmptyNode(),
-      nnkIdentDefs.newTree(
-        ident("env"),
-        ident("pointer"),
-        newEmptyNode()
-      )
-    ),
-    nnkPragma.newTree(
-      ident("nimcall")
-    ),
-    newEmptyNode(),
-    nnkStmtList.newTree(
-      nnkLetSection.newTree(
-        nnkIdentDefs.newTree(
-          nnkPragmaExpr.newTree(
-            ident("this"),
-            nnkPragma.newTree(
-              ident("used")
-            )
-          ),
-          newEmptyNode(),
-          nnkCast.newTree(
-            objtyp,
-            ident("env")
-          )
-        )
-      ),
-      body
-    )
-  )
+  result = quote do:
+    proc `procName`*(env {.inject.}: pointer) {.nimcall.} =
+      let this {.inject, used.} = cast[`objtyp`](env)
+      `body`
 
-  CacheTable("firstHandHandlers")[objtyp.getTypeName & "_" & propname] = nnkAccQuoted.newTree(ident(procName))
+  CacheTable("firstHandHandlers")[objtyp.getTypeName & "_" & propname] = procName
 
 
 macro connectFirstHandHandler*[T: Uiobj](objtyp: typedesc[T], propname: static string, prop: untyped) =
@@ -1143,7 +1109,7 @@ proc bindingImpl*(
         call updateProc, objCursor
 
 
-# todo: instead of this nonesence, make a single binding: block that can be attached to specific event handler and executes statements istead of expression
+# todo: instead of this nonesence, make a single `binding:` block that can be attached to specific event handler and executes statements istead of expression
 when false:
   - UiRect.new:
     binding: w = this.h[]
@@ -1613,85 +1579,27 @@ template withWindow*(obj: Uiobj, winVar: untyped, body: untyped) =
 #----- reflection -----
 
 macro generateDeteachMethod(t: typed) {.used.} =
-  nnkMethodDef.newTree(
-    nnkPostfix.newTree(
-      ident("*"),
-      ident("deteach")
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkFormalParams.newTree(
-      newEmptyNode(),
-      nnkIdentDefs.newTree(
-        ident("this"),
-        t,
-        newEmptyNode()
-      )
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkStmtList.newTree(
-      nnkCall.newTree(
-        bindSym("deteachStatic"),
-        ident("this")
-      )
-    )
-  )
+  result = quote do:
+    method deteach*(this: `t`) =
+      deteachStatic(this)
 
 
 macro generateConnectFirstHandHandlersMethod(t: typed) {.used.} =
-  nnkMethodDef.newTree(
-    nnkPostfix.newTree(
-      ident("*"),
-      ident("connectFirstHandHandlers")
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkFormalParams.newTree(
-      newEmptyNode(),
-      nnkIdentDefs.newTree(
-        ident("this"),
-        t,
-        newEmptyNode()
-      )
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkStmtList.newTree(
-      nnkCall.newTree(
-        bindSym("connectFirstHandHandlersStatic"),
-        ident("this")
-      )
-    )
-  )
+  result = quote do:
+    method connectFirstHandHandlers*(this: `t`) =
+      connectFirstHandHandlersStatic(this)
 
 
 macro generateShouldAutoredrawMethod(t: typed) {.used.} =
   var redraw = true
   for x in CacheSeq("disableAutoRedrawHook"):
     if t.getTypeName == x.getTypeName: redraw = false
+  
+  let shouldRedrawLit = newLit redraw
 
-  nnkMethodDef.newTree(
-    nnkPostfix.newTree(
-      ident("*"),
-      ident("shouldAutoredraw")
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkFormalParams.newTree(
-      ident("bool"),
-      nnkIdentDefs.newTree(
-        ident("obj"),
-        t,
-        newEmptyNode()
-      )
-    ),
-    newEmptyNode(),
-    newEmptyNode(),
-    nnkStmtList.newTree(
-      if redraw: ident("true") else: ident("false")
-    )
-  )
+  result = quote do:
+    method shouldAutoredraw*(this: `t`): bool =
+      `shouldRedrawLit`
 
 
 
@@ -1792,42 +1700,17 @@ proc `$`*(this: Uiobj): string =
 
 
 macro declareComponentTypeName(t: typed) =
-  result = buildAst:
-    methodDef:
-      let thisSym = genSym(nskParam, "this")
-      ident"componentTypeName"
-      empty(); empty()
-      formalParams:
-        bindSym"string"
-        identDefs:
-          thisSym
-          t
-          empty()
-      empty(); empty()
-      stmtList:
-        newLit $t
+  let typename = newLit($t)
+
+  result = quote do:
+    method componentTypeName(this: `t`): string =
+      `typename`
 
 
-macro declareFormatFields(t: typed) {.used.} =
-  result = buildAst:
-    methodDef:
-      let thisSym = genSym(nskParam, "this")
-      
-      ident"formatFields"
-      empty(); empty()
-      formalParams:
-        bracketExpr:
-          bindSym"seq"
-          bindSym"string"
-        identDefs:
-          thisSym
-          t
-          empty()
-      empty(); empty()
-      stmtList:
-        call bindSym"formatFieldsStatic":
-          bracketExpr:
-            thisSym
+macro declareFormatFields(t: typed) =
+  result = quote do:
+    method formatFields(this: `t`): seq[string] =
+      formatFieldsStatic(this[])
 
 
 when defined(sigui_debug_redrawInitiatedBy):
