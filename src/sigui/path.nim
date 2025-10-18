@@ -114,7 +114,7 @@ when isMainModule:
   var angle = 0'f32.property
   
   win.makeLayout:
-    clearColor = "202020".color
+    this.clearColor = "202020".color
 
     - UiPath.new as path:
       this.centerIn(parent)

@@ -44,7 +44,7 @@ test "layers":
         
         - UiRect.new as nonClipped_rect:
           w = 300
-          this.binding h: parent.h[]
+          h = binding: parent.h[]
           
           radius = 10
           color = color(0.7, 0.7, 0.7)
@@ -100,7 +100,7 @@ test "layers":
 
         - ClipRect.new as clipped_rect:
           w = 300
-          this.binding h: parent.h[]
+          h = binding: parent.h[]
           
           radius = 10
 

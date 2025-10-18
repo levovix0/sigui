@@ -99,7 +99,7 @@ test "todo app":
         <--- Layout.new: app.tasksChanged[]
         this.col(gap = 5)
 
-        this.binding w: parent.w[]
+        w = binding: parent.w[]
 
         for i in 0..app.tasks.high:
           template task: auto = app.tasks[i]
@@ -119,12 +119,12 @@ test "todo app":
             - UiText.new:
               text = task.name
               
-              this.binding font:
+              font = binding:
                 let it = typeface.withSize(24)
                 it.strikethrough = task.complete[]
                 it
               
-              this.binding color:
+              color = binding:
                 if mouse.pressed[]: color(0.2, 0.2, 0.2)
                 elif mouse.hovered[]: color(0.4, 0.4, 0.4)
                 else: color(0, 0, 0)

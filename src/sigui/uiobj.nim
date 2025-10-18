@@ -1116,7 +1116,11 @@ when false:
     var eh = EventHandler()
     eh.binding: radius = this.w[]
 
-macro binding*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
+
+macro binding*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped {.deprecated: "reserved for future use. Use bindingProperty instead".} =
+  bindingImpl(obj, target, body, init, bindProperty)
+
+macro bindingProperty*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
   bindingImpl(obj, target, body, init, bindProperty)
 
 macro bindingValue*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
@@ -1126,7 +1130,10 @@ macro bindingProc*(obj: EventHandler, target: untyped, body: typed, init: static
   bindingImpl(obj, target, body, init, bindProc)
 
 
-macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =
+macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped {.deprecated: "reserved for future use. Use bindingProperty instead".} =
+  bindingImpl(obj, target, body, init, bindProperty)
+
+macro bindingProperty*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =
   bindingImpl(obj, target, body, init, bindProperty)
 
 macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =

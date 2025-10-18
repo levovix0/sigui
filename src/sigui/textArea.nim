@@ -505,8 +505,8 @@ method init*(this: TextArea) =
             x = 1
 
 
-          root.binding selectionStartX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionStart[])
-          root.binding selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
+          root.bindingProperty selectionStartX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionStart[])
+          root.bindingProperty selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
           
 
           root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.fillVertical root; r.w[] = 2; r.Uiobj):
@@ -522,7 +522,7 @@ method init*(this: TextArea) =
                 else: Visibility.visible
               else: Visibility.hiddenTree
 
-            root.binding cursorX: positionOfCharacter(root.textObj{}.arrangement[], root.cursorPos[])
+            root.bindingProperty cursorX: positionOfCharacter(root.textObj{}.arrangement[], root.cursorPos[])
             
             proc followCursor =
               let x = this.x[] + offset.x[]

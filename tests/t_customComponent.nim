@@ -28,7 +28,7 @@ method init*(this: Switch) =
 
       - UiRectBorder.new:
         this.fill(parent)
-        this.binding radius: min(this.w[], this.h[]) / 2 - 2
+        radius = binding: min(this.w[], this.h[]) / 2 - 2
         borderWidth = 2
         color = "aaa"
 

@@ -1,4 +1,3 @@
-import macros
 import pkg/[siwin, vmath]
 import ./[events {.all.}, properties, uiobj {.all.}]
 export MouseButton, MouseMoveEvent

@@ -119,12 +119,12 @@ method init*(this: ScrollArea) =
     defaultSb.makeLayout:
       this.right = scrollArea.sbArea.right
       
-      this.binding radius: this.w[] / 2
+      radius = binding: this.w[] / 2
 
       proc withAlpha(c: Color, a: float): Color = color(c.r, c.g, c.b, a)
-      this.binding color: this.color[].withAlpha(scrollArea.sbOpacity[])
+      this.bindingProperty color: this.color[].withAlpha(scrollArea.sbOpacity[])
 
-      this.binding visibility:
+      visibility = binding:
         if this.h[] == scrollArea.sbArea.h[]: hiddenTree
         elif scrollArea.sbOpacity[] == 0.0: hiddenTree
         else: visible
@@ -334,7 +334,7 @@ method init*(this: ScrollArea) =
         scrollArea.sbLastShown[] = getTime()
 
 
-    scrollArea.binding sbOpacity:
+    this.bindingProperty sbOpacity:
       if scrollArea.sbShouldBeVisible[]:
         1.0
       else:
