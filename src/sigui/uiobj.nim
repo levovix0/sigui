@@ -1227,52 +1227,43 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
         warning("default nim constructor cannot be overloaded, please prefer using " & ctor[0].strVal & ".new, new " & ctor[0].strVal & " or new" & ctor[0].strVal & "()", ctor)
 
     proc changableImpl(prop, ctor, body: NimNode): NimNode =
-      buildAst:
-        blockStmt:
-          genSym(nskLabel, "changableChildInitializationBlock")
-          stmtList:
-            discard checkCtor ctor
+      discard checkCtor ctor
 
-            let updateProc = genSym(nskProc)
-            
-            asgn:
-              prop
-              call(bindSym"addChangableChild", ident "this", ctor)
-            
-            let updaters = newStmtList()
-            
-            procDef:
-              updateProc
-              empty(); empty()
-              formalParams:
-                empty()
-                identDefs(ident"parent", call(bindSym"typeof", ident"this"), empty())
-                identDefs(ident"this", call(bindSym"typeof", bracketExpr(prop)), empty())
-              empty(); empty()
-              stmtList:
-                if body == nil:
-                  call ident"initIfNeeded":
-                    ident "this"
-                if body != nil: impl(ident"parent", ident"this", body, prop, updaters)
+      var updateBody = newStmtList()
+      var updaters = newStmtList()
 
-            call updateProc:
-              ident "this"
-              bracketExpr(prop)
-            
-            call bindSym"connect":
-              dotExpr(prop, ident"changed")
-              dotExpr ident "this", ident "eventHandler"
-              lambda:
-                empty()
-                empty(); empty()
-                formalParams:
-                  empty()
-                empty(); empty()
-                call updateProc:
-                  ident "this"
-                  bracketExpr(prop)
-            
-            for x in updaters: x
+      let this = ident("this")
+      let parent = ident("parent")
+      let updateProc = genSym(nskProc, "updateProc")
+
+      updateBody.add quote do:
+        initIfNeeded(`this`)
+
+      if body != nil:
+        updateBody.add impl(ident("parent"), ident("this"), body, prop, updaters)
+    
+      let addingToParent =
+        if ctor == nil:  # called by `+ accessor[]: body`, adding to parent is not needed
+          newEmptyNode()
+        else:
+          quote do: `prop` = addChangableChild(`this`, `ctor`)
+
+      result = quote do:
+        block changableChildInit:
+          `addingToParent`
+
+          proc `updateProc`(`parent`: typeof(`this`), `this`: typeof(`prop`[])) =
+            `updateBody`
+          
+          `updateProc`(`this`, `prop`[])
+
+          connect(
+            `prop`.changed, `this`.eventHandler,
+            proc() = `updateProc`(`this`, `prop`[])
+          )
+
+          `updaters`
+
 
     buildAst blockStmt:
       genSym(nskLabel, "initializationBlock")
@@ -1351,6 +1342,33 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                         changableChild
                       body
                       ctor
+
+              
+              # + accessor[]: body
+              elif (
+                x.kind == nnkPrefix and x.len in 2..3 and x[0] == ident("+") and x[1].kind == nnkBracketExpr and x[1].len == 1
+              ):
+                # connect to accessor.changed, then immediatly and each time accessor changed,
+                # operate on object, accessed by `accessor`, with this/parent logic, without actually adding it to parent
+                let accessor = x[1][0]
+                changableImpl(accessor, nil, (if x.len == 2: nil else: x[2]))
+
+
+              # + accessor: body
+              elif (
+                x.kind == nnkPrefix and x.len in 2..3 and x[0] == ident("+")
+              ):
+                # operate on object, accessed by `accessor`, with this/parent logic, without actually adding it to parent
+                let accessor = x[1]
+                let alias = genSym(nskLet)
+                letSection:
+                  identDefs(alias, empty(), accessor)
+                
+                if x.len == 2:
+                  call(ident"initIfNeeded", alias)
+                else:
+                  let body = x[2]
+                  impl(ident "this", alias, body, changableChild, changableChildUpdaters)
               
 
               # prop := val

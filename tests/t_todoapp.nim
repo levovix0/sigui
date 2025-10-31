@@ -55,7 +55,8 @@ test "todo app":
         this.fill(parent, 4, 2)
         right = addTask.left - 10
         text = "sample task"
-        this.textObj[].font[] = typeface.withSize(32)
+        + this.textObj[]:
+          font = typeface.withSize(32)
 
         this.onKeyDown enter:
           mouse.mouseDownAndUpInside.emit()
