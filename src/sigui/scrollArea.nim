@@ -119,12 +119,12 @@ method init*(this: ScrollArea) =
     defaultSb.makeLayout:
       this.right = scrollArea.sbArea.right
       
-      radius = binding: this.w[] / 2
+      this.bindingProperty radius: this.w[] / 2
 
       proc withAlpha(c: Color, a: float): Color = color(c.r, c.g, c.b, a)
       this.bindingProperty color: this.color[].withAlpha(scrollArea.sbOpacity[])
 
-      visibility = binding:
+      this.bindingProperty visibility:
         if this.h[] == scrollArea.sbArea.h[]: hiddenTree
         elif scrollArea.sbOpacity[] == 0.0: hiddenTree
         else: visible

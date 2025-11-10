@@ -94,6 +94,12 @@ method init*(this: Switch) =
   procCall this.super.init()
 ```
 
+Or create an empty file and type:
+```nim
+import sigui; refactor_siguiComponentFile(MyComponent)
+```
+then compile it with -d:refactor to create a skeleton for a component
+
 https://github.com/levovix0/sigui/assets/53170138/409cb2a3-5299-48a6-b01e-d8b7bb951fbb
 ```nim
 import sigui/[uibase, mouseArea, animations, dolars]

@@ -4,6 +4,9 @@ import pkg/fusion/[astdsl]
 import ./[events {.all.}, properties]
 import ./render/[gl, contexts]
 
+when defined(refactor):
+  import refactoring/fileTemplates
+
 when defined(sigui_debug_useLogging):
   import logging
 
@@ -213,6 +216,16 @@ converter litToColor*(s: string{lit}): colortypes.Color =
 
 macro color*(s: static string): colortypes.Color =
   s.toColor.newLit
+
+
+
+#* ------------- Refactoring ------------- *#
+
+template refactor_siguiComponentFile*(name: untyped) =
+  when defined(refactor):
+    doRefactor_siguiComponentFile(name, instantiationInfo(fullPaths=true))
+  else:
+    {.warning: "compile with -d:refactor to apply refactoring".}
 
 
 
