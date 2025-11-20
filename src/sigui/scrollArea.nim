@@ -114,7 +114,6 @@ method init*(this: ScrollArea) =
     sbArea, defaultSb, sbOpacity, right, w, h
   ) =
     scrollArea.sbArea = MouseArea.new
-    echo cast[int](scrollArea.sbArea)
 
     let defaultSb {.inject.} = UiRect.new
     defaultSb.makeLayout:
