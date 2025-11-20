@@ -1,5 +1,5 @@
 import unittest
-import sigui/[uibase, mouseArea], siwin, shady
+import sigui/[uibase, mouseArea], shady
 import ./commonGeometry
 
 type Sandbox = ref object of Uiobj
@@ -106,11 +106,14 @@ method draw*(this: Sandbox, ctx: DrawContext) =
 
 
 test "Antialiased line section":
-  preview(clearColor = color(0, 0, 0, 0), size = ivec2(600, 600), transparent = true, margin = 0,
+  preview(
+    clearColor = color(0, 0, 0, 0),
+    size = ivec2(600, 600),
+    transparent = true,
+    margin = 20,
+    title = "Antialiased line section",
     withWindow = proc: Uiobj =
       let this = Sandbox()
       init this
-      this.withWindow win:
-        win.siwinWindow.title = "Antialiased line section"
       this
   )

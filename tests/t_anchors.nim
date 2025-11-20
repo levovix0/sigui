@@ -1,9 +1,8 @@
 import unittest
-import siwin
 import sigui
 
 test "anchors":
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "anchors").newUiRoot
+  let window = newUiWindow(size = ivec2(1280, 720), title = "anchors")
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
@@ -104,4 +103,4 @@ test "anchors":
       color = "333"
 
 
-  run window.siwinWindow
+  run window

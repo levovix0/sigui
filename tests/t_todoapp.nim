@@ -1,7 +1,6 @@
 # note: incomplete
 
 import unittest
-import siwin
 import sigui
 import t_customComponent
 
@@ -27,7 +26,7 @@ proc `=destroy`(x: DestroyLoggerInner) =
 
 
 test "todo app":
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(500, 800), title = "todos").newUiRoot
+  let window = newUiWindow(size = ivec2(500, 800), title = "todos")
 
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
@@ -136,4 +135,4 @@ test "todo app":
                   task.complete[] = not task.complete[]
                   echo "made sure ", logger.inner.message, " works"
 
-  run window.siwinWindow
+  run window

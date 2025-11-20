@@ -1,6 +1,7 @@
-import times, unicode, strutils
-import siwin
-import ./[uibase, mouseArea]
+import std/[times, unicode, strutils]
+import pkg/[siwin]
+import ./[uibase, mouseArea, windowCreation]
+# todo: import ./window instead of pkg/siwin and ./windowCreation
 
 type
   Blinking* = object
@@ -420,7 +421,7 @@ method init*(this: TextArea) =
 
   
   this.makeLayout:
-    this.withWindow win:
+    this.withRoot win:
       win.onTick.connectTo this:
         this.blinking.time[] = (this.blinking.time + e.deltaTime) mod (this.blinking.period[] * 2)
 

@@ -1,5 +1,5 @@
-import pkg/[siwin, vmath]
-import ./[events {.all.}, properties, uiobj {.all.}]
+import pkg/[vmath]
+import ./[events {.all.}, properties, uiobj {.all.}, window]
 export MouseButton, MouseMoveEvent
 
 type
@@ -18,7 +18,6 @@ type
 
     grabbed*: Property[bool]
       ## sets to true when mouse was pressed inside and started moving while in this area
-      ## emits start position (relative to screen)
       ## sets to false when mouse was released
 
     mouseButton*: Event[MouseButtonEvent]
@@ -38,9 +37,20 @@ type
       ## x > 0 - scroll right
       ## x < 0 - scroll left
       ## scroll delta is usualy -1, 0, or 1
+    
+    moved*: Event[MouseMoveEvent]
+      ## mouse moved to position while hovered or pressed(grabbed) over this area
+      ## emits when mouse entered the area, with .hovered[] == true
+      ## does NOT emit when mouse leaved the area
+      ## use `on this.hovered[] == false: ...` to track mouse leaving
+      ## use `on this.hovered[] == true: ...` to track mouse entering
+      ## if mouse leaves the area with .pressed[] == true, this event will still trigger (until mouse button is released)
+      ## event pos is relative to the window,
+      ##   use `posToLocal(this)` to convert it to same coordinates as this.mouseXy, or use mouseXy directly
 
     cursor*: Property[ref Cursor]
       ## cursor for mouse when inside this area
+      ## if nil, this mouse area will not affect mouse cursor in any way
     
     allowEventFallthrough*: Property[bool]
       ## if true, this mouse area will not mark MouseButton window events as handled
@@ -55,12 +65,14 @@ proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal)
 disableAutoRedrawHook MouseArea
 
 addFirstHandHandler MouseArea, "globalX":
-  handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiWindow.siwinWindow.mouse.pos), nil)
   superHook()
+  if this.root != nil:
+    handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiRoot.mouseState.pos), nil)
 
 addFirstHandHandler MouseArea, "globalY":
-  handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiWindow.siwinWindow.mouse.pos), nil)
   superHook()
+  if this.root != nil:
+    handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiRoot.mouseState.pos), nil)
 
 proc onHoveredOrCursorChanged(this: MouseArea)
 
@@ -115,6 +127,9 @@ proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal) =
   if xChanged: this.mouseX.changed.emit()
   if yChanged: this.mouseY.changed.emit()
 
+  if this.hovered[] or this.pressed[]:
+    this.moved.emit(e)
+
 
 proc handleMouseButtonEvent(this: MouseArea, e: MouseButtonEvent, signal: Signal) =
   if e.button in this.acceptedButtons[]:
@@ -144,13 +159,13 @@ proc handleMouseButtonEvent(this: MouseArea, e: MouseButtonEvent, signal: Signal
 
 
 proc onHoveredOrCursorChanged(this: MouseArea) =
-  if (let win = this.parentUiWindow; win != nil):
-    var cursor = GetActiveCursor()
-    win.recieve(cursor)
-    if cursor.handled and cursor.cursor != nil:
-      win.siwinWindow.cursor = cursor.cursor[]
+  if (let win = this.parentUiRoot; win != nil):
+    var activeCursor = GetActiveCursor()
+    win.recieve(activeCursor)
+    if activeCursor.handled and activeCursor.cursor != nil:
+      win.parentUiRoot.cursor = activeCursor.cursor[]
     else:
-      win.siwinWindow.cursor = Cursor()
+      win.parentUiRoot.cursor = Cursor()
 
 
 method recieve*(this: MouseArea, signal: Signal) =
@@ -180,9 +195,10 @@ method recieve*(this: MouseArea, signal: Signal) =
 
     elif signal of GetActiveCursor:
       if not signal.GetActiveCursor.handled and this.hovered[]:
-        signal.GetActiveCursor.cursor = this.cursor[]
-        if not this.allowEventFallthrough[]:
-          signal.GetActiveCursor.handled = true
+        if this.cursor[] != nil:
+          signal.GetActiveCursor.cursor = this.cursor[]
+          if not this.allowEventFallthrough[]:
+            signal.GetActiveCursor.handled = true
   
 
   if signal of VisibilityChanged:

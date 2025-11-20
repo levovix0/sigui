@@ -1,9 +1,8 @@
 import unittest
-import siwin
 import sigui
 
 test "styles":
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "styles").newUiRoot
+  let window = newUiWindow(size = ivec2(1280, 720), title = "styles")
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
@@ -71,4 +70,4 @@ test "styles":
     
 
 
-  run window.siwinWindow
+  run window

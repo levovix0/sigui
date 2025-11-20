@@ -1,9 +1,11 @@
 import std/[unittest]
-import siwin, sigui/[uibase, uiobj, layouts]
+import sigui/[uibase, layouts]
 
 
 test "layouts":
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "layouts").newUiRoot
+  # todo
+
+  let window = newUiWindow(size = ivec2(1280, 720), title = "layouts")
 
   window.makeLayout:
     this.clearColor = color(1, 1, 1)
@@ -30,4 +32,4 @@ test "layouts":
           h = 50
 
 
-  run window.siwinWindow
+  run window

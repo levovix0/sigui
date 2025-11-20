@@ -131,7 +131,7 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
     hasAnimator = true
     anim.onTick.connectTo a, args: tick(args)
 
-  obj.withWindow win:
+  obj.withRoot win:
     if hasAnimator: return
     hasAnimator = true
     win.onTick.connectTo a, args: tick(args.deltaTime)
@@ -184,10 +184,9 @@ template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
 
 
 when isMainModule:
-  import siwin
-  import ./[uibase, globalKeybinding]
+  import ./[uibase, globalKeybinding, windowCreation]
 
-  let animator = newSiwinGlobals().newOpenglWindow(size = ivec2(300, 40)).newUiRoot
+  let animator = newUiWindow(size = ivec2(300, 40))
   animator.makeLayout:
     - UiRect.new as rect:
       w = 40
@@ -223,4 +222,4 @@ when isMainModule:
       #     this.b[] = a
       #   start this
   
-  run animator.siwinWindow
+  run animator

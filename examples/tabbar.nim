@@ -1,5 +1,5 @@
 import unittest
-import siwin, sigui
+import sigui
 
 type
   Tab* = ref object of Uiobj
@@ -103,10 +103,10 @@ test "tab bar":
       color = "000000"
 
 
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "tab bar").newUiRoot
+  let window = newUiWindow(size = ivec2(1280, 720), title = "tab bar")
 
   window.makeLayout:
-    clearColor = color(1, 1, 1)
+    this.clearColor = color(1, 1, 1)
 
     - Styler.new:
       this.fill(parent)
@@ -154,6 +154,6 @@ test "tab bar":
           discard
 
 
-  run window.siwinWindow
+  run window
 
 

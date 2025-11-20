@@ -1,4 +1,4 @@
-import ./[uiobj, properties, uibase]
+import ./[uibase]
 import ./render/[gl, contexts]
 import pkg/pixie/[images, paths, paints]
 
@@ -107,9 +107,9 @@ method draw*(this: UiPath, ctx: DrawContext) =
 
 
 when isMainModule:
-  import pkg/siwin, ./mouseArea
+  import ./mouseArea
 
-  let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 600)).newUiRoot
+  let win = newUiWindow(size = ivec2(600, 600))
 
   var angle = 0'f32.property
   
@@ -174,4 +174,4 @@ when isMainModule:
       on this.mouseY.changed: move()
 
 
-  run win.siwinWindow
+  run win

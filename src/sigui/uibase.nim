@@ -1,16 +1,13 @@
 import tables
-import pkg/[vmath, bumpy, siwin, shady, chroma]
+import pkg/[vmath, bumpy, shady, chroma]
 import pkg/pixie/fileformats/[svg], pkg/pixie/[fonts, images]
-import ./[events, properties, cvmath, uiobj]
+import ./[events, properties, cvmath, uiobj, window, windowCreation]
 import ./render/[gl, contexts]
 
 when hasImageman:
   import imageman except Rect, color, Color
 
-export vmath, cvmath, bumpy, gl, chroma, fonts, images, events, properties, tables, contexts, uiobj
-
-when defined(sigui_debug_useLogging):
-  import logging
+export vmath, cvmath, bumpy, gl, chroma, fonts, images, events, properties, tables, contexts, uiobj, window, windowCreation
 
 
 type
@@ -87,13 +84,13 @@ proc preview*(
   withWindow: proc(): Uiobj,
   title: string = "",
 ) =
-  let win = newSiwinGlobals().newOpenglWindow(
+  let win = newUiWindow(
     size =
       if size != ivec2(): size
       else: ivec2(100, 100),
     transparent = transparent,
     title = title,
-  ).newUiRoot
+  )
   let obj = withWindow()
 
   if size == ivec2() and obj.wh != vec2():
@@ -104,7 +101,7 @@ proc preview*(
     - obj:
       this.fill(parent, margin)
   
-  run win.siwinWindow
+  run win
 
 
 

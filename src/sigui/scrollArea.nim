@@ -113,9 +113,10 @@ method init*(this: ScrollArea) =
   template makeScrollBar(
     sbArea, defaultSb, sbOpacity, right, w, h
   ) =
-    scrollArea.sbArea = MouseArea()
+    scrollArea.sbArea = MouseArea.new
+    echo cast[int](scrollArea.sbArea)
 
-    let defaultSb {.inject.} = UiRect()
+    let defaultSb {.inject.} = UiRect.new
     defaultSb.makeLayout:
       this.right = scrollArea.sbArea.right
       

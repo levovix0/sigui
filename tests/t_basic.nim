@@ -1,6 +1,6 @@
-import sigui, siwin
+import sigui
 
-let win = newSiwinGlobals().newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiRoot
+let win = newUiWindow(size=ivec2(1280, 720), title="Hello sigui")
 
 win.makeLayout:
   - UiRect.new:
@@ -28,4 +28,4 @@ win.makeLayout:
       
       cursor = (ref Cursor)(kind: builtin, builtin: BuiltinCursor.pointingHand)
 
-run win.siwinWindow
+run win

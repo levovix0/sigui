@@ -1,5 +1,5 @@
 import unittest
-import sigui, siwin, shady
+import sigui, shady
 
 type Cat = ref object of Uiobj
 
@@ -87,11 +87,14 @@ method draw*(this: Cat, ctx: DrawContext) =
 
 
 test "Cat shader":
-  preview(clearColor = color(0, 0, 0, 0), size = ivec2(600, 600), transparent = true, margin = 20,
+  preview(
+    clearColor = color(0, 0, 0, 0),
+    size = ivec2(600, 600),
+    transparent = true,
+    margin = 20,
+    title = "the Cat",
     withWindow = proc: Uiobj =
       let this = Cat()
       init this
-      this.withWindow win:
-        win.siwinWindow.title = "the Cat"
       this
   )

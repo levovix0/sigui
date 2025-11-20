@@ -1,5 +1,4 @@
-import pkg/[siwin]
-import ./[uiobj, properties, events]
+import ./[uiobj, properties, events, window]
 
 type
   GlobalKeybinding* = ref object of Uiobj

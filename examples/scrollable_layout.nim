@@ -1,10 +1,10 @@
-import sigui, siwin, chroma
+import sigui, chroma
 
 
-let win = newSiwinGlobals().newOpenglWindow(title = "sigui scroll area example").newUiRoot
+let win = newUiWindow(title = "sigui scroll area example")
 
 makeLayout win:
-  clearColor = "ffffff".color
+  this.clearColor = "ffffff".color
 
   - UiRect.new:
     this.fill parent, 10
@@ -54,5 +54,5 @@ makeLayout win:
 
 
 
-run win.siwinWindow
+run win
 

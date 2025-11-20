@@ -35,22 +35,22 @@ see also: [tests](https://github.com/levovix0/sigui/tree/main/tests)
 ## Minimal
 
 ```nim
-import sigui, siwin
+import sigui
 
-let win = newSiwinGlobals().newOpenglWindow().newUiRoot
+let win = newUiWindow()
 
 win.makeLayout:
-  clearColor = "202020".color
+  this.clearColor = "202020".color
 
-run win.siwinWindow
+run win
 ```
 
 ## Basic
 https://github.com/levovix0/sigui/assets/53170138/9509e245-2701-4dba-8237-a83f480aa635
 ```nim
-import sigui, siwin
+import sigui
 
-let win = newSiwinGlobals().newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiRoot
+let win = newUiWindow(size=ivec2(1280, 720), title="Hello sigui")
 
 win.makeLayout:
   - UiRect.new:
@@ -76,7 +76,7 @@ win.makeLayout:
         state[] = (state[] + 1) mod 3
       this.cursor = (ref Cursor)(kind: builtin, builtin: pointingHand)
 
-run win.siwinWindow
+run win
 ```
 
 

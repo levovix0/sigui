@@ -1,9 +1,8 @@
 import unittest
-import siwin
 import sigui
 
 test "layers":
-  let window = newSiwinGlobals().newOpenglWindow(size = ivec2(1280, 720), title = "layers").newUiRoot
+  let window = newUiWindow(size = ivec2(1280, 720), title = "layers")
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
@@ -155,4 +154,4 @@ test "layers":
                   left = parent.left + 20
                   text = "before parent*"
 
-  run window.siwinWindow
+  run window

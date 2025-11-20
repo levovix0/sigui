@@ -1,14 +1,11 @@
 import std/[times, macros, strutils, importutils, macrocache]
-import pkg/[vmath, bumpy, siwin, chroma]
+import pkg/[vmath, bumpy, chroma]
 import pkg/fusion/[astdsl]
-import ./[events {.all.}, properties]
+import ./[events {.all.}, properties, window]
 import ./render/[gl, contexts]
 
 when defined(refactor):
   import refactoring/fileTemplates
-
-when defined(sigui_debug_useLogging):
-  import logging
 
 
 type
@@ -81,8 +78,7 @@ type
     newChildsObject*: Uiobj
 
     initialized*: bool
-    attachedToWindow*: bool
-    # todo: add a pointer to UiRoot
+    root* {.cursor.}: UiRoot
     
     anchors: Anchors
 
@@ -96,12 +92,7 @@ type
 
   UiRoot* = ref object of Uiobj
     onTick*: Event[TickEvent]
-
-
-  UiWindow* = ref object of UiRoot
-    siwinWindow*: Window
     ctx*: DrawContext
-    clearColor*: Col
 
 
   ChangableChild*[T] = object
@@ -118,8 +109,8 @@ type
   SubtreeReverseSignal* = ref object of SubtreeSignal
     ## signal sends to all childs recursively in reverse order (by default)
   
-  AttachedToWindow* = ref object of SubtreeSignal
-    window*: UiWindow
+  AttachedToRoot* = ref object of SubtreeSignal
+    root*: UiRoot
 
   ParentChanged* = ref object of SubtreeSignal
     newParentInTree*: Uiobj
@@ -287,17 +278,17 @@ method draw*(obj: Uiobj, ctx: DrawContext) {.base.} =
   obj.drawAfter(ctx)
 
 
-proc parentUiWindow*(obj: Uiobj): UiWindow =
-  var obj {.cursor.} = obj
-  while true:
-    if obj == nil: return nil
-    if obj of UiWindow: return obj.UiWindow
-    obj = obj.parent
+proc parentUiRoot*(obj: Uiobj, forceFind = false): UiRoot =
+  if forceFind:
+    var obj {.cursor.} = obj
+    while true:
+      if obj == nil: return nil
+      if obj of UiRoot: return obj.UiRoot
+      obj = obj.parent
 
-proc parentWindow*(obj: Uiobj): Window =
-  let uiWin = obj.parentUiWindow
-  if uiWin != nil: uiWin.siwinWindow
-  else: nil
+  else:
+    return obj.root
+
 
 proc lastParent*(obj: Uiobj): Uiobj =
   result = obj
@@ -306,43 +297,14 @@ proc lastParent*(obj: Uiobj): Uiobj =
     result = result.parent
 
 
-when defined(sigui_debug_redrawInitiatedBy):
-  import std/importutils
-  privateAccess Window
-  proc sigui_debug_redrawInitiatedBy_formatFunction(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string
-  
-  # proc sigui_debug_redrawInitiatedBy_formatFunction(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
-  #   proc(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
-  #     if alreadyRedrawing:
-  #       "redraw initiated (already redrawing)"
-  #     else:
-  #       "redraw initiated"
+method doRedraw*(obj: UiRoot) {.base.} = discard
 
 proc redraw*(obj: Uiobj, ifVisible = true) =
   if ifVisible and obj.visibility[] != visible: return
   
-  var win: Window
-
-  var objp {.cursor.} = obj
-  while true:
-    if objp == nil: break
-    if ifVisible and objp != obj and objp.visibility[] notin {visible, hidden}: return
-    if objp of UiWindow:
-      win = objp.UiWindow.siwinWindow
-      break
-    objp = objp.parent
-
-  when defined(sigui_debug_redrawInitiatedBy):
-    let alreadyRedrawing =
-      if win != nil: win.redrawRequested
-      else: false
-
-    when defined(sigui_debug_useLogging):
-      info(sigui_debug_redrawInitiatedBy_formatFunction(obj, alreadyRedrawing, win != nil))
-    else:
-      echo sigui_debug_redrawInitiatedBy_formatFunction(obj, alreadyRedrawing, win != nil)
-  
-  if win != nil: redraw win
+  let root = obj.parentUiRoot
+  if root != nil:
+    doRedraw root
 
 
 proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
@@ -372,6 +334,13 @@ proc posToObject*(fromObj, toObj: Uiobj, pos: Vec2): Vec2 =
 
 proc posToObject*(pos: Vec2, fromObj, toObj: Uiobj): Vec2 {.inline.} =
   posToObject(fromObj, toObj, pos)
+
+
+method mouseState*(root: UiRoot): Mouse {.base.} = discard
+method keyboardState*(root: UiRoot): Keyboard {.base.} = discard
+method touchscreenState*(root: UiRoot): TouchScreen {.base.} = discard
+
+method `cursor=`(root: UiRoot, v: Cursor) {.base.} = discard
 
 
 proc `$`*(this: Uiobj): string
@@ -561,8 +530,8 @@ proc spreadGlobalYChange(obj: Uiobj, delta: float32) =
 #----- receiving signals -----
 
 method recieve*(obj: Uiobj, signal: Signal) {.base.} =
-  if signal of AttachedToWindow:
-    obj.attachedToWindow = true
+  if signal of AttachedToRoot:
+    obj.root = signal.AttachedToRoot.root
 
   obj.onSignal.emit signal
 
@@ -728,10 +697,10 @@ method init*(obj: Uiobj) {.base.} =
 
   connectFirstHandHandlers(obj)
   
-  if not obj.attachedToWindow:
-    let win = obj.parentUiWindow
-    if win != nil:
-      obj.recieve(AttachedToWindow(window: win))
+  if obj.root == nil:
+    let root = obj.parentUiRoot(forceFind = true)
+    if root != nil:
+      obj.recieve(AttachedToRoot(root: root))
 
   obj.initialized = true
 
@@ -861,10 +830,8 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
   else:
     child.parent = parent
     parent.childs.add child
-    if not child.attachedToWindow and parent.attachedToWindow:
-      let win = parent.parentUiWindow
-      if win != nil:
-        child.recieve(AttachedToWindow(window: win))
+    if child.root == nil and parent.root != nil:
+      child.recieve(AttachedToRoot(root: parent.root))
     if child.initialized:
       child.recieve(ParentChanged(newParentInTree: parent))
       parent.recieve(ChildAdded(child: child))
@@ -910,10 +877,8 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): ChangableChild[Ui
     child.parent = parent
     parent.childs.add child
 
-    if not child.attachedToWindow and parent.attachedToWindow:
-      let win = parent.parentUiWindow
-      if win != nil:
-        child.recieve(AttachedToWindow(window: win))
+    if child.root == nil and parent.root != nil:
+      child.recieve(AttachedToRoot(root: parent.root))
 
     if child.initialized:
       child.recieve(ParentChanged(newParentInTree: parent))
@@ -935,89 +900,10 @@ macro super*[T: Uiobj](obj: T): auto =
     return nnkDotExpr.newTree(obj, t[2][1][0])
   else:
     error("unexpected type impl", obj)
-
-
-
-#----- Drawing -----
-
-method draw*(win: UiWindow, ctx: DrawContext) =
-  glClearColor(win.clearColor.r, win.clearColor.g, win.clearColor.b, win.clearColor.a)
-  glClear(GlColorBufferBit or GlDepthBufferBit)
-  win.drawBefore(ctx)
-  win.drawAfter(ctx)
-
-
-proc setupEventsHandling*(win: UiWindow) =
-  proc toRef[T](e: T): ref AnyWindowEvent =
-    result = (ref T)()
-    (ref T)(result)[] = e
-
-  win.siwinWindow.eventsHandler = WindowEventsHandler(
-    onClose: proc(e: CloseEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-    onRender: proc(e: RenderEvent) =
-      win.recieve(BeforeDraw(sender: win))
-      win.draw(win.ctx)
-    ,
-    onTick: proc(e: TickEvent) =
-      win.onTick.emit(e)
-    ,
-    onResize: proc(e: ResizeEvent) =
-      win.wh = e.size.vec2
-      glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
-      win.ctx.updateDrawingAreaSize(e.size)
-
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-    onWindowMove: proc(e: WindowMoveEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-
-    onStateBoolChanged: proc(e: StateBoolChangedEvent) =
-      redraw win.siwinWindow
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-
-    onMouseMove: proc(e: MouseMoveEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-    onMouseButton: proc(e: MouseButtonEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-    onScroll: proc(e: ScrollEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-    onClick: proc(e: ClickEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-
-    onKey: proc(e: KeyEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-    onTextInput: proc(e: TextInputEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
-    ,
-  )
-
-proc newUiWindow*(siwinWindow: Window): UiWindow =
-  result = UiWindow(siwinWindow: siwinWindow)
-  loadExtensions()
-  result.setupEventsHandling
-  result.ctx = newDrawContext()
-
-template newUiRoot*(siwinWindow: Window): UiWindow =
-  newUiWindow(siwinWindow)
-
-
-method addChild*(this: UiWindow, child: Uiobj) =
-  procCall this.super.addChild(child)
-  child.recieve(AttachedToWindow(window: this))
         
 
 
 proc newUiobj*(): Uiobj = new result
-proc newUiWindow*(): UiWindow = new result
 
 
 
@@ -1603,14 +1489,14 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       )
 
 
-template withWindow*(obj: Uiobj, winVar: untyped, body: untyped) =
-  proc bodyProc(winVar {.inject.}: UiWindow) =
+template withRoot*(obj: Uiobj, rootVar: untyped, body: untyped) =
+  proc bodyProc(rootVar {.inject.}: UiRoot) =
     body
-  if obj.attachedToWindow:
-    bodyProc(obj.parentUiWindow)
+  if obj.root != nil:
+    bodyProc(obj.root)
   obj.onSignal.connect obj.eventHandler, proc(e: Signal) =
-    if e of AttachedToWindow:
-      bodyProc(obj.parentUiWindow)
+    if e of AttachedToRoot:
+      bodyProc(obj.root)
 
 
 
@@ -1680,9 +1566,13 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
   for k, v in this.fieldPairs:
     when k in [
       "eventHandler", "parent", "childs", "x", "y", "w", "h", "globalX", "globalY",
-      "initialized", "attachedToWindow", "anchors", "drawLayering"
+      "initialized", "anchors", "drawLayering"
     ] or k.startsWith("m_"):
       discard
+    
+    elif k == "root":
+      if v == nil:
+        result.add k & ": nil.UiRoot"
     
     elif v is Uiobj:
       if v == nil:
@@ -1751,30 +1641,6 @@ macro declareFormatFields(t: typed) =
       formatFieldsStatic(this[])
 
 
-when defined(sigui_debug_redrawInitiatedBy):
-  proc sigui_debug_redrawInitiatedBy_formatFunction(obj: Uiobj, alreadyRedrawing, hasWindow: bool): string =
-    when defined(sigui_debug_redrawInitiatedBy_all):
-      if alreadyRedrawing: result.add "redraw initiated (already redrawing):\n"
-      elif not hasWindow: result.add "redraw initiated (no window):\n"
-      else: result.add "redraw initiated:\n"
-    else:
-      if alreadyRedrawing: return "redraw initiated (already redrawing)"
-      elif not hasWindow: return "redraw initiated (no window)"
-      result.add "redraw initiated:\n"
-  
-    var hierarchy = obj.componentTypeName
-    var parent = obj.parent
-    while parent != nil:
-      hierarchy = parent.componentTypeName & " > " & hierarchy
-      parent = parent.parent
-    result.add "  hierarchy: " & hierarchy & "\n"
-
-    when defined(sigui_debug_redrawInitiatedBy_includeStacktrace):
-      result.add "  stacktrace:\n" & getStackTrace().indent(4)
-  
-    result.add ($obj).indent(2)
-
-
 
 #----- reflection: registerComponent -----
 
@@ -1785,7 +1651,4 @@ macro registerComponent*(t: typed) =
   result.add nnkCall.newTree(bindSym("generateShouldAutoredrawMethod"), t)
   result.add nnkCall.newTree(bindSym("declareComponentTypeName"), t)
   result.add nnkCall.newTree(bindSym("declareFormatFields"), t)
-
-
-registerComponent UiWindow
 

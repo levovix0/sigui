@@ -74,7 +74,7 @@ iterator potentially_visible_childs*(this: Layout): Uiobj =
   block notOptimized:
     block optimized:
       if this.lengthBeforeWrap[] == 0 and this.elementsBeforeWrap[] == 0 and this.assumeChildsClipped[]:
-        let win = this.parentUiWindow
+        let win = this.parentUiRoot
         if win != nil:
           let boundsXy = vec2(0, 0)
           let boundsWh = win.wh
@@ -126,8 +126,8 @@ method draw*(obj: Layout, ctx: DrawContext) =
 
 
 method recieve*(obj: Layout, signal: Signal) =
-  if signal of AttachedToWindow:
-    obj.attachedToWindow = true
+  if signal of AttachedToRoot:
+    obj.root = signal.AttachedToRoot.root
 
   obj.onSignal.emit signal
 
@@ -482,9 +482,9 @@ proc grid*(typ: typedesc[Layout], columns: int, gap: float32 = 0): Layout =
 
 
 when isMainModule:
-  import pkg/siwin, ./uibase
+  import ./uibase
 
-  let win = newSiwinGlobals().newOpenglWindow(size = ivec2(600, 700)).newUiRoot
+  let win = newUiWindow(size = ivec2(600, 700))
 
   win.makeLayout:
     this.clearColor = "202020".color
@@ -507,4 +507,4 @@ when isMainModule:
       
       echo "w: ", this.w[], ", h: ", this.h[]  # already non-zero!
   
-  run win.siwinWindow
+  run win

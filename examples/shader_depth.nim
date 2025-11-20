@@ -1,5 +1,5 @@
 import unittest
-import sigui/[uibase, mouseArea, globalKeybinding], siwin, shady
+import sigui/[uibase, mouseArea, globalKeybinding], shady
 import ./commonGeometry
 
 type
@@ -262,11 +262,14 @@ method draw*(this: Sandbox, ctx: DrawContext) =
 
 
 test "\"Fake\" 3D":
-  preview(clearColor = color(0, 0, 0, 0), size = ivec2(800, 600), transparent = true, margin = 0,
+  preview(
+    clearColor = color(0, 0, 0, 0),
+    size = ivec2(600, 600),
+    transparent = true,
+    margin = 20,
+    title = "\"Fake\" 3D",
     withWindow = proc: Uiobj =
       let this = Sandbox()
       init this
-      this.withWindow win:
-        win.siwinWindow.title = "\"Fake\" 3D"
       this
   )

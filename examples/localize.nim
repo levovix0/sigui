@@ -1,5 +1,5 @@
 import std/[unittest, json]
-import pkg/[sigui, siwin, localize]
+import pkg/[sigui, localize]
 
 test "localize":
   var locale = globalLocale.property
@@ -16,7 +16,7 @@ test "localize":
     }
   )
 
-  let win = newSiwinGlobals().newOpenglWindow(size=ivec2(1280, 720), title="Hello sigui").newUiRoot
+  let win = newUiWindow(size=ivec2(1280, 720), title="Hello sigui")
 
   win.clearColor = "202020"
 
@@ -30,4 +30,4 @@ test "localize":
       color = "fff"
       text := tr("Hello, world!", "", locale[])
 
-  run win.siwinWindow
+  run win
