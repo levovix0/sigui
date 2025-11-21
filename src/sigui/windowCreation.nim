@@ -20,7 +20,10 @@ type
 registerComponent UiWindow
 
 
-let siwinGlobals = newSiwinGlobals()
+when not defined(nimdoc):
+  let siwinGlobals = newSiwinGlobals()
+else:
+  var siwinGlobals: SiwinGlobals
 
 
 
