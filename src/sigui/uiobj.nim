@@ -1050,38 +1050,39 @@ macro bindingChangableChild[T](obj: T, target: untyped, body: untyped, ctor: typ
 
 macro makeLayout*(obj: Uiobj, body: untyped) =
   ## tip: use a.makeLauyout(-soMeFuN()) instead of (let b = soMeFuN(); a.addChild(b); init b)
-  runnableExamples:
-    import sigui/uibase
-    
-    let a = UiRect.new
-    let b = UiRect.new
-    let c = UiRect.new
-    var ooo: ChangableChild[UiRect]
-    a.makeLayout:
-      - RectShadow(
-        radius: 7.5'f32.property,  # pre-initialization of properties (not recommended)
-        blurRadius: 10'f32.property,
-        color: color(0, 0, 0, 0.3).property
-      ) as shadowEffect
-
-      - newUiRect():
-        this.fill(parent)
-        echo shadowEffect.radius
-        doassert parent.Uiobj == this.parent
-
-        - ClipRect.new:
-          this.radius[] = 7.5
-          this.fill(parent, 10)
-          doassert root.Uiobj == this.parent.parent
-
-          ooo --- UiRect.new:  # add changable child
-            this.fill(parent)
-
-          - b
-          - UiRect.new
-
-      - c:
-        this.fill(parent)
+  ## 
+  ## .. code-block:: nim
+  ##   import sigui/uibase
+  ##   
+  ##   let a = UiRect.new
+  ##   let b = UiRect.new
+  ##   let c = UiRect.new
+  ##   var ooo: ChangableChild[UiRect]
+  ##   a.makeLayout:
+  ##     - RectShadow(
+  ##       radius: 7.5'f32.property,  # pre-initialization of properties (not recommended)
+  ##       blurRadius: 10'f32.property,
+  ##       color: color(0, 0, 0, 0.3).property
+  ##     ) as shadowEffect
+  ##   
+  ##     - newUiRect():
+  ##       this.fill(parent)
+  ##       echo shadowEffect.radius
+  ##       doassert parent.Uiobj == this.parent
+  ##   
+  ##       - ClipRect.new:
+  ##         this.radius[] = 7.5
+  ##         this.fill(parent, 10)
+  ##         doassert root.Uiobj == this.parent.parent
+  ##   
+  ##         ooo --- UiRect.new:  # add changable child
+  ##           this.fill(parent)
+  ##   
+  ##         - b
+  ##         - UiRect.new
+  ##   
+  ##     - c:
+  ##       this.fill(parent)
 
 
   proc implFwd(body: NimNode, res: var seq[NimNode]) =

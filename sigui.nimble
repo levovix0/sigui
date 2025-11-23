@@ -15,4 +15,4 @@ requires "shady"  # for writing shaders in Nim istead of GLSL
 
 
 task docs, "Write the package docs":
-  exec "nim doc -d:nimdoc --project --index:on --git.url:git@github.com:levovix0/sigui.git --git.commit:master -o:docs/apidocs src/sigui.nim"
+  exec "nim doc --project --index:on --git.url:git@github.com:levovix0/sigui.git --git.commit:master -o:docs/apidocs src/sigui.nim"
