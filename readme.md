@@ -40,7 +40,7 @@ import sigui
 let win = newUiWindow()
 
 win.makeLayout:
-  this.clearColor = "202020".color
+  this.clearColor = "#202020".color
 
 run win
 ```
@@ -346,17 +346,17 @@ simple layouts:
   - UiRect.new:
     w = 20
     h = 20
-    color = "ff4040".color
+    color = "#ff4040".color
 
   - UiRect.new:
     w = 30
     h = 10
-    color = "40ff40".color
+    color = "#40ff40".color
 
   - UiRect.new:
     w = 10
     h = 30
-    color = "4040ff".color
+    color = "#4040ff".color
 ```
 ![image](http://levovix.ru:8000/docs/sigui/simple%20layouts%20example.png)
 

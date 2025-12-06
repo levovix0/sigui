@@ -20,7 +20,7 @@ type
 registerComponent UiWindow
 
 
-let siwinGlobals = newSiwinGlobals()
+var siwinGlobals: SiwinGlobals
 
 
 
@@ -115,6 +115,7 @@ proc newUiWindow*(siwinWindow: Window): UiWindow =
   loadExtensions()
   result.setupEventsHandling
   result.ctx = newDrawContext()
+  result.wh = siwinWindow.size.vec2
 
 template newUiRoot*(siwinWindow: Window): UiWindow =
   newUiWindow(siwinWindow)
@@ -138,6 +139,9 @@ proc newUiWindow*(
 
   class = "", # window class (used in x11), equals to title if not specified
 ): UiWindow =
+  if siwinGlobals == nil:
+    siwinGlobals = newSiwinGlobals()
+
   siwinGlobals.newOpenglWindow(
     size,
     title,

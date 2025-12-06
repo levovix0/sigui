@@ -97,7 +97,7 @@ type
 
   ChangableChild*[T] = object
     parent {.cursor.}: Uiobj
-    childIndex: int
+    child {.cursor.}: Uiobj
     changed*: Event[void]
 
 
@@ -137,9 +137,17 @@ type
     ## signal sends to all parents recursively (by default)
   
   ChildAdded* = ref object of UptreeSignal
+    # child is just added to child.parent, sends after ParentChanged (for child)
     child*: Uiobj
   
-  # todo: ChildRemoved
+  ChildRemoved* = ref object of UptreeSignal
+    # child is about to be removed from child.parent
+    child*: Uiobj
+
+
+  Completed* = ref object of Signal
+    ## signal for this element from makeLayout telling that it was fully created and will rarely be modified afterwards
+    ## used in Layout's for optimization, only start updating after fully created.
 
   
   BindingKind = enum
@@ -168,34 +176,38 @@ proc containsSystem*(keyboardPressed: set[Key]): bool =
 
 
 proc toColor*(s: string): colortypes.Color =
-  case s.len
+  var i = 0
+  if s[0] == '#':
+    inc i
+
+  case s.len - i
   of 3:
     result = colortypes.Color(
-      r: ($s[0]).parseHexInt.float32 / 15.0,
-      g: ($s[1]).parseHexInt.float32 / 15.0,
-      b: ($s[2]).parseHexInt.float32 / 15.0,
+      r: ($s[i+0]).parseHexInt.float32 / 15.0,
+      g: ($s[i+1]).parseHexInt.float32 / 15.0,
+      b: ($s[i+2]).parseHexInt.float32 / 15.0,
       a: 1,
     )
   of 4:
     result = colortypes.Color(
-      r: ($s[0]).parseHexInt.float32 / 15.0,
-      g: ($s[1]).parseHexInt.float32 / 15.0,
-      b: ($s[2]).parseHexInt.float32 / 15.0,
-      a: ($s[3]).parseHexInt.float32 / 15.0,
+      r: ($s[i+0]).parseHexInt.float32 / 15.0,
+      g: ($s[i+1]).parseHexInt.float32 / 15.0,
+      b: ($s[i+2]).parseHexInt.float32 / 15.0,
+      a: ($s[i+3]).parseHexInt.float32 / 15.0,
     )
   of 6:
     result = colortypes.Color(
-      r: (s[0..1].parseHexInt.float32) / 255.0,
-      g: (s[2..3].parseHexInt.float32) / 255.0,
-      b: (s[4..5].parseHexInt.float32) / 255.0,
+      r: (s[i+0 .. i+1].parseHexInt.float32) / 255.0,
+      g: (s[i+2 .. i+3].parseHexInt.float32) / 255.0,
+      b: (s[i+4 .. i+5].parseHexInt.float32) / 255.0,
       a: 1,
     )
   of 8:
     result = colortypes.Color(
-      r: (s[0..1].parseHexInt.float32) / 255.0,
-      g: (s[2..3].parseHexInt.float32) / 255.0,
-      b: (s[4..5].parseHexInt.float32) / 255.0,
-      a: (s[6..7].parseHexInt.float32) / 255.0,
+      r: (s[i+0 .. i+1].parseHexInt.float32) / 255.0,
+      g: (s[i+2 .. i+3].parseHexInt.float32) / 255.0,
+      b: (s[i+4 .. i+5].parseHexInt.float32) / 255.0,
+      a: (s[i+6 .. i+7].parseHexInt.float32) / 255.0,
     )
   else:
     raise ValueError.newException("invalid color: " & s)
@@ -813,6 +825,8 @@ method deteach*(this: Uiobj) {.base.} =
 
 proc delete*(this: Uiobj) =
   if this == nil: return
+  if this.parent != nil:
+    this.parent.recieve(ChildRemoved(child: this))
 
   deteach this
   
@@ -825,39 +839,53 @@ proc delete*(this: Uiobj) =
 
 method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
   assert child.parent == nil
+
   if parent.newChildsObject != nil:
     parent.newChildsObject.addChild(child)
+
   else:
     child.parent = parent
     parent.childs.add child
+
     if child.root == nil and parent.root != nil:
       child.recieve(AttachedToRoot(root: parent.root))
+
     if child.initialized:
       child.recieve(ParentChanged(newParentInTree: parent))
       parent.recieve(ChildAdded(child: child))
 
 
 proc `val=`*[T](p: var ChangableChild[T], v: T) =
-  ## note: p.changed will not be emitted if new value is same as previous value
-  p.parent.childs[p.childIndex].parent = nil
-  deteach p.parent.childs[p.childIndex]
-  p.parent.childs[p.childIndex] = v
-  v.parent = p.parent
+  if v.Uiobj == p.child: return
+  let i = p.parent.childs.find(p.child)
 
-  if v.initialized:
-    v.recieve(ParentChanged(newParentInTree: p.parent))
-    p.parent.recieve(ChildAdded(child: v))
+  let oldChild = p.child
 
+  if i == -1:
+    delete oldChild
+    p.parent.addChild(v)
+  
+  else:
+    oldChild.parent = nil
+    deteach oldChild
+    p.parent.childs[i] = v
+    v.parent = p.parent
+
+    if v.initialized:
+      v.recieve(ParentChanged(newParentInTree: p.parent))
+      p.parent.recieve(ChildAdded(child: v))
+
+  p.child = v
   emit(p.changed)
 
 proc `[]=`*[T](p: var ChangableChild[T], v: T) {.inline.} = p.val = v
 
 proc val*[T](p: ChangableChild[T]): T {.inline.} =
-  result = p.parent.childs[p.childIndex].T
+  result = p.child.T
 
 proc val*(p: ChangableChild[Uiobj]): Uiobj {.inline.} =
   # we need this overload to avoid ConvFromXtoItselfNotNeeded warning
-  result = p.parent.childs[p.childIndex]
+  result = p.child
 
 proc `[]`*[T](p: ChangableChild[T]): T {.inline.} = p.val
 
@@ -884,11 +912,28 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): ChangableChild[Ui
       child.recieve(ParentChanged(newParentInTree: parent))
       parent.recieve(ChildAdded(child: child))
 
-    result = ChangableChild[Uiobj](parent: parent, childIndex: parent.childs.high)
+    result = ChangableChild[Uiobj](parent: parent, child: child)
 
 
 proc addChangableChild*[T: Uiobj](parent: Uiobj, child: T): ChangableChild[T] =
-  result = cast[ChangableChild[T]](parent.addChangableChildUntyped(child))
+  parent.addChild(child)
+  result = ChangableChild[T](parent: parent, child: child)
+
+
+proc removeChild*(child: Uiobj) =
+  ## only removes the parenting relation between `parent` and `child`
+  ## does nothing if child has no parent
+  if child.parent == nil: return
+  child.parent.recieve(ChildRemoved(child: child))
+  let i = child.parent.childs.find(child)
+  if i != -1:
+    child.parent.childs.delete i
+  child.parent = nil
+
+
+proc reparent*(child: Uiobj, newParent: Uiobj) =
+  removeChild child
+  newParent.addChild(child)
 
 
 macro super*[T: Uiobj](obj: T): auto =
@@ -900,7 +945,10 @@ macro super*[T: Uiobj](obj: T): auto =
     return nnkDotExpr.newTree(obj, t[2][1][0])
   else:
     error("unexpected type impl", obj)
-        
+
+
+proc markCompleted*(obj: Uiobj) =
+  obj.recieve(Completed())
 
 
 proc newUiobj*(): Uiobj = new result
@@ -1083,6 +1131,8 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
   ##   
   ##     - c:
   ##       this.fill(parent)
+                
+  # todo: send Completed subtree signal to `obj` just after makeLayout, for layouts to first update and begin reacting for children size changes
 
 
   proc implFwd(body: NimNode, res: var seq[NimNode]) =
@@ -1128,6 +1178,9 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
       if body != nil:
         updateBody.add impl(ident("parent"), ident("this"), body, prop, updaters)
+      
+      updateBody.add quote do:
+        markCompleted(`this`)
     
       let addingToParent =
         if ctor == nil:  # called by `+ accessor[]: body`, adding to parent is not needed
@@ -1156,15 +1209,16 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       genSym(nskLabel, "initializationBlock")
       call:
         lambda:
-          empty(); empty(); empty()
-          formalParams:
-            empty()
-            identDefs(ident "parent", call(bindSym"typeof", parent), empty())
-            identDefs(ident "this", call(bindSym"typeof", obj), empty())
-          empty(); empty()
+          newEmptyNode(); newEmptyNode(); newEmptyNode()
+          nnkFormalParams.newTree(
+            newEmptyNode(),
+            nnkIdentDefs.newTree(ident "parent", nnkCall.newTree(bindSym"typeof", parent), newEmptyNode()),
+            nnkIdentDefs.newTree(ident "this", nnkCall.newTree(bindSym"typeof", obj), newEmptyNode()),
+          )
+          newEmptyNode(); newEmptyNode()
           
           stmtList:
-            call(ident"initIfNeeded", ident "this")
+            nnkCall.newTree(ident"initIfNeeded", ident "this")
 
             for x in body:
               # - ctor: body
@@ -1180,9 +1234,11 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 
                 if x.len == 2:
                   call(ident"initIfNeeded", alias)
+                  call(ident("markCompleted"), alias)
                 else:
                   let body = x[2]
                   impl(ident "this", alias, body, changableChild, changableChildUpdaters)
+                  call(ident("markCompleted"), alias)
 
 
               # - ctor as alias: body
@@ -1197,9 +1253,11 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 
                 if x.len == 3:
                   call(ident"initIfNeeded", alias)
+                  call(ident("markCompleted"), alias)
                 else:
                   let body = x[3]
                   impl(ident "this", alias, body, changableChild, changableChildUpdaters)
+                  call(ident("markCompleted"), alias)
               
 
               # to --- ctor: body
@@ -1321,7 +1379,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       nnkPragma.newTree(
                         nnkExprColonExpr.newTree(
                           ident("warning"),
-                          newLit("deprecated, use this.field_name = ... instead")
+                          newLit("ambiguous assignment, use `this.field_name = ...` instead. The `property_name = ...` syntax is for properties on this")
                         )
                       )
                     )
@@ -1331,7 +1389,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                     nnkPragma.newTree(
                       nnkExprColonExpr.newTree(
                         ident("warning"),
-                        newLit("deprecated, use (var_name) = ... instead")
+                        newLit("ambiguous assignment, use (var_name) = ... instead. The `property_name = ...` syntax is for properties on this")
                       )
                     )
                   )
@@ -1486,7 +1544,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
         ident "root",
         if body.kind == nnkStmtList: body else: newStmtList(body),
         newEmptyNode(),
-        newStmtList(),
+        newStmtList()
       )
 
 
@@ -1616,7 +1674,10 @@ proc `$`*(x: Color): string =
 proc formatChilds(this: Uiobj): string =
   for x in this.childs:
     if result != "": result.add "\n\n"
-    result.add $x
+    var s = $x
+    s = s.indent(2)
+    s[0] = '-'
+    result.add s.replace("  -", "- -")
 
 
 proc `$`*(this: Uiobj): string =

@@ -41,7 +41,7 @@ type
     assumeChildsClipped*: Property[bool] = true.property
       ## for optimization, if true, assume for all children, that every child's tree is contained in that child (xy >= 0, wh <= parent wh)
 
-    lockFromReposition*: bool
+    lockFromReposition: bool = true
     inRepositionProcess: bool
 
     # todo: padding
@@ -65,9 +65,12 @@ type
     ## component that replaces gap in Layout
 
 
+
 registerComponent Layout
 registerComponent InLayout
 registerComponent LayoutGap
+
+proc reposition(this: Layout)
 
 
 iterator potentially_visible_childs*(this: Layout): Uiobj =
@@ -125,23 +128,38 @@ method draw*(obj: Layout, ctx: DrawContext) =
 
 
 
-method recieve*(obj: Layout, signal: Signal) =
+method recieve*(this: Layout, signal: Signal) =
   if signal of AttachedToRoot:
-    obj.root = signal.AttachedToRoot.root
+    this.root = signal.AttachedToRoot.root
 
-  obj.onSignal.emit signal
+  if signal of Completed:
+    if this.lockFromReposition:
+      this.lockFromReposition = false
+      reposition(this)
+  
+  if signal of WindowEvent:
+    if this.lockFromReposition:  # this may happen if Layout was not created inside makeLayout. better late than never
+      this.lockFromReposition = false
+      reposition(this)
+  
+  if signal of ChildRemoved:
+    if signal.ChildRemoved.child.parent == this:
+      disconnect(signal.ChildRemoved.child.w.changed, this.eventHandler)
+      disconnect(signal.ChildRemoved.child.h.changed, this.eventHandler)
+
+  this.onSignal.emit signal
 
   if signal of SubtreeSignal:
-    for x in obj.potentially_visible_childs:
+    for x in this.potentially_visible_childs:
       x.recieve(signal)
   
   if signal of UptreeSignal:
-    if obj.parent != nil:
-      obj.parent.recieve(signal)
+    if this.parent != nil:
+      this.parent.recieve(signal)
 
 
 
-proc doReposition(this: Layout) {.used.} =
+proc doReposition(this: Layout) =
   template makeGetAndSet(get, set, horz, vert) =
     proc get(child: Uiobj): float32 =
       case this.orientation[]
@@ -315,19 +333,25 @@ proc doReposition(this: Layout) {.used.} =
   
   if this.hugContent[]:
     if this.childs.len > 0:
-      this.set_w(rows.mapit(it.childs[^1].get_x + it.childs[^1].get_w).foldl(max(a, b), 0'f32))
+      var maxX = 0'f32
+      for row in rows:
+        maxX = max(maxX, row.childs[^1].get_x + row.childs[^1].get_w)
+      this.set_w(maxX)
     else:
       discard
 
   if this.wrapHugContent[]:
     if this.childs.len > 0:
-      this.set_h(rows[^1].childs.mapit(it.get_y + it.get_h).foldl(max(a, b), 0'f32))
+      var maxY = 0'f32
+      for row in rows:
+        maxY = max(maxY, row.childs[^1].get_y + row.childs[^1].get_h)
+      this.set_h(maxY)
     else:
       discard
 
 
+
 proc reposition(this: Layout) =
-  # todo: optimization: disable repositioning while being constructed, then run reposition once
   # todo: somehow detect situation when children's h is dependant on layout's h, but wrapHugContent is enabled, throw an exception to tell usercode to disable wrapHugContent. or adapt.
   if this.lockFromReposition: return
   if this.inRepositionProcess: return
@@ -357,7 +381,6 @@ method addChild*(this: Layout, child: Uiobj) =
   
   child.w.changed.connectTo this: reposition(this)
   child.h.changed.connectTo this: reposition(this)
-  # todo: disconnect if child is no loger child
 
   if child of InLayout:
     child.InLayout.align.changed.connectTo this: reposition(this)

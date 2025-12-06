@@ -59,7 +59,6 @@ proc inBounceEasing*(x: float): float = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24
 proc outBounceEasing*(x: float): float = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
 
 
-# --- be compatible with makeLayout API ---
 proc parentAnimator*(obj: Uiobj): Animator =
   var obj {.cursor.} = obj
   while true:
@@ -77,8 +76,6 @@ template withAnimator*(obj: Uiobj, animVar: untyped, body: untyped) =
     if e of ParentChanged and e.ParentChanged.newParentInTree of Animator:
       bodyProc(e.ParentChanged.newParentInTree.Animator)
 
-proc init*(a: Animation) = discard
-proc initIfNeeded*(a: Animation) = discard
 
 proc currentValue*[T](a: Animation[T]): T =
   if a.duration != DurationZero:
@@ -88,6 +85,13 @@ proc currentValue*[T](a: Animation[T]): T =
     interpolate(a.a[], a.b[], f(a.currentTime[].inMicroseconds.float / a.duration.inMicroseconds.float))
   else:
     a.a[]
+
+
+# --- be compatible with makeLayout API ---
+proc init*(a: Animation) = discard
+proc initIfNeeded*(a: Animation) = discard
+proc markCompleted*(obj: Animation) = discard
+
 
 proc addChild*[T](obj: Uiobj, a: Animation[T]) =
   proc act =
