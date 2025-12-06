@@ -10,6 +10,8 @@
 /build-*
 /config.nims
 *.exe
+*.so
+*.dll
 /docs
 
 local_*

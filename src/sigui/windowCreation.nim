@@ -16,6 +16,7 @@ type
   UiWindow* = ref object of UiRoot
     siwinWindow*: Window
     clearColor*: Col
+    ctx*: DrawContextRef
 
 registerComponent UiWindow
 
@@ -68,7 +69,7 @@ proc setupEventsHandling*(win: UiWindow) =
     ,
     onRender: proc(e: RenderEvent) =
       win.recieve(BeforeDraw(sender: win))
-      win.draw(win.ctx)
+      win.draw(cast[DrawContext](win.ctx))
     ,
     onTick: proc(e: TickEvent) =
       win.onTick.emit(e)
@@ -76,7 +77,7 @@ proc setupEventsHandling*(win: UiWindow) =
     onResize: proc(e: ResizeEvent) =
       win.wh = e.size.vec2
       glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
-      win.ctx.updateDrawingAreaSize(e.size)
+      cast[DrawContext](win.ctx).updateDrawingAreaSize(e.size)
 
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,

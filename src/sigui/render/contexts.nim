@@ -13,7 +13,9 @@ type
     glid: GlUint
 
 
-  DrawContext* = ref object
+  DrawContextRef* = ref DrawContextObj
+  DrawContext* = ptr DrawContextObj
+  DrawContextObj* = object
     rect*: Shape
 
     shaders*: Table[int, RootRef]
@@ -285,7 +287,7 @@ proc transformation*(glpos: var Vec4, pos: var Vec2, size, px, ipos: Vec2, trans
   pos = vec2(ipos.x * size.x, ipos.y * size.y)
 
 
-proc newDrawContext*: DrawContext =
+proc newDrawContext*: DrawContextRef =
   new result
 
   result.rect = newShape(

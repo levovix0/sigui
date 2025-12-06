@@ -92,7 +92,6 @@ type
 
   UiRoot* = ref object of Uiobj
     onTick*: Event[TickEvent]
-    ctx*: DrawContext
 
 
   ChangableChild*[T] = object
