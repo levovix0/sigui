@@ -153,6 +153,7 @@ type
     bindProperty
     bindValue
     bindProc
+    bindBody
   
   HasEventHandler* = concept x
     x.eventHandler is EventHandler
@@ -987,9 +988,9 @@ proc bindingImpl*(
   ##     10.changed.connectTo o: updateC(this)  # yes, 10[] will considered property too
   ##     updateC(o)
   
-  let updateProc = genSym(nskProc)
-  let objCursor = genSym(nskLet)
-  let thisInProc = genSym(nskParam)
+  let updateProc = genSym(nskProc, "bindingUpdate")
+  let objCursor = genSym(nskLet, "objCursor")
+  let thisInProc = genSym(nskParam, "thisInProc")
   var alreadyBinded: seq[NimNode]
 
   proc impl(stmts: var seq[NimNode], body: NimNode) =
@@ -1046,6 +1047,8 @@ proc bindingImpl*(
               target
               thisInProc
               if ctor.kind != nnkEmpty: ctor else: body
+          of bindBody:
+            if ctor.kind != nnkEmpty: ctor else: body
       
       var stmts: seq[NimNode]
       (impl(stmts, body))
@@ -1087,6 +1090,10 @@ macro bindingValue*[T: HasEventHandler](obj: T, target: untyped, body: typed, in
 
 macro bindingProc*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =
   bindingImpl(obj, target, body, init, bindProc)
+
+
+macro binding*(obj: EventHandler | HasEventHandler, body: untyped, init: static bool = true): untyped =
+  result = bindingImpl(obj, nil, body, init, bindBody)
 
 
 
@@ -1193,22 +1200,25 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
           proc `updateProc`(`parent`: typeof(`this`), `this`: typeof(`prop`[])) =
             `updateBody`
-          
-          `updateProc`(`this`, `prop`[])
 
           connect(
             `prop`.changed, `this`.eventHandler,
             proc() = `updateProc`(`this`, `prop`[])
           )
 
+          emit(`prop`.changed)
+
           `updaters`
 
+    let makeLayoutCaptureSym = genSym(nskProc, "makeLayoutCapture")
+    makeLayoutCaptureSym.copyLineInfo(obj)
 
-    buildAst blockStmt:
+    result = buildAst blockStmt:
       genSym(nskLabel, "initializationBlock")
-      call:
-        lambda:
-          newEmptyNode(); newEmptyNode(); newEmptyNode()
+      stmtList:
+        procDef:
+          makeLayoutCaptureSym
+          newEmptyNode(); newEmptyNode()
           nnkFormalParams.newTree(
             newEmptyNode(),
             nnkIdentDefs.newTree(ident "parent", nnkCall.newTree(bindSym"typeof", parent), newEmptyNode()),
@@ -1314,6 +1324,12 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   let body = x[2]
                   impl(ident "this", alias, body, changableChild, changableChildUpdaters)
               
+
+              # binding: body
+              elif x.kind in {nnkCommand, nnkCall} and x.len == 2 and x[0] == ident("binding"):
+                let body = x[1]
+                nnkCall.newTree(bindSym("binding"), ident("this"), body)
+
 
               # prop := val
               # prop = binding: val
@@ -1525,11 +1541,13 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               else:
                 x
 
-        parent
-        obj
+        call:
+          makeLayoutCaptureSym
+          parent
+          obj
 
 
-  buildAst blockStmt:
+  result = buildAst blockStmt:
     genSym(nskLabel, "makeLayoutBlock")
     stmtList:
       letSection:

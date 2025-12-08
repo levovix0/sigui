@@ -46,6 +46,8 @@ type
     cursorObj*: ChangableChild[Uiobj]
     selectionObj*: ChangableChild[Uiobj]
     textObj*: ChangableChild[UiText]
+    mouseArea* {.cursor.}: MouseArea
+    textArea* {.cursor.}: ClipRect
 
     active*: Property[bool]
     text*: Property[string]
@@ -427,10 +429,11 @@ method init*(this: TextArea) =
 
     - MouseArea.new:
       this.fill parent
+      root.mouseArea = this
 
       this.onSignal.connectTo this, signal:
         if deactivatingUsingMouse in root.allowedInteractions and root.active[] and not this.hovered[]:
-          if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent and signal.WindowEvent.handled == false:
+          if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent:
             let e = (ref MouseButtonEvent)signal.WindowEvent.event
             if e.pressed: root.active[] = false
 
@@ -466,7 +469,10 @@ method init*(this: TextArea) =
           root.active[] = true
         
         if navigationUsingMouse in root.allowedInteractions and this.pressed[] and (not root.doubleClick):
-          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
+          root.cursorPos[] = characterAtPosition(
+            root.textObj{}.arrangement[],
+            this.mouseX[] + this.globalX[] - root.textObj{}.globalX[] - root.offset[]
+          )
 
           if selectingUsingMouse in root.allowedInteractions:
             if root.parentWindow.keyboard.pressed.containsShift():
@@ -478,7 +484,10 @@ method init*(this: TextArea) =
 
       this.mouseX.changed.connectTo root, mouseX:
         if navigationUsingMouse in root.allowedInteractions and this.pressed[]:
-          root.cursorPos[] = characterAtPosition(root.textObj{}.arrangement[], this.mouseX[] - root.offset[])
+          root.cursorPos[] = characterAtPosition(
+            root.textObj{}.arrangement[],
+            this.mouseX[] + this.globalX[] - root.textObj{}.globalX[] - root.offset[]
+          )
 
           if selectingUsingMouse in root.allowedInteractions:
             root.selectionEnd[] = root.cursorPos[]
@@ -486,16 +495,12 @@ method init*(this: TextArea) =
 
       - ClipRect.new as clip:
         this.fill parent
+        root.textArea = this
 
         - Uiobj.new as offset:
           this.fillVertical parent
           # w := root.textObj[].w[]
           x := root.offset[]
-          
-
-          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF"; r.fillVertical root; r.Uiobj):
-            x := min(root.selectionStartX[], root.selectionEndX[])
-            w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
 
 
           root.textObj --- UiText.new:
@@ -504,14 +509,27 @@ method init*(this: TextArea) =
               if root.text[].len == 0: ""  # workaround https://github.com/nim-lang/Nim/issues/24080
               else: root.text[]
             x = 1
+          
+
+          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF".color; r.Uiobj):
+            binding:
+              if root.textObj[] != nil: this.fillVertical root.textObj[]
+              else: this.fillVertical root
+
+            this.drawLayer = binding: before root.textObj[]
+            x := min(root.selectionStartX[], root.selectionEndX[])
+            w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
 
 
           root.bindingProperty selectionStartX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionStart[])
           root.bindingProperty selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
           
 
-          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.fillVertical root; r.w[] = 2; r.Uiobj):
+          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.w[] = 1; r.Uiobj):
             x := root.cursorX[]
+            binding:
+              if root.textObj[] != nil: this.fillVertical root.textObj[]
+              else: this.fillVertical root
 
             visibility = binding:
               if root.active[]:
@@ -534,8 +552,6 @@ method init*(this: TextArea) =
             
             this.x.changed.connectTo root: followCursor()
             root.followCursorOffset.changed.connectTo root: followCursor()
-    
-    this.newChildsObject = clip
 
 
 when isMainModule:
@@ -547,9 +563,14 @@ when isMainModule:
       let this = TextArea()
       this.makeLayout:
         text = "start text"
-        this.textObj[].font[] = typeface.withSize(24)
         w = 400
-        h = this.textObj[].h[].max(24)
+        h = 30
+        
+        + this.textObj[]:
+          font = typeface.withSize(24)
+        
+        + this.textArea:
+          this.fill(this.parent, 10, 5)
 
         - UiRectBorder.new:
           this.fill(parent, -1)
