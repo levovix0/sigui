@@ -56,6 +56,12 @@ type
     order: LayerOrder
     this {.cursor.}: Uiobj
 
+  SideOffsets* = object
+    left*: float32
+    right*: float32
+    top*: float32
+    bottom*: float32
+
 
   Uiobj* = ref UiobjObjType
   UiobjObjType = object of RootObj
@@ -460,20 +466,26 @@ proc applyAnchors*(obj: Uiobj) =
 
 proc left*(obj: Uiobj, margin: float32 = 0): Anchor =
   Anchor(obj: obj, offsetFrom: start, offset: margin)
+
 proc right*(obj: Uiobj, margin: float32 = 0): Anchor =
   Anchor(obj: obj, offsetFrom: `end`, offset: margin)
+
 proc top*(obj: Uiobj, margin: float32 = 0): Anchor =
   Anchor(obj: obj, offsetFrom: start, offset: margin)
+
 proc bottom*(obj: Uiobj, margin: float32 = 0): Anchor =
   Anchor(obj: obj, offsetFrom: `end`, offset: margin)
+
 proc center*(obj: Uiobj, margin: float32 = 0): Anchor =
   Anchor(obj: obj, offsetFrom: center, offset: margin)
+
 
 proc `+`*(a: Anchor, offset: float32): Anchor =
   Anchor(obj: a.obj, offsetFrom: a.offsetFrom, offset: a.offset + offset)
 
 proc `-`*(a: Anchor, offset: float32): Anchor =
   Anchor(obj: a.obj, offsetFrom: a.offsetFrom, offset: a.offset - offset)
+
 
 proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
   proc applyThisAnchors(env: pointer) {.nimcall.} =
@@ -523,6 +535,77 @@ anchorAssign top, true
 anchorAssign bottom, true
 anchorAssign centerX, false
 anchorAssign centerY, true
+
+
+
+proc left*(offset: float32): SideOffsets =
+  SideOffsets(left: offset)
+
+proc right*(offset: float32): SideOffsets =
+  SideOffsets(right: offset)
+
+proc top*(offset: float32): SideOffsets =
+  SideOffsets(top: offset)
+
+proc bottom*(offset: float32): SideOffsets =
+  SideOffsets(bottom: offset)
+
+proc horizontal*(offset: float32): SideOffsets =
+  SideOffsets(left: offset, right: offset)
+
+proc vertical*(offset: float32): SideOffsets =
+  SideOffsets(top: offset, bottom: offset)
+
+proc allSides*(offset: float32): SideOffsets =
+  SideOffsets(left: offset, right: offset, top: offset, bottom: offset)
+
+
+proc `+`*(a, b: SideOffsets): SideOffsets =
+  SideOffsets(
+    left:   a.left + b.left,
+    right:  a.right + b.right,
+    top:    a.top + b.top,
+    bottom: a.bottom + b.bottom
+  )
+  
+proc `-`*(a, b: SideOffsets): SideOffsets =
+  SideOffsets(
+    left:   a.left - b.left,
+    right:  a.right - b.right,
+    top:    a.top - b.top,
+    bottom: a.bottom - b.bottom
+  )
+  
+proc `-`*(a: SideOffsets): SideOffsets =
+  SideOffsets(
+    left:   -a.left,
+    right:  -a.right,
+    top:    -a.top,
+    bottom: -a.bottom
+  )
+
+
+proc margin*(obj: Uiobj): SideOffsets =
+  SideOffsets(
+    left:    obj.anchors.left.offset,
+    right:  -obj.anchors.right.offset,
+    top:     obj.anchors.top.offset,
+    bottom: -obj.anchors.bottom.offset,
+  )
+
+proc `margin=`*(obj: Uiobj, v: SideOffsets) =
+  obj.anchors.left.offset   =  v.left
+  obj.anchors.right.offset  = -v.right
+  obj.anchors.top.offset    =  v.top
+  obj.anchors.bottom.offset = -v.bottom
+  obj.applyAnchors()
+
+proc `margin=`*(obj: Uiobj, v: float32) =
+  obj.anchors.left.offset   =  v
+  obj.anchors.right.offset  = -v
+  obj.anchors.top.offset    =  v
+  obj.anchors.bottom.offset = -v
+  obj.applyAnchors()
 
 
 proc spreadGlobalXChange(obj: Uiobj, delta: float32) =
@@ -1277,6 +1360,18 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 let ctor = x[2]
                 discard checkCtor ctor
                 changableImpl(to, ctor, (if x.len == 3: nil else: x[3]))
+              
+
+              # --- ctor: body
+              elif (
+                x.kind == nnkPrefix and x.len == 3 and x[0] == ident("---")
+              ):
+                let ctor = x[1]
+                let anonimusChangableChild = nskVar.genSym("anonimusChangableChild")
+                discard checkCtor ctor
+                quote do:
+                  var `anonimusChangableChild`: ChangableChild[typeof(`ctor`)]
+                changableImpl(anonimusChangableChild, ctor, x[2])
 
               
               # <--- ctor: body
@@ -1367,6 +1462,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               elif (
                 x.kind == nnkAsgn and x[0].kind == nnkIdent
               ):
+                # todo: add setters (`prop=`) for each property and unify syntax for procs, field and properties on this
                 let name = x[0]
                 let val = x[1]
 
@@ -1694,7 +1790,7 @@ proc formatChilds(this: Uiobj): string =
     var s = $x
     s = s.indent(2)
     s[0] = '-'
-    result.add s.replace("  -", "- -")
+    result.add s.replace("  -", "- -")  # todo: optimize
 
 
 proc `$`*(this: Uiobj): string =
@@ -1703,7 +1799,7 @@ proc `$`*(this: Uiobj): string =
   result.add this.formatFields().join("\n").indent(2)
   if this.childs.len > 0:
     result.add "\n\n"
-    result.add this.formatChilds().indent(2)
+    result.add this.formatChilds()
 
 
 macro declareComponentTypeName(t: typed) =

@@ -54,10 +54,11 @@ test "anchors":
       left = parent.left + margin
       top = rect_tl.bottom + margin
 
-      - text "left = parent.left\nright = parent.right\n(fillHorizontal parent)":
+      - text "left = parent.left\nright = parent.right\n(fillHorizontal parent)\nmargin = 10":
         # hAlign = CenterAlign
         left = parent.left
         right = parent.right
+        this.margin = 10
     
     - UiRectBorder.new as rect_mm:
       left = rect_ml.right + margin

@@ -42,7 +42,7 @@ type
       {ScrollAreaSetting.low..ScrollAreaSetting.high}
     ).property
 
-    verticalScrollbarObj*: ChangableChild[Uiobj]
+    verticalScrollbar*: ChangableChild[Uiobj]
       ## if changed, properties below can be attached by you to new object
     verticalScrollbarOpacity*: Property[float]
       ## has default animation
@@ -52,7 +52,7 @@ type
     verticalScrollBarLastShown*: Property[Time]
     verticalScrollBarHideDelay*: Property[Duration] = initDuration(milliseconds = 1000).property
 
-    horizontalScrollbarObj*: ChangableChild[Uiobj]
+    horizontalScrollbar*: ChangableChild[Uiobj]
       ## if changed, properties below can be attached by you to new object
     horizontalScrollbarOpacity*: Property[float]
       ## has default animation
@@ -62,12 +62,18 @@ type
     horizontalScrollBarLastShown*: Property[Time]
     horizontalScrollBarHideDelay*: Property[Duration] = initDuration(milliseconds = 1000).property
 
+    # todo: padding
+
     verticalScrollBarShouldBeVisible: Property[bool]
     horizontalScrollBarShouldBeVisible: Property[bool]
     onTick: tuple[p: Property[bool]]
 
 
 registerComponent ScrollArea
+
+
+template verticalScrollbarObj*(this: ScrollArea): var ChangableChild[Uiobj] {.deprecated: "use verticalScrollbar (without -Obj) instead".} = this.verticalScrollbar
+template horizontalScrollbarObj*(this: ScrollArea): var ChangableChild[Uiobj] {.deprecated: "use horizontalScrollbar (without -Obj) instead".} = this.horizontalScrollbar
 
 
 proc updateScrollH(this: ScrollArea) =
@@ -252,7 +258,7 @@ method init*(this: ScrollArea) =
 
       w = 5
 
-      scrollArea.verticalScrollbarObj --- defaultVerticalScrollBar.Uiobj:
+      scrollArea.verticalScrollbar --- defaultVerticalScrollBar.Uiobj:
         w = binding:
           if (
             shrinkScrollBarWhenNotHovered in scrollArea.settings[] and
@@ -271,7 +277,7 @@ method init*(this: ScrollArea) =
         - this.w.transition(0.2's):
           easing = outSquareEasing
       
-      makeScrollBar3(this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollBarObj, verticalScrollOverFit, verticalScrollSpeed)
+      makeScrollBar3(this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbar, verticalScrollOverFit, verticalScrollSpeed)
     
 
     - scrollArea.horizontalScrollBarArea:
@@ -281,7 +287,7 @@ method init*(this: ScrollArea) =
 
       h = 5
 
-      scrollArea.horizontalScrollbarObj --- defaultHorizontalScrollBar.Uiobj:
+      scrollArea.horizontalScrollbar --- defaultHorizontalScrollBar.Uiobj:
         h = binding:
           if (
             shrinkScrollBarWhenNotHovered in scrollArea.settings[] and
@@ -300,7 +306,7 @@ method init*(this: ScrollArea) =
         - this.h.transition(0.2's):
           easing = outSquareEasing
       
-      makeScrollBar3(this, mouseX, scrollX, targetX, scrollW, x, w, horizontalScrollbarObj, horizontalScrollOverFit, horizontalScrollSpeed)
+      makeScrollBar3(this, mouseX, scrollX, targetX, scrollW, x, w, horizontalScrollbar, horizontalScrollOverFit, horizontalScrollSpeed)
 
 
     this.newChildsObject = container

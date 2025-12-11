@@ -45,7 +45,7 @@ type
   TextArea* = ref object of Uiobj
     cursorObj*: ChangableChild[Uiobj]
     selectionObj*: ChangableChild[Uiobj]
-    textObj*: ChangableChild[UiText]
+    textObj* {.cursor.}: UiText
     mouseArea* {.cursor.}: MouseArea
     textArea* {.cursor.}: ClipRect
 
@@ -470,8 +470,8 @@ method init*(this: TextArea) =
         
         if navigationUsingMouse in root.allowedInteractions and this.pressed[] and (not root.doubleClick):
           root.cursorPos[] = characterAtPosition(
-            root.textObj{}.arrangement[],
-            this.mouseX[] + this.globalX[] - root.textObj{}.globalX[] - root.offset[]
+            root.textObj.arrangement[],
+            this.mouseX[] + this.globalX[] - root.textObj.globalX[] - root.offset[]
           )
 
           if selectingUsingMouse in root.allowedInteractions:
@@ -485,8 +485,8 @@ method init*(this: TextArea) =
       this.mouseX.changed.connectTo root, mouseX:
         if navigationUsingMouse in root.allowedInteractions and this.pressed[]:
           root.cursorPos[] = characterAtPosition(
-            root.textObj{}.arrangement[],
-            this.mouseX[] + this.globalX[] - root.textObj{}.globalX[] - root.offset[]
+            root.textObj.arrangement[],
+            this.mouseX[] + this.globalX[] - root.textObj.globalX[] - root.offset[]
           )
 
           if selectingUsingMouse in root.allowedInteractions:
@@ -503,33 +503,39 @@ method init*(this: TextArea) =
           x := root.offset[]
 
 
-          root.textObj --- UiText.new:
+          root.textObj = UiText.new
+          
+
+          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF".color; r.Uiobj):
+            binding:
+              if root.textObj.h[] != 0 or root.textObj.font[] == nil:
+                this.fillVertical root.textObj
+              else:
+                this.fillVertical(root.textObj, -(root.textObj.font[].size / 2))
+
+            x := min(root.selectionStartX[], root.selectionEndX[])
+            w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
+
+
+          - root.textObj:
             this.centerY = parent.center
             text = binding:
               if root.text[].len == 0: ""  # workaround https://github.com/nim-lang/Nim/issues/24080
               else: root.text[]
             x = 1
-          
-
-          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF".color; r.Uiobj):
-            binding:
-              if root.textObj[] != nil: this.fillVertical root.textObj[]
-              else: this.fillVertical root
-
-            this.drawLayer = binding: before root.textObj[]
-            x := min(root.selectionStartX[], root.selectionEndX[])
-            w := max(root.selectionStartX[], root.selectionEndX[]) - min(root.selectionStartX[], root.selectionEndX[])
 
 
-          root.bindingProperty selectionStartX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionStart[])
-          root.bindingProperty selectionEndX: positionOfCharacter(root.textObj{}.arrangement[], root.selectionEnd[])
+          root.bindingProperty selectionStartX: positionOfCharacter(root.textObj.arrangement[], root.selectionStart[])
+          root.bindingProperty selectionEndX: positionOfCharacter(root.textObj.arrangement[], root.selectionEnd[])
           
 
           root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.w[] = 1; r.Uiobj):
             x := root.cursorX[]
             binding:
-              if root.textObj[] != nil: this.fillVertical root.textObj[]
-              else: this.fillVertical root
+              if root.textObj.h[] != 0 or root.textObj.font[] == nil:
+                this.fillVertical root.textObj
+              else:
+                this.fillVertical(root.textObj, -(root.textObj.font[].size / 2))
 
             visibility = binding:
               if root.active[]:
@@ -541,7 +547,7 @@ method init*(this: TextArea) =
                 else: Visibility.visible
               else: Visibility.hiddenTree
 
-            root.bindingProperty cursorX: positionOfCharacter(root.textObj{}.arrangement[], root.cursorPos[])
+            root.bindingProperty cursorX: positionOfCharacter(root.textObj.arrangement[], root.cursorPos[])
             
             proc followCursor =
               let x = this.x[] + offset.x[]
@@ -566,7 +572,7 @@ when isMainModule:
         w = 400
         h = 30
         
-        + this.textObj[]:
+        + this.textObj:
           font = typeface.withSize(24)
         
         + this.textArea:

@@ -54,7 +54,7 @@ test "layout benchmark":
         this.fill(parent, 10)
         this.top = recreate.bottom + 10
 
-        this.verticalScrollbarObj[].UiRect.color[] = "808080".color
+        this.verticalScrollbar[].UiRect.color[] = "808080".color
 
         manyButtons --- Layout.new:
           if generate:

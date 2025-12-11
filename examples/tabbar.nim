@@ -73,10 +73,9 @@ method init*(this: TabBar) =
     var tabWidth: Property[float32]
     this.bindingValue tabWidth[]: this.w[] / this.tabs[].len.float32
 
-    var tabs: ChangableChild[Uiobj]
-
-    tabs --- Uiobj.new:
+    --- Uiobj.new:
       <--- Uiobj.new: root.tabs[]
+      
       this.fill(parent)
 
       for i, name in root.tabs[]:
@@ -122,10 +121,9 @@ test "tab bar":
 
         selectedTab = 0
 
-      var page: ChangableChild[Uiobj]
-
-      page --- Uiobj.new:
+      --- Uiobj.new:
         <--- Uiobj.new: tabbar.selectedTab[]
+
         this.fill(parent)
         top = tabbar.bottom
 

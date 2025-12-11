@@ -518,9 +518,8 @@ elementsObj --- Layout.new:
 The `<--- ctor: prop[]; event[]; ...` syntax can be used to re-build tree based on property changes
 ```nim
 var elements = ["first", "second"].property
-var elementsObj: ChangableChild[Layout]
 
-elementsObj --- Layout.new:
+--- Layout.new:
   <--- Layout.new: elements[]
 
   # ...
