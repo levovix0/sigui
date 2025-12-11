@@ -41,11 +41,12 @@ type
     assumeChildsClipped*: Property[bool] = true.property
       ## for optimization, if true, assume for all children, that every child's tree is contained in that child (xy >= 0, wh <= parent wh)
 
+    padding*: Property[SideOffsets]
+
     lockFromReposition: bool = true
     inRepositionProcess: bool
-
-    # todo: padding
   
+
   InLayout* = ref object of Uiobj
     align*: Property[LayoutAlignment]
     fillContainer*: Property[bool]
@@ -160,24 +161,26 @@ method recieve*(this: Layout, signal: Signal) =
 
 
 proc doReposition(this: Layout) =
-  template makeGetAndSet(get, set, horz, vert) =
+  template makeGetAndSet(get, set, horz, vert, paddingHorz, paddingVert) =
     proc get(child: Uiobj): float32 =
       case this.orientation[]
-      of horizontal: child.horz[]
-      of vertical: child.vert[]
+      of horizontal: child.horz[] - paddingHorz
+      of vertical: child.vert[] - paddingVert
 
     proc set(child: Uiobj, v: float32) =
       case this.orientation[]
-      of horizontal: child.horz[] = v
-      of vertical: child.vert[] = v
+      of horizontal: child.horz[] = v + paddingHorz
+      of vertical: child.vert[] = v + paddingVert
 
-  makeGetAndSet(get_x, set_x, x, y)
-  makeGetAndSet(get_y, set_y, y, x)
-  makeGetAndSet(get_w, set_w, w, h)
-  makeGetAndSet(get_h, set_h, h, w)
+  makeGetAndSet(get_x, set_x, x, y, this.padding[].left, this.padding[].top)
+  makeGetAndSet(get_y, set_y, y, x, this.padding[].top, this.padding[].left)
+  makeGetAndSet(get_w, set_w, w, h, 0, 0)
+  makeGetAndSet(get_h, set_h, h, w, 0, 0)
+  makeGetAndSet(get_this_w, set_this_w, w, h, this.padding[].left + this.padding[].right, this.padding[].top + this.padding[].bottom)
+  makeGetAndSet(get_this_h, set_this_h, h, w, this.padding[].top + this.padding[].bottom, this.padding[].left + this.padding[].right)
 
   var rows: seq[tuple[childs: seq[Uiobj]; freeSpace, spaceBetween, h: float32]] =
-    @[(@[], this.get_w, 0'f32, 0'f32)]
+    @[(@[], this.get_this_w, 0'f32, 0'f32)]
 
   block:
     var
@@ -208,7 +211,7 @@ proc doReposition(this: Layout) =
         i = 1
         x = child.get_w
         h = 0
-        rows.add (@[], this.get_w, 0'f32, 0'f32)
+        rows.add (@[], this.get_this_w, 0'f32, 0'f32)
       
       rows[^1].childs.add child
       if not(child of InLayout and child.InLayout.fillContainer[]):
@@ -218,7 +221,7 @@ proc doReposition(this: Layout) =
       shouldMakeGap = not(child of LayoutGap)
     
     if not this.wrapHugContent[]:
-      h = this.get_h
+      h = this.get_this_h
     
     rows[^1].h = h
   
@@ -235,7 +238,7 @@ proc doReposition(this: Layout) =
     
     let growSpace =
       if x.childs.len > 1: x.spaceBetween - this.gap[]
-      elif x.childs.len > 0: this.get_w - x.childs[0].get_w
+      elif x.childs.len > 0: this.get_this_w - x.childs[0].get_w
       else: 0
     
     if growSpace > 0:
@@ -310,9 +313,9 @@ proc doReposition(this: Layout) =
         if fillContainer:
           if child of InLayout:
             for child in child.childs:
-              child.set_h(this.get_h)
+              child.set_h(this.get_this_h)
           else:
-            child.set_h(this.get_h)
+            child.set_h(this.get_this_h)
 
           child.set_y(0)
 
@@ -336,7 +339,7 @@ proc doReposition(this: Layout) =
       var maxX = 0'f32
       for row in rows:
         maxX = max(maxX, row.childs[^1].get_x + row.childs[^1].get_w)
-      this.set_w(maxX)
+      this.set_this_w(maxX)
     else:
       discard
 
@@ -345,7 +348,7 @@ proc doReposition(this: Layout) =
       var maxY = 0'f32
       for row in rows:
         maxY = max(maxY, row.childs[^1].get_y + row.childs[^1].get_h)
-      this.set_h(maxY)
+      this.set_this_h(maxY)
     else:
       discard
 
@@ -442,6 +445,8 @@ method init*(this: Layout) =
   doRepositionWhenChanged wrap
   doRepositionWhenChanged elementsBeforeWrap
   doRepositionWhenChanged lengthBeforeWrap
+  
+  doRepositionWhenChanged padding
 
 
 

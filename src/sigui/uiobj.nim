@@ -584,6 +584,12 @@ proc `-`*(a: SideOffsets): SideOffsets =
     bottom: -a.bottom
   )
 
+proc w*(offsets: SideOffsets): float32 =
+  offsets.left + offsets.right
+
+proc h*(offsets: SideOffsets): float32 =
+  offsets.top + offsets.bottom
+
 
 proc margin*(obj: Uiobj): SideOffsets =
   SideOffsets(

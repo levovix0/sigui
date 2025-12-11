@@ -3,6 +3,7 @@ import ./[uibase, events {.all.}, animations, mouseArea]
 
 type
   ScrollAreaSetting* = enum
+    enableVerticalScroll
     enableHorizontalScroll
     
     hasScrollBar
@@ -62,7 +63,9 @@ type
     horizontalScrollBarLastShown*: Property[Time]
     horizontalScrollBarHideDelay*: Property[Duration] = initDuration(milliseconds = 1000).property
 
-    # todo: padding
+    padding*: Property[SideOffsets]
+    
+    radius*: Property[float]
 
     verticalScrollBarShouldBeVisible: Property[bool]
     horizontalScrollBarShouldBeVisible: Property[bool]
@@ -74,6 +77,10 @@ registerComponent ScrollArea
 
 template verticalScrollbarObj*(this: ScrollArea): var ChangableChild[Uiobj] {.deprecated: "use verticalScrollbar (without -Obj) instead".} = this.verticalScrollbar
 template horizontalScrollbarObj*(this: ScrollArea): var ChangableChild[Uiobj] {.deprecated: "use horizontalScrollbar (without -Obj) instead".} = this.horizontalScrollbar
+
+
+proc `padding=`*(this: ScrollArea, v: float32) =
+  this.padding[] = v.allSides
 
 
 proc updateScrollH(this: ScrollArea) =
@@ -236,6 +243,7 @@ method init*(this: ScrollArea) =
 
     - ClipRect.new:
       this.fill parent
+      radius = binding: root.radius[]
 
       - MouseArea.new:
         this.fill parent
@@ -243,12 +251,20 @@ method init*(this: ScrollArea) =
         this.scrolled.connectTo root, xy:
           let xy = if this.parentWindow.keyboard.pressed.containsShift(): vec2(xy.y, xy.x) else: xy
           if enableHorizontalScroll in root.settings[]:
-            root.targetX[] = (root.targetX[] + xy.x * root.horizontalScrollSpeed).max(0).min((root.scrollW[] - root.w[]).max(0))
-          root.targetY[] = (root.targetY[] + xy.y * root.verticalScrollSpeed).max(0).min((root.scrollH[] - root.h[]).max(0))
+            root.targetX[] = (root.targetX[] + xy.x * root.horizontalScrollSpeed).clamp(
+              0,
+              (root.scrollW[] - (root.w[] - root.padding[].left - root.padding[].right)).max(0)
+            )
+
+          if enableVerticalScroll in root.settings[]:
+            root.targetY[] = (root.targetY[] + xy.y * root.verticalScrollSpeed).clamp(
+              0,
+              (root.scrollH[] - (root.h[] - root.padding[].top - root.padding[].bottom)).max(0)
+            )
 
         - Uiobj.new as container:
-          x := -root.scrollX[]
-          y := -root.scrollY[]
+          x := -root.scrollX[] + root.padding[].left
+          y := -root.scrollY[] + root.padding[].top
     
 
     - scrollArea.verticalScrollBarArea:
@@ -313,13 +329,13 @@ method init*(this: ScrollArea) =
 
 
   template makeScrollBar2(
-    makeSbVisibleIfNeeded, sbShouldBeVisible, sbLastShown, sbArea, sbOpacity, scrollY, enableHorizontalScroll
+    makeSbVisibleIfNeeded, sbShouldBeVisible, sbLastShown, sbArea, sbOpacity, scrollY, scrollEnabled
   ) =
     proc makeSbVisibleIfNeeded =
       if (
         hasScrollBar in scrollArea.settings[] and
         showScrollBar in scrollArea.settings[] and
-        enableHorizontalScroll
+        scrollEnabled
       ):
         scrollArea.sbShouldBeVisible[] = true
         scrollArea.sbLastShown[] = getTime()
@@ -350,7 +366,7 @@ method init*(this: ScrollArea) =
   makeScrollBar2(
     makeVerticalScrollBarVisibleIfNeeded, verticalScrollBarShouldBeVisible,
     verticalScrollBarLastShown, verticalScrollBarArea, verticalScrollbarOpacity, scrollY,
-    true
+    enableVerticalScroll in scrollArea.settings[]
   )
 
   makeScrollBar2(
@@ -364,17 +380,18 @@ method init*(this: ScrollArea) =
 when isMainModule:
   import ./[layouts, styles]
 
-  preview(clearColor = color(1, 1, 1), margin = 20,
+  preview(clearColor = color(1, 1, 1), margin = 10,
     withWindow = proc: Uiobj =
       let this = ScrollArea()
       this.makeLayout:
         w = 200
         h = 200
+        padding = 10.allSides
 
         - Styler.new:
           style = makeStyle:
             UiRect:
-              w = 190
+              w = 180
               h = 100
 
           - Layout.new:

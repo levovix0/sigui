@@ -14,15 +14,15 @@ makeLayout win:
     - ScrollArea.new:
       this.fill parent
 
-      this.horizontalScrollbarObj[].UiRect.color[] = "202020".color
+      this.horizontalScrollbar[].UiRect.color[] = "202020".color
+      radius = 5
 
       - Layout.col:
-        this.fillHorizontal parent, 10
+        this.fillHorizontal parent
+        padding = 10.allSides
         gap = 10
         align = center
         wrapHugContent = false
-
-        - LayoutGap.new: h = 10
 
         for i in 0..15:
           if i in [5, 11]:
@@ -31,8 +31,8 @@ makeLayout win:
           - UiRect.new:
             radius = 10
             w = binding:
-              if i in [3, 7]: parent.w[] * 0.9
-              else: parent.w[]
+              if i in [3, 7]: (parent.w[] - parent.padding[].w) * 0.9
+              else: parent.w[] - parent.padding[].w
             h =
               if i in [2, 8]: 120
               else: 50
@@ -49,8 +49,6 @@ makeLayout win:
             
             - this.color.transition(0.2's):
               easing = outSquareEasing
-        
-        - LayoutGap.new: h = 10
 
 
 
