@@ -151,7 +151,8 @@ method recieve*(this: Layout, signal: Signal) =
   this.onSignal.emit signal
 
   if signal of SubtreeSignal:
-    for x in this.potentially_visible_childs:
+    let childs = this.potentially_visible_childs.toSeq()
+    for x in childs:
       x.recieve(signal)
   
   if signal of UptreeSignal:
@@ -347,7 +348,8 @@ proc doReposition(this: Layout) =
     if this.childs.len > 0:
       var maxY = 0'f32
       for row in rows:
-        maxY = max(maxY, row.childs[^1].get_y + row.childs[^1].get_h)
+        for child in row.childs:
+          maxY = max(maxY, child.get_y + child.get_h)
       this.set_this_h(maxY)
     else:
       discard

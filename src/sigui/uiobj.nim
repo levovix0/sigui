@@ -84,6 +84,7 @@ type
     newChildsObject*: Uiobj
 
     initialized*: bool
+    deteached*: bool
     root* {.cursor.}: UiRoot
     
     anchors: Anchors
@@ -631,18 +632,27 @@ proc spreadGlobalYChange(obj: Uiobj, delta: float32) =
 #----- receiving signals -----
 
 method recieve*(obj: Uiobj, signal: Signal) {.base.} =
+  # todo: find more optimized way to iterate over possibly deleting elements
+  
   if signal of AttachedToRoot:
     obj.root = signal.AttachedToRoot.root
 
   obj.onSignal.emit signal
 
   if signal of SubtreeReverseSignal:
-    for i in countdown(obj.childs.high, 0):
-      obj.childs[i].recieve(signal)
+    var i = obj.childs.high
+    while i >= 0:
+      if i < obj.childs.len:
+        if not obj.childs[i].deteached:
+          obj.childs[i].recieve(signal)
+      dec i
 
   elif signal of SubtreeSignal:
-    for x in obj.childs:
-      x.recieve(signal)
+    var i = 0
+    while i < obj.childs.len:
+      if not obj.childs[i].deteached:
+        obj.childs[i].recieve(signal)
+      inc i
   
   if signal of UptreeSignal:
     if obj.parent != nil:
@@ -889,6 +899,7 @@ proc deteachStatic[T: Uiobj](this: T) =
   if this == nil: return
 
   this.drawLayer = nil
+  this.deteached = true
 
   disconnect this.eventHandler
 
@@ -1744,7 +1755,7 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
   for k, v in this.fieldPairs:
     when k in [
       "eventHandler", "parent", "childs", "x", "y", "w", "h", "globalX", "globalY",
-      "initialized", "anchors", "drawLayering"
+      "initialized", "anchors", "drawLayering", "deteached"
     ] or k.startsWith("m_"):
       discard
     

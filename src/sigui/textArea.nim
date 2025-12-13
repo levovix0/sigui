@@ -241,13 +241,13 @@ method recieve*(this: TextArea, signal: Signal) =
           if copyingUsingCtrlC in this.allowedInteractions:
             if window.keyboard.pressed.containsControl():  # when crl+c pressed and copyingUsingCtrlC enabled
               # copy selected text
-              if this.selectionStart[] != this.selectionEnd[]:
+              if this.selectionStart[] != this.selectionEnd[]:  # some text selected
                 this.parentWindow.clipboard.text = this.selectedText
-              else:
+              else:  # no text selected (should behave like all text is selected)
                 this.parentWindow.clipboard.text = this.text[]
         
         of Key.v:
-          if pastingUsingCtrlV in this.allowedInteractions:
+          if pastingUsingCtrlV in this.allowedInteractions and textInput in this.allowedInteractions:
             if window.keyboard.pressed.containsControl():  # when crl+v pressed and pastingUsingCtrlV enabled
               # paste selected text
               if savingUndoStates in this.allowedInteractions:
@@ -266,11 +266,19 @@ method recieve*(this: TextArea, signal: Signal) =
           if cuttingUsingCtrlX in this.allowedInteractions:
             if window.keyboard.pressed.containsControl():  # when crl+x pressed and cuttingUsingCtrlX enabled
               # cut selected text
-              if this.selectionStart[] != this.selectionEnd[]:
-                if savingUndoStates in this.allowedInteractions:
+              if this.selectionStart[] != this.selectionEnd[]:  # some text selected
+                if savingUndoStates in this.allowedInteractions and textInput in this.allowedInteractions:
                   this.pushState()
                 this.parentWindow.clipboard.text = this.selectedText
-                this.eraseSelectedText()
+                if textInput in this.allowedInteractions:
+                  this.eraseSelectedText()
+              
+              elif this.text[] != "":  # no text selected (should behave like all text is selected)
+                if savingUndoStates in this.allowedInteractions and textInput in this.allowedInteractions:
+                  this.pushState()
+                this.parentWindow.clipboard.text = this.text[]
+                if textInput in this.allowedInteractions:
+                  this.text[] = ""
         
         of Key.z:
           if undoingUsingCtrlZ in this.allowedInteractions:
