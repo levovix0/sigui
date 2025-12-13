@@ -182,6 +182,8 @@ proc doReposition(this: Layout) =
 
   var rows: seq[tuple[childs: seq[Uiobj]; freeSpace, spaceBetween, h: float32]] =
     @[(@[], this.get_this_w, 0'f32, 0'f32)]
+  
+  # todo: element bigger than lengthBeforeWrap causes empty row, there should be at least one element in a row
 
   block:
     var

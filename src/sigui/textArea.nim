@@ -479,7 +479,7 @@ method init*(this: TextArea) =
         if navigationUsingMouse in root.allowedInteractions and this.pressed[] and (not root.doubleClick):
           root.cursorPos[] = characterAtPosition(
             root.textObj.arrangement[],
-            this.mouseX[] + this.globalX[] - root.textObj.globalX[] - root.offset[]
+            this.mouseX[] + this.globalX[] - root.textArea.globalX[] - root.offset[]
           )
 
           if selectingUsingMouse in root.allowedInteractions:
@@ -494,7 +494,7 @@ method init*(this: TextArea) =
         if navigationUsingMouse in root.allowedInteractions and this.pressed[]:
           root.cursorPos[] = characterAtPosition(
             root.textObj.arrangement[],
-            this.mouseX[] + this.globalX[] - root.textObj.globalX[] - root.offset[]
+            this.mouseX[] + this.globalX[] - root.textArea.globalX[] - root.offset[]
           )
 
           if selectingUsingMouse in root.allowedInteractions:
