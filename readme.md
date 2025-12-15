@@ -74,7 +74,7 @@ win.makeLayout:
       this.fill(parent)
       on this.mouseDownAndUpInside:
         state[] = (state[] + 1) mod 3
-      this.cursor = (ref Cursor)(kind: builtin, builtin: pointingHand)
+      this.cursor = BuiltinCursor.pointingHand
 
 run win
 ```

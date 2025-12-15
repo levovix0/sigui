@@ -51,6 +51,7 @@ type
 
     active*: Property[bool]
     text*: Property[string]
+    textEdited*: Event[void]
     cursorPos*: CustomProperty[int]
     blinking*: Blinking
     selectionStart*, selectionEnd*: CustomProperty[int]
@@ -261,6 +262,7 @@ method recieve*(this: TextArea, signal: Signal) =
               this.cursorPos[] = this.cursorPos[] + ct.runeLen
               this.selectionStart[] = this.cursorPos[]
               this.selectionEnd[] = this.cursorPos[]
+              this.textEdited.emit()
 
         of Key.x:
           if cuttingUsingCtrlX in this.allowedInteractions:
@@ -272,6 +274,7 @@ method recieve*(this: TextArea, signal: Signal) =
                 this.parentWindow.clipboard.text = this.selectedText
                 if textInput in this.allowedInteractions:
                   this.eraseSelectedText()
+                  this.textEdited.emit()
               
               elif this.text[] != "":  # no text selected (should behave like all text is selected)
                 if savingUndoStates in this.allowedInteractions and textInput in this.allowedInteractions:
@@ -279,6 +282,7 @@ method recieve*(this: TextArea, signal: Signal) =
                 this.parentWindow.clipboard.text = this.text[]
                 if textInput in this.allowedInteractions:
                   this.text[] = ""
+                  this.textEdited.emit()
         
         of Key.z:
           if undoingUsingCtrlZ in this.allowedInteractions:
@@ -287,6 +291,7 @@ method recieve*(this: TextArea, signal: Signal) =
                 this.redo()
               else:
                 this.undo()
+              this.textEdited.emit()
 
         else: discard
 
@@ -314,6 +319,7 @@ method recieve*(this: TextArea, signal: Signal) =
                   this.text[].runeOffset(this.cursorPos[])
               this.text{}.delete offset..(offset2 - 1)
               this.text.changed.emit()
+              this.textEdited.emit()
               this.cursorPos[] = i
 
             else:
@@ -322,6 +328,7 @@ method recieve*(this: TextArea, signal: Signal) =
               let offset = this.text[].runeOffset(this.cursorPos[] - 1)
               this.text{}.delete offset..(offset + this.text[].runeLenAt(offset) - 1)
               this.text.changed.emit()
+              this.textEdited.emit()
               this.cursorPos[] = i
 
         of Key.del:
@@ -343,12 +350,14 @@ method recieve*(this: TextArea, signal: Signal) =
                   this.text[].runeOffset(i)
               this.text{}.delete offset..(offset2 - 1)
               this.text.changed.emit()
+              this.textEdited.emit()
 
             else:
               # delete single letter
               let offset = this.text[].runeOffset(this.cursorPos[])
               this.text{}.delete offset..(offset + this.text[].runeLenAt(offset) - 1)
               this.text.changed.emit()
+              this.textEdited.emit()
         
         else: discard
     
@@ -372,9 +381,11 @@ method recieve*(this: TextArea, signal: Signal) =
         
         if this.cursorPos[] == this.text[].runeLen:
           this.text[] = this.text[] & e.text
+          this.textEdited.emit()
         else:
           this.text{}.insert e.text, this.text[].runeOffset(this.cursorPos[])
           this.text.changed.emit()
+          this.textEdited.emit()
         
         this.cursorPos[] = this.cursorPos[] + e.text.runeLen
         signal.WindowEvent.handled = true
@@ -438,6 +449,8 @@ method init*(this: TextArea) =
     - MouseArea.new:
       this.fill parent
       root.mouseArea = this
+
+      cursor = BuiltinCursor.text
 
       this.onSignal.connectTo this, signal:
         if deactivatingUsingMouse in root.allowedInteractions and root.active[] and not this.hovered[]:

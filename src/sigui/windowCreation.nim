@@ -3,7 +3,7 @@
 
 import pkg/siwin/[windowOpengl, platforms]
 import pkg/siwin/platforms/any/window
-import pkg/[vmath, opengl]
+import pkg/[chroma, vmath, opengl]
 import ./[uiobj, events]
 import ./render/[contexts]
 
@@ -15,7 +15,7 @@ when defined(sigui_debug_useLogging):
 type
   UiWindow* = ref object of UiRoot
     siwinWindow*: Window
-    clearColor*: Col
+    clearColor*: Color = color(0, 0, 0)
     ctx*: DrawContextRef
 
 registerComponent UiWindow
@@ -141,7 +141,11 @@ proc newUiWindow*(
   class = "", # window class (used in x11), equals to title if not specified
 ): UiWindow =
   if siwinGlobals == nil:
-    siwinGlobals = newSiwinGlobals()
+    let preferedPlatform =
+      when defined(linux) and defined(sigui_prefer_x11): Platform.x11
+      else: defaultPreferedPlatform()
+
+    siwinGlobals = newSiwinGlobals(preferedPlatform)
 
   siwinGlobals.newOpenglWindow(
     size,

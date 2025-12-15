@@ -26,6 +26,6 @@ win.makeLayout:
       on this.mouseDownAndUpInside:
         state[] = (state[] + 1) mod 3
       
-      cursor = (ref Cursor)(kind: builtin, builtin: BuiltinCursor.pointingHand)
+      cursor = BuiltinCursor.pointingHand
 
 run win

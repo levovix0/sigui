@@ -15,3 +15,7 @@ export
 export `size=`, size
 
 
+converter toRefCursor*(x: BuiltinCursor): ref Cursor =
+  (ref Cursor)(kind: builtin, builtin: x)
+
+
