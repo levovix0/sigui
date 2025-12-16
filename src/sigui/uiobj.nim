@@ -378,6 +378,24 @@ proc `$`*(this: Uiobj): string
 
 #----- Events connection -----
 
+
+template connectTo*[T](s: var Event[T], eh: EventHandler, body: untyped) =
+  connect s, eh, proc(e {.inject.}: T) =
+    body
+
+template connectTo*(s: var Event[void], eh: EventHandler, body: untyped) =
+  connect s, eh, proc() =
+    body
+
+template connectTo*[T](s: var Event[T], eh: EventHandler, argname: untyped, body: untyped) =
+  connect s, eh, proc(argname {.inject.}: T) =
+    body
+
+template connectTo*(s: var Event[void], eh: EventHandler, argname: untyped, body: untyped) =
+  connect s, eh, proc() =
+    body
+
+
 template connectTo*[T](s: var Event[T], obj: HasEventHandler, body: untyped) =
   connect s, obj.eventHandler, proc(e {.inject.}: T) =
     body
@@ -1102,7 +1120,14 @@ proc bindingImpl*(
   ##     updateC(o)
   
   let updateProc = genSym(nskProc, "bindingUpdate")
-  let objCursor = genSym(nskLet, "objCursor")
+  
+  let objCursor =
+    case kind
+    of bindProperty, bindProc:
+      genSym(nskLet, "objCursor")
+    of bindValue, bindBody:
+      obj
+
   let thisInProc = genSym(nskParam, "thisInProc")
   var alreadyBinded: seq[NimNode]
 
@@ -1121,11 +1146,16 @@ proc bindingImpl*(
       else: false
     ):
       stmts.add: buildAst(call):
-        ident "connectTo"
+        bindSym("connectTo")
         dotExpr(exp, ident "changed")
         objCursor
         call updateProc:
-          objCursor
+          case kind
+          of bindProperty, bindProc:
+            objCursor
+          of bindValue, bindBody:
+            discard
+          
       alreadyBinded.add body
       impl(stmts, exp)
     
@@ -1136,15 +1166,26 @@ proc bindingImpl*(
   result = buildAst(blockStmt):
     ident "bindingBlock"
     stmtList:
-      letSection:
-        identDefs(objCursor, empty(), obj)
+      case kind
+      of bindProperty, bindProc:
+        letSection:
+          identDefs(objCursor, empty(), obj)
+      of bindValue, bindBody:
+        discard
       
       procDef updateProc:
         empty(); empty()
+
         formalParams:
           empty()
-          identDefs(thisInProc, obj.getType, empty())
+          case kind
+          of bindProperty, bindProc:
+            identDefs(thisInProc, obj.getType, empty())
+          of bindValue, bindBody:
+            discard
+        
         empty(); empty()
+        
         stmtList:
           case kind
           of bindProperty:
@@ -1168,7 +1209,11 @@ proc bindingImpl*(
       for x in stmts: x
 
       if init:
-        call updateProc, objCursor
+        case kind
+        of bindProperty, bindProc:
+          call updateProc, objCursor
+        of bindValue, bindBody:
+          discard
 
 
 # todo: instead of this nonesence, make a single `binding:` block that can be attached to specific event handler and executes statements istead of expression
@@ -1459,31 +1504,40 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               # prop := val
               # prop = binding: val
               elif (
-                var name, val: NimNode
+                var name, val, eh: NimNode
                 
                 # prop := val
                 if x.kind == nnkInfix and x.len == 3 and x[0] == ident(":="):
                   name = x[1]
                   val = x[2]
+                  eh = ident("this")
                   true
                 
                 # prop = binding: val
-                elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1][0] == ident("binding"):
+                elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1].len == 2 and x[1][0] == ident("binding"):
                   name = x[0]
                   val = x[1][1]
+                  eh = ident("this")
+                  true
+                
+                # prop = binding(eh): val
+                elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1].len == 3 and x[1][0] == ident("binding"):
+                  name = x[0]
+                  val = x[1][2]
+                  eh = x[1][1]
                   true
                 
                 else: false
               ):
                 if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:  # name should be resolved to this.name[]
-                  call bindSym"bindingValue":
-                    ident "this"
+                  call bindSym("bindingValue"):
+                    eh
                     bracketExpr:
-                      dotExpr(ident "this", name)
+                      dotExpr(ident("this"), name)
                     val
                 else:  # name should be as is
-                  call bindSym"bindingValue":
-                    ident "this"
+                  call bindSym("bindingValue"):
+                    eh
                     name
                     val
               

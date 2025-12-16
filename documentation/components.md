@@ -310,8 +310,8 @@ Undocumented yet.
 
 - Label
 - Button
-- ThemedUiText (UiText with predefined font and color)
 - LineEdit
+- ComboBox
 - ~~CheckBox~~ wip
 - ~~CheckableIcon~~ wip
 - ~~Themer~~ wip
