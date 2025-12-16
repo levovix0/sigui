@@ -638,13 +638,6 @@ proc `margin=`*(obj: Uiobj, v: SideOffsets) =
   obj.anchors.bottom.offset = -v.bottom
   obj.applyAnchors()
 
-proc `margin=`*(obj: Uiobj, v: float32) =
-  obj.anchors.left.offset   =  v
-  obj.anchors.right.offset  = -v
-  obj.anchors.top.offset    =  v
-  obj.anchors.bottom.offset = -v
-  obj.applyAnchors()
-
 
 proc spreadGlobalXChange(obj: Uiobj, delta: float32) =
   obj.globalX{} += delta
@@ -1213,7 +1206,7 @@ proc bindingImpl*(
         of bindProperty, bindProc:
           call updateProc, objCursor
         of bindValue, bindBody:
-          discard
+          call updateProc
 
 
 # todo: instead of this nonesence, make a single `binding:` block that can be attached to specific event handler and executes statements istead of expression
