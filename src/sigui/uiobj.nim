@@ -89,12 +89,14 @@ type
     globalX*, globalY*: Property[float32]
       ## position, relative to UiRoot (the window)
     
-    onSignal*: Event[Signal]
+    onSignal*: Event[Signal]  #? rename to gotSignal?
+    completed*: Event[void]
     
     newChildsObject*: Uiobj
 
-    initialized*: bool
-    deteached*: bool
+    isInitialized*: bool
+    isDeteached*: bool
+    isCompleted*: bool
     root* {.cursor.}: UiRoot
     
     anchors: Anchors
@@ -273,6 +275,20 @@ proc globalXy*(obj: Uiobj): Vec2 =
 proc `globalXy=`*(obj: Uiobj, v: Vec2) =
   obj.globalX[] = v.x
   obj.globalY[] = v.y
+
+
+template initialized*(this: Uiobj): var bool {.deprecated: "renamed to isInitialized".} =
+  this.isInitialized
+
+template `initialized=`*(this: Uiobj, v: bool) {.deprecated: "renamed to isInitialized".} =
+  this.isInitialized = v
+
+
+template deteached*(this: Uiobj): var bool {.deprecated: "renamed to isDeteached".} =
+  this.isInitialized
+
+template `deteached=`*(this: Uiobj, v: bool) {.deprecated: "renamed to isDeteached".} =
+  this.isInitialized = v
 
 
 method draw*(obj: Uiobj, ctx: DrawContext) {.base.}
@@ -667,14 +683,14 @@ method recieve*(obj: Uiobj, signal: Signal) {.base.} =
     var i = obj.childs.high
     while i >= 0:
       if i < obj.childs.len:
-        if not obj.childs[i].deteached:
+        if not obj.childs[i].isDeteached:
           obj.childs[i].recieve(signal)
       dec i
 
   elif signal of SubtreeSignal:
     var i = 0
     while i < obj.childs.len:
-      if not obj.childs[i].deteached:
+      if not obj.childs[i].isDeteached:
         obj.childs[i].recieve(signal)
       inc i
   
@@ -837,10 +853,10 @@ method init*(obj: Uiobj) {.base.} =
     if root != nil:
       obj.recieve(AttachedToRoot(root: root))
 
-  obj.initialized = true
+  obj.isInitialized = true
 
 proc initIfNeeded*(obj: Uiobj) =
-  if obj.initialized: return
+  if obj.isInitialized: return
   init(obj)
   if obj.parent != nil:
     obj.recieve(ParentChanged(newParentInTree: obj.parent))
@@ -850,23 +866,27 @@ proc initIfNeeded*(obj: Uiobj) =
 
 #----- Anchors -----
 
-proc fillHorizontal*(this: Uiobj, obj: Uiobj, margin: float32 = 0) =
-  this.left = obj.left + margin
-  this.right = obj.right - margin
+proc fillHorizontal*[T: Uiobj](this: Uiobj, obj: T, margin: float32 = 0) =
+  this.left = obj.left(margin)
+  this.right = obj.right(-margin)
 
-proc fillVertical*(this: Uiobj, obj: Uiobj, margin: float32 = 0) =
-  this.top = obj.top + margin
-  this.bottom = obj.bottom - margin
+proc fillVertical*[T: Uiobj](this: Uiobj, obj: T, margin: float32 = 0) =
+  this.top = obj.top(margin)
+  this.bottom = obj.bottom(-margin)
 
-proc centerIn*(this: Uiobj, obj: Uiobj, offset: Vec2 = vec2(), xCenterAt: AnchorOffsetFrom = center, yCenterAt: AnchorOffsetFrom = center) =
+proc centerIn*[T](this: Uiobj, obj: T, offset: Vec2 = vec2()) =
+  this.centerX = obj.center(offset.x)
+  this.centerY = obj.center(offset.y)
+
+proc centerIn*(this: Uiobj, obj: Uiobj, offset: Vec2 = vec2(), xCenterAt: AnchorOffsetFrom, yCenterAt: AnchorOffsetFrom) =
   this.centerX = Anchor(obj: obj, offsetFrom: xCenterAt, offset: offset.x)
   this.centerY = Anchor(obj: obj, offsetFrom: yCenterAt, offset: offset.y)
 
-proc fill*(this: Uiobj, obj: Uiobj, margin: float32 = 0) =
+proc fill*[T: Uiobj](this: Uiobj, obj: T, margin: float32 = 0) =
   this.fillHorizontal(obj, margin)
   this.fillVertical(obj, margin)
 
-proc fill*(this: Uiobj, obj: Uiobj, marginX: float32, marginY: float32) =
+proc fill*[T: Uiobj](this: Uiobj, obj: T, marginX: float32, marginY: float32) =
   this.fillHorizontal(obj, marginX)
   this.fillVertical(obj, marginY)
 
@@ -923,7 +943,7 @@ proc deteachStatic[T: Uiobj](this: T) =
   if this == nil: return
 
   this.drawLayer = nil
-  this.deteached = true
+  this.isDeteached = true
 
   disconnect this.eventHandler
 
@@ -974,7 +994,7 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
     if child.root == nil and parent.root != nil:
       child.recieve(AttachedToRoot(root: parent.root))
 
-    if child.initialized:
+    if child.isInitialized:
       child.recieve(ParentChanged(newParentInTree: parent))
       parent.recieve(ChildAdded(child: child))
 
@@ -995,7 +1015,7 @@ proc `val=`*[T](p: var ChangableChild[T], v: T) =
     p.parent.childs[i] = v
     v.parent = p.parent
 
-    if v.initialized:
+    if v.isInitialized:
       v.recieve(ParentChanged(newParentInTree: p.parent))
       p.parent.recieve(ChildAdded(child: v))
 
@@ -1032,7 +1052,7 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): ChangableChild[Ui
     if child.root == nil and parent.root != nil:
       child.recieve(AttachedToRoot(root: parent.root))
 
-    if child.initialized:
+    if child.isInitialized:
       child.recieve(ParentChanged(newParentInTree: parent))
       parent.recieve(ChildAdded(child: child))
 
@@ -1072,7 +1092,10 @@ macro super*[T: Uiobj](obj: T): auto =
 
 
 proc markCompleted*(obj: Uiobj) =
+  if obj.isCompleted: return
+  obj.isCompleted = true
   obj.recieve(Completed())
+  obj.completed.emit()
 
 
 proc newUiobj*(): Uiobj = new result
@@ -1288,8 +1311,6 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
   ##   
   ##     - c:
   ##       this.fill(parent)
-                
-  # todo: send Completed subtree signal to `obj` just after makeLayout, for layouts to first update and begin reacting for children size changes
 
 
   proc implFwd(body: NimNode, res: var seq[NimNode]) =
@@ -1298,16 +1319,35 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       if x.kind == nnkPrefix and x.len == 3 and x[0] == ident("-"):
         implFwd(x[2] #[ body ]#, res)
 
+
+      # - ctor as path.to.alias: body
+      elif (
+        x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("as") and
+        x[1].kind == nnkPrefix and x[1][0] == ident("-") and
+        x[2].kind notin {nnkIdent, nnkAccQuoted, nnkSym}
+      ):
+        res.add nnkAsgn.newTree(
+          x[2] #[ alias ]#,
+          x[1][1] #[ ctor ]#
+        )
+
+        if x.len == 4:
+          implFwd(x[3] #[ body ]#, res)
+
+
       # - ctor as alias: body
       elif (
         x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("as") and
         x[1].kind == nnkPrefix and x[1][0] == ident("-")
       ):
-        res.add nnkIdentDefs.newTree(
-          x[2] #[ alias ]#,
-          newEmptyNode(),
-          x[1][1] #[ ctor ]#
+        res.add nnkLetSection.newTree(
+          nnkIdentDefs.newTree(
+            x[2] #[ alias ]#,
+            newEmptyNode(),
+            x[1][1] #[ ctor ]#
+          )
         )
+
         if x.len == 4:
           implFwd(x[3] #[ body ]#, res)
 
@@ -1387,7 +1427,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               ):
                 let ctor = x[1]
                 discard checkCtor ctor
-                let alias = genSym(nskLet)
+                let alias = genSym(nskLet, "unnamedObj")
                 letSection:
                   identDefs(alias, empty(), ctor)
                 call(ident"addChild", ident "this", alias)
@@ -1632,10 +1672,9 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                               empty()
                         empty(); empty()
                         stmtList:
-                          letSection:
-                            var fwd: seq[NimNode]
-                            (implFwd(x[^1], fwd))
-                            for x in fwd: x
+                          var fwd: seq[NimNode]
+                          (implFwd(x[^1], fwd))
+                          for x in fwd: x
                           impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     
                     for param in x[0..^3]:
@@ -1648,10 +1687,9 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   for x in x.children:
                     x[^1] = buildAst:
                       stmtList:
-                        letSection:
-                          var fwd: seq[NimNode]
-                          (implFwd(x[^1], fwd))
-                          for x in fwd: x
+                        var fwd: seq[NimNode]
+                        (implFwd(x[^1], fwd))
+                        for x in fwd: x
                         impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     x
 
@@ -1665,10 +1703,9 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   for x in x[1..^1]:
                     x[^1] = buildAst:
                       stmtList:
-                        letSection:
-                          var fwd: seq[NimNode]
-                          (implFwd(x[^1], fwd))
-                          for x in fwd: x
+                        var fwd: seq[NimNode]
+                        (implFwd(x[^1], fwd))
+                        for x in fwd: x
                         impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
                     x
               
@@ -1725,9 +1762,9 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
     stmtList:
       letSection:
         identDefs(pragmaExpr(ident "root", pragma ident "used"), empty(), obj)
-        var fwd: seq[NimNode]
-        (implFwd(body, fwd))
-        for x in fwd: x
+      var fwd: seq[NimNode]
+      (implFwd(body, fwd))
+      for x in fwd: x
       
       impl(
         nnkDotExpr.newTree(ident "root", ident "parent"),
@@ -1815,7 +1852,7 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
   for k, v in this.fieldPairs:
     when k in [
       "eventHandler", "parent", "childs", "x", "y", "w", "h", "globalX", "globalY",
-      "initialized", "anchors", "drawLayering", "deteached"
+      "isInitialized", "anchors", "drawLayering", "isDeteached", "isCompleted"
     ] or k.startsWith("m_"):
       discard
     

@@ -422,7 +422,7 @@ method addChild*(this: InLayout, child: Uiobj) =
 
 
 method init*(this: Layout) =
-  if this.initialized: return
+  if this.isInitialized: return
   procCall this.super.init
 
   template doRepositionWhenChanged(prop) =

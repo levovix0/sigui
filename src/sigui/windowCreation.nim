@@ -223,5 +223,6 @@ when defined(sigui_debug_redrawInitiatedBy):
 
 
 proc run*(win: UiWindow) =
+  markCompleted(win)
   run win.siwinWindow
 
