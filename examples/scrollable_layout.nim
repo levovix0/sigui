@@ -19,7 +19,7 @@ makeLayout win:
 
       - Layout.col:
         this.fillHorizontal parent
-        padding = 10.allSides
+        padding = 10
         gap = 10
         align = center
         wrapHugContent = false

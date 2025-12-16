@@ -10,7 +10,7 @@ win.makeLayout:
     this.centerIn parent
     align = center
     gap = 10
-    padding = 10.allSides
+    padding = 10
 
     - LineEdit.new as celsius:
       text = "5"

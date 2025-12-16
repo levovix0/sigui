@@ -43,30 +43,51 @@ type
 
 
   TextArea* = ref object of Uiobj
+    textEdited*: Event[void]
+      ## text was edited by user
+    keyDown*: Event[KeyEvent]
+      ## key was pressed with this component beeng active (focused)
+
     cursorObj*: ChangableChild[Uiobj]
+      ## object used as text cursor, UiRect by default
     selectionObj*: ChangableChild[Uiobj]
+      ## object used as selection background, UiRect by default
     textObj* {.cursor.}: UiText
+      ## object used to display text
     mouseArea* {.cursor.}: MouseArea
+      ## object used for mouse interactions (can be bigger than textArea)
     textArea* {.cursor.}: ClipRect
+      ## the actual box for the text inside this object
 
     active*: Property[bool]
+      ## is this component focused
     text*: Property[string]
-    textEdited*: Event[void]
+      ## current text
     cursorPos*: CustomProperty[int]
+      ## position of text cursor (counting in std/unicode Rune's)
     blinking*: Blinking
+      ## text cursor blinking settings
     selectionStart*, selectionEnd*: CustomProperty[int]
-    followCursorOffset*: Property[float32]  # in pixels
+      ## start and end of selection (counting in std/unicode Rune's)
+    followCursorOffset*: Property[float32]
+      ## minimal length when text cursor is considered out of bounds of this area, when text should be visially moved to fit text cursor
+      ## in scaled pixels (scale for pixels is always 1:1 relative to real device pixels for now)
 
-    keyDown*: Event[KeyEvent]
-
-    cursorX*: Property[float32]  # in pixels
-    offset*: Property[float32]  # in pixels
-    selectionStartX*, selectionEndX*: Property[float32]  # in pixels
-    # note: provided in case if you want to animate them
+    # note: cursorX, offset, selectionStartX and selectionEndX may be animated
+    cursorX*: Property[float32]
+      ## position of text cursor
+      ## in scaled pixels (scale for pixels is always 1:1 relative to real device pixels for now)
+    offset*: Property[float32]
+      ## offset of text
+      ## in scaled pixels (scale for pixels is always 1:1 relative to real device pixels for now)
+    selectionStartX*, selectionEndX*: Property[float32]
+      ## position of start and end of selection
+      ## in scaled pixels (scale for pixels is always 1:1 relative to real device pixels for now)
     
     allowedInteractions*: set[TextAreaInteraction] =
       {TextAreaInteraction.low..TextAreaInteraction.high} -
       {TextAreaInteraction.selectingAllTextByDobleClick}
+      ## is textInput enabled, what mouse interactions are handled and what keybindings are handled
 
     undoBuffer*: seq[tuple[text: string, cursorPos: int, selectionStart, selectionEnd: int]]
     undoBufferLimit*: int = 200

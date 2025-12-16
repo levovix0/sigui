@@ -386,7 +386,7 @@ when isMainModule:
       this.makeLayout:
         w = 200
         h = 200
-        padding = 10.allSides
+        padding = 10
 
         - Styler.new:
           style = makeStyle:

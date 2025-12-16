@@ -8,7 +8,16 @@
 
 Sigui is inspired by QtQuick.
 
-Libraries to see also: [siwin](https://github.com/levovix0/siwin), [localize](https://github.com/levovix0/localize), [pixie](https://github.com/treeform/pixie), [shady](https://github.com/treeform/shady)
+Libraries to see also:
+- [toscel](https://github.com/levovix0/toscel) - component library for sigui (buttons, labels, text edits, etc..)
+- [siwin](https://github.com/levovix0/siwin) - window creation library
+- [localize](https://github.com/levovix0/localize) - application translation library
+- [pixie](https://github.com/treeform/pixie) - CPU drawing library
+- [shady](https://github.com/treeform/shady) - GLSL shader generator from Nim functions
+
+Related documentation:
+- [Builtin components](documentation/components.md)
+
 
 ## Table of contents
 1. [Examples](#Examples)
@@ -44,6 +53,7 @@ win.makeLayout:
 
 run win
 ```
+window by default has no title, size (1280, 720), and opaque black background (clear) color
 
 ## Basic
 https://github.com/levovix0/sigui/assets/53170138/9509e245-2701-4dba-8237-a83f480aa635
@@ -679,24 +689,7 @@ let typeface = parseTtf(typefaceFile)
 
 
 # Builtin components
-## Text Area
-
-https://github.com/levovix0/sigui/assets/53170138/56007317-7558-459d-bf79-ff9b44b7ac6b
-
-Text area allows user to write text.  
-It has .active property.  
-It is cropped.  
-Configure .allowedInteractions if you need somthing advanced.
-```nim
-const typefaceFile = staticRead "../../tests/Roboto-Regular.ttf"
-let typeface = parseTtf(typefaceFile)
-
-- TextArea.new:
-  text = "start text"
-  this.textObj[].font[] = typeface.withSize(24)
-
-  # note: create your own UiText to make tip/hint
-```
+see [documentation/components.md](documentation/components.md)
 
 
 # Interaction with other libraries

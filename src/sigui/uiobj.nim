@@ -27,10 +27,10 @@ type
     left, right, top, bottom, centerX, centerY: Anchor
   
   Visibility* = enum
-    visible
-    hidden
-    hiddenTree
-    collapsed  #? is it needed?
+    visible     ## draws itself, draws children
+    hidden      ## does not draw anything itself, but still draw children
+    hiddenTree  ## does not draw, including children
+    collapsed   ## does not draw, does not count in layouts, behaves like zero-sized component in anchoring
   
   
   Signal* = ref object of RootObj
@@ -74,10 +74,20 @@ type
       ## childs that should be deleted when this object is deleted
     
     x*, y*, w*, h*: Property[float32]
+      ## position of rect of the object
+
     visibility*: Property[Visibility]
-    globalTransform*: Property[bool]
+      ## is component `visible`,
+      ## hidden` (does not draw anything),
+      ## `hiddenTree` (does not draw, including it's children), or
+      ## `collapsed` (does not draw, does not count in layouts, behaves like zero-sized component in anchoring)
     
+    globalTransform*: Property[bool]
+      ## if true, x and y of this object is relative to UiRoot's top-left courner,
+      ## if false, relative to parent's top-left courner
+
     globalX*, globalY*: Property[float32]
+      ## position, relative to UiRoot (the window)
     
     onSignal*: Event[Signal]
     
@@ -559,6 +569,9 @@ proc vertical*(offset: float32): SideOffsets =
 
 proc allSides*(offset: float32): SideOffsets =
   SideOffsets(left: offset, right: offset, top: offset, bottom: offset)
+
+converter toSideOffsets*(offset: SomeNumber): SideOffsets =
+  allSides(offset.float32)
 
 
 proc `+`*(a, b: SideOffsets): SideOffsets =
