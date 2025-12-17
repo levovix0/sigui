@@ -1682,16 +1682,19 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
 
               # if x: body
-              elif x.kind == nnkIfStmt:
-                ifStmt:
-                  for x in x.children:
-                    x[^1] = buildAst:
-                      stmtList:
-                        var fwd: seq[NimNode]
-                        (implFwd(x[^1], fwd))
-                        for x in fwd: x
-                        impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
-                    x
+              # when x: body
+              elif x.kind in {nnkIfStmt, nnkWhenStmt}:
+                var branches: seq[NimNode]
+                for branch in x.children:
+                  branch[^1] = buildAst:
+                    stmtList:
+                      var fwd: seq[NimNode]
+                      (implFwd(branch[^1], fwd))
+                      for x in fwd: x
+                      impl(ident "parent", ident "this", branch[^1], changableChild, changableChildUpdaters)
+                  branches.add branch
+                
+                x.kind.newTree(branches)
 
 
               # case x:
