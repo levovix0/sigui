@@ -12,6 +12,13 @@ type
   TextureObj = object
     glid: GlUint
 
+  
+  EffectBuffer* = ref object
+    fbo*: FrameBuffers
+    tex*: Texture
+    size*: IVec2
+    # todo: split free area of EffectBuffer like an atlas, so many small ClipArea widgets can be draw onto same EffectBuffer without clearing it
+
 
   DrawContextRef* = ref DrawContextObj
   DrawContext* = ptr DrawContextObj
@@ -22,11 +29,15 @@ type
     
     px*: Vec2  ## size of a pixel
     wh*: Vec2  ## size of the drawing area in pixels
+    windowWh*: IVec2
 
     frameBufferHierarchy*: seq[tuple[fbo: GlUint, size: IVec2]]
     offset*: Vec2
 
     glyphBuffer*: GlyphBuffer
+
+    freeEffectBuffers: seq[EffectBuffer]
+    unusedEffectBuffers: HashSet[GlUint]
 
 
 var freeTextures*: HashSet[GlUint]
@@ -258,6 +269,8 @@ macro makeShader*(ctx: DrawContext, body: untyped): auto =
   result = nnkBlockStmt.newTree(newEmptyNode(), result)
 
 
+
+
 #* ------------- utils ------------- *#
 
 proc mat4*(x: Mat2): Mat4 =
@@ -308,6 +321,128 @@ proc updateDrawingAreaSize*(ctx: DrawContext, size: IVec2) =
   ctx.px = vec2(2'f32 / size.x.float32, 2'f32 / size.y.float32)
   ctx.wh = ivec2(size.x, -size.y).vec2 / 2
 
+
+
+
+#* ------------- EffectBuffer ------------- *#
+
+proc requireEffectBuffer*(ctx: DrawContext, minSize: IVec2): EffectBuffer =
+  let minSize = ivec2(max(minSize.x, 1), max(minSize.y, 1))
+  
+  var i = 0
+  while i < ctx.freeEffectBuffers.len:
+    template ef: untyped = ctx.freeEffectBuffers[i]
+
+    if ef.size.x >= minSize.x and ef.size.y >= minSize.y:
+      ctx.unusedEffectBuffers.excl ef.fbo[0]
+      result = ef
+      ctx.freeEffectBuffers.del i
+      return
+    
+    inc i
+  
+  # no available free buffer with size that is at least `minSize`
+
+  if ctx.freeEffectBuffers.len != 0:
+    # resize existing framebuffer
+    template ef: untyped = ctx.freeEffectBuffers[0]
+    result = ef
+
+    ef.size = ivec2(max(minSize.x, ef.size.x), max(minSize.y, ef.size.y))
+
+    let prevFbo =
+      if ctx.frameBufferHierarchy.len != 0: ctx.frameBufferHierarchy[^1].fbo
+      else: 0
+    
+    glBindFramebuffer(GlFramebuffer, ef.fbo[0])
+    glBindTexture(GlTexture2d, ef.tex.raw)
+    glTexImage2D(GlTexture2d, 0, GlRgba.Glint, ef.size.x, ef.size.y, 0, GlRgba, GlUnsignedByte, nil)
+    glTexParameteri(GlTexture2d, GlTextureMinFilter, GlNearest)
+    glTexParameteri(GlTexture2d, GlTextureMagFilter, GlNearest)
+    glFramebufferTexture2D(GlFramebuffer, GlColorAttachment0, GlTexture2d, ef.tex.raw, 0)
+        
+    glBindFramebuffer(GlFramebuffer, prevFbo)
+    
+    ctx.freeEffectBuffers.del 0
+  
+  else:
+    # create new framebuffer
+    new result
+
+    template ef: untyped = result
+    ef.size = minSize
+
+    ef.fbo = newFrameBuffers(1)
+    ef.tex = newTexture()
+
+    let prevFbo =
+      if ctx.frameBufferHierarchy.len != 0: ctx.frameBufferHierarchy[^1].fbo
+      else: 0
+    
+    glBindFramebuffer(GlFramebuffer, ef.fbo[0])
+    glBindTexture(GlTexture2d, ef.tex.raw)
+    glTexImage2D(GlTexture2d, 0, GlRgba.Glint, ef.size.x, ef.size.y, 0, GlRgba, GlUnsignedByte, nil)
+    glTexParameteri(GlTexture2d, GlTextureMinFilter, GlNearest)
+    glTexParameteri(GlTexture2d, GlTextureMagFilter, GlNearest)
+    glFramebufferTexture2D(GlFramebuffer, GlColorAttachment0, GlTexture2d, ef.tex.raw, 0)
+        
+    glBindFramebuffer(GlFramebuffer, prevFbo)
+
+
+proc free*(ctx: DrawContext, ef: EffectBuffer) =
+  assert ctx.freeEffectBuffers.allIt(it.fbo[0] != ef.fbo[0])
+  ctx.freeEffectBuffers.add ef
+
+
+proc deleteUnusedEffectBuffers*(ctx: DrawContext) =
+  var c = 0
+  for efFbo in ctx.unusedEffectBuffers:
+    var i = 0
+    while i < ctx.freeEffectBuffers.len:
+      template ef: untyped = ctx.freeEffectBuffers[i]
+      if ef.fbo[0] == efFbo:
+        ctx.freeEffectBuffers.del i
+        inc c
+      else:
+        inc i
+
+
+proc markAllFreeEffectBuffersAsUnused*(ctx: DrawContext) =
+  for ef in ctx.freeEffectBuffers:
+    ctx.unusedEffectBuffers.incl ef.fbo[0]
+
+
+proc push*(ctx: DrawContext, ef: EffectBuffer, clear = true) =
+  ctx.frameBufferHierarchy.add (ef.fbo[0], ef.size)
+  glBindFramebuffer(GlFramebuffer, ef.fbo[0])
+
+  glViewport 0, 0, ef.size.x.GLsizei, ef.size.y.GLsizei
+  ctx.updateDrawingAreaSize(ef.size)
+  
+  if clear:
+    glClearColor(0, 0, 0, 0)
+    glClear(GlColorBufferBit)
+
+
+proc pop*(ctx: DrawContext, ef: EffectBuffer) =
+  assert ctx.frameBufferHierarchy.len != 0 and ctx.frameBufferHierarchy[^1].fbo == ef.fbo[0]
+  ctx.frameBufferHierarchy.del ctx.frameBufferHierarchy.high
+  
+  let prevFbo =
+    if ctx.frameBufferHierarchy.len != 0: ctx.frameBufferHierarchy[^1].fbo
+    else: 0
+  glBindFramebuffer(GlFramebuffer, prevFbo)
+
+  let size =
+    if ctx.frameBufferHierarchy.len != 0: ctx.frameBufferHierarchy[^1].size
+    else: ctx.windowWh
+  glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
+  ctx.updateDrawingAreaSize(size)
+
+
+
+
+#* ------------- drawing ------------- *#
 
 proc drawText*(ctx: DrawContext, pos: Vec2, arrangement: Arrangement, color: Vec4) =
   if arrangement == nil or arrangement.fonts.len == 0:

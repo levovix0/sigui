@@ -97,10 +97,6 @@ type
       ## color to multiply with each pixel of the content of this component
     angle*: Property[float32]
       ## DEPRECATED. rotation angle, with origin at top-left courner
-
-    fbo: FrameBuffers
-    tex: Texture
-    prevSize: IVec2
   
 
   UiText* = ref object of Uiobj
@@ -315,7 +311,19 @@ proc drawRectStroke*(ctx: DrawContext, pos: Vec2, size: Vec2, col: Vec4, radius:
   if blend: glDisable(GlBlend)
 
 
-proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, color: Vec4, radius: float32, blend: bool, angle: float32, flipY = false) =
+proc drawImage*(
+  ctx: DrawContext,
+  pos: Vec2,
+  size: Vec2,
+  tex: GlUint,
+  color: Vec4,
+  radius: float32,
+  blend: bool,
+  angle: float32,
+  flipY = false,
+  imagePos = vec2(),
+  imageSize = vec2(),
+) =
   let shader = ctx.makeShader:
     proc vert(
       gl_Position: var Vec4,
@@ -325,9 +333,11 @@ proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, color: Vec
       transform: Uniform[Mat4],
       size: Uniform[Vec2],
       px: Uniform[Vec2],
+      imPos: Uniform[Vec2],
+      imSizeK: Uniform[Vec2],
     ) =
       transformation(gl_Position, pos, size.Vec2, px.Vec2, ipos, transform.Mat4)
-      uv = ipos
+      uv = ipos * imSizeK + imPos
 
     proc frag(
       glCol: var Vec4,
@@ -343,11 +353,17 @@ proc drawImage*(ctx: DrawContext, pos: Vec2, size: Vec2, tex: GlUint, color: Vec
   if blend:
     glEnable(GlBlend)
     glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
-  
+
+  let imageSize = if imageSize == vec2(): size else: imageSize
+  var imPos = imagePos / imageSize
+  if flipY: imPos.y -= (size.y / imageSize.y)
+
   use shader.shader
   ctx.passTransform(shader, pos=pos, size=size, angle=angle, flipY=flipY)
   shader.radius.uniform = radius
   shader.color.uniform = color
+  shader.imPos.uniform = imPos
+  shader.imSizeK.uniform = size / imageSize
   glBindTexture(GlTexture2d, tex)
   draw ctx.rect
   glBindTexture(GlTexture2d, 0)
@@ -603,60 +619,28 @@ method draw*(this: ClipRect, ctx: DrawContext) =
   this.drawBefore(ctx)
   if this.visibility == visible:
     if this.w[] <= 0 or this.h[] <= 0: return
-    if this.fbo == nil: this.fbo = newFrameBuffers(1)
 
     let size = ivec2(this.w[].round.int32, this.h[].round.int32)
 
-    ctx.frameBufferHierarchy.add (this.fbo[0], size)
-    glBindFramebuffer(GlFramebuffer, this.fbo[0])
-    
-    if this.prevSize != size or this.tex == nil:
-      this.prevSize = size
-      this.tex = newTexture()
-      glBindTexture(GlTexture2d, this.tex.raw)
-      glTexImage2D(GlTexture2d, 0, GlRgba.Glint, size.x, size.y, 0, GlRgba, GlUnsignedByte, nil)
-      glTexParameteri(GlTexture2d, GlTextureMinFilter, GlNearest)
-      glTexParameteri(GlTexture2d, GlTextureMagFilter, GlNearest)
-      glFramebufferTexture2D(GlFramebuffer, GlColorAttachment0, GlTexture2d, this.tex.raw, 0)
-    else:
-      glBindTexture(GlTexture2d, this.tex.raw)
-    
-    glClearColor(0, 0, 0, 0)
-    glClear(GlColorBufferBit)
-    
-    glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
-    ctx.updateDrawingAreaSize(size)
+    let ef = ctx.requireEffectBuffer(size)
+    ctx.push ef
 
-    let offset = block:
-      var xy = this.xy
-      var obj = this.parent
-      while obj != nil and not(obj of ClipRect):
-        xy.x += obj.x[]
-        xy.y += obj.y[]
-        obj = obj.parent
-      xy
-    ctx.offset -= offset
+    let oldOffset = ctx.offset
+    ctx.offset = -this.globalXy
     try:
       this.drawBeforeChilds(ctx)
       this.drawChilds(ctx)
     
     finally:
-      ctx.frameBufferHierarchy.del ctx.frameBufferHierarchy.high
-      ctx.offset += offset
+      ctx.offset = oldOffset
 
-      glBindFramebuffer(GlFramebuffer, if ctx.frameBufferHierarchy.len == 0: 0.GlUint else: ctx.frameBufferHierarchy[^1].fbo)
-
-      let size =
-        if ctx.frameBufferHierarchy.len == 0:
-          let win = this.parentWindow
-          if win == nil: this.lastParent.wh.ivec2 else: win.size
-        else: ctx.frameBufferHierarchy[^1].size
-      glViewport 0, 0, size.x.GLsizei, size.y.GLsizei
-      ctx.updateDrawingAreaSize(size)
+      ctx.pop ef
+      ctx.free ef
       
       ctx.drawImage(
         (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh,
-        this.tex.raw, this.color.vec4, this.radius, true, this.angle, flipY=true
+        ef.tex.raw, this.color.vec4, this.radius, true, this.angle, flipY=true,
+        imageSize = ef.size.vec2
       )
   else:
     this.drawBeforeChilds(ctx)

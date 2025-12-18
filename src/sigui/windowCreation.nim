@@ -70,6 +70,8 @@ proc setupEventsHandling*(win: UiWindow) =
     onRender: proc(e: RenderEvent) =
       win.recieve(BeforeDraw(sender: win))
       win.draw(cast[DrawContext](win.ctx))
+      cast[DrawContext](win.ctx).deleteUnusedEffectBuffers()
+      cast[DrawContext](win.ctx).markAllFreeEffectBuffersAsUnused()
     ,
     onTick: proc(e: TickEvent) =
       win.onTick.emit(e)
@@ -77,6 +79,7 @@ proc setupEventsHandling*(win: UiWindow) =
     onResize: proc(e: ResizeEvent) =
       win.wh = e.size.vec2
       glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
+      win.ctx.windowWh = e.size
       cast[DrawContext](win.ctx).updateDrawingAreaSize(e.size)
 
       win.recieve(WindowEvent(sender: win, event: e.toRef))

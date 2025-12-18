@@ -65,6 +65,7 @@ type
 
   Uiobj* = ref UiobjObjType
   UiobjObjType = object of RootObj
+    #? todo: use ptr object instead of ref object?
     eventHandler*: EventHandler
     
     parent* {.cursor.}: Uiobj
@@ -89,7 +90,7 @@ type
     globalX*, globalY*: Property[float32]
       ## position, relative to UiRoot (the window)
     
-    onSignal*: Event[Signal]  #? rename to gotSignal?
+    onSignal*: Event[Signal]  #? todo: rename to gotSignal?
     completed*: Event[void]
     
     newChildsObject*: Uiobj
@@ -120,6 +121,7 @@ type
 
 
   #--- Signals ---
+  #? todo: rename Signal to BroadcastEvent?
 
   SubtreeSignal* = ref object of Signal
     ## signal sends to all childs recursively (by default)
