@@ -21,8 +21,10 @@ Related documentation:
 
 ## Table of contents
 1. [Examples](#Examples)
+    * [Minimal](#Minimal)
     * [Basic](#Basic)
     * [Custom component](#Custom-component)
+    * [File templates](#File-templates)
 2. [Features](#Features)
     * [Events](#Events)
     * [Properties and bindings](#Properties-and-bindings)
@@ -104,12 +106,6 @@ method init*(this: Switch) =
   procCall this.super.init()
 ```
 
-Or create an empty file and type:
-```nim
-import sigui; refactor_siguiComponentFile(MyComponent)
-```
-then compile it with -d:refactor to create a skeleton for a component
-
 https://github.com/levovix0/sigui/assets/53170138/409cb2a3-5299-48a6-b01e-d8b7bb951fbb
 ```nim
 import sigui/[uibase, mouseArea, animations, dolars]
@@ -169,6 +165,34 @@ when isMainModule:
     init r
     r
   )
+```
+
+## File templates
+
+Create an empty file and type:
+```nim
+import sigui; refactor_siguiComponentFile(MyComponent)
+```
+then compile it with -d:refactor to create the minimal example in the file.
+
+This is more useful for creating custom component skeletons
+
+```nim
+import sigui; refactor_siguiComponentFile(MyComponent)
+```
+
+```nim
+import sigui; refactor_siguiShaderComponentFile(MyShaderComponent)
+```
+
+If you find yourself writing this often, consider using a shell script
+```fish
+function sigui-create
+  echo "import sigui/uiobj; refactor_sigui"$argv[2]"("$argv[2..-1]")" > $argv[1] && nim c -d:refactor $argv[1]
+end
+```
+```fish
+sigui-create a.nim ShaderComponentFile
 ```
 
 # Features
@@ -598,8 +622,6 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
   this.drawBefore(ctx)
   if this.visibility == visible:
     let shader = ctx.makeShader:
-      {.version: "330 core".}
-      
       proc vert(
         gl_Position: var Vec4,
         pos: var Vec2,

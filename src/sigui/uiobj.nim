@@ -245,11 +245,27 @@ macro color*(s: static string): colortypes.Color =
 
 #* ------------- Refactoring ------------- *#
 
-template refactor_siguiComponentFile*(name: untyped) =
-  when defined(refactor):
+when defined(refactor):
+  template refactor_siguiMinimalMain*() =
+    doRefactor_siguiMinimalMain(instantiationInfo(fullPaths=true))
+
+  template refactor_siguiComponentFile*(name: untyped) =
     doRefactor_siguiComponentFile(name, instantiationInfo(fullPaths=true))
-  else:
-    {.warning: "compile with -d:refactor to apply refactoring".}
+
+  template refactor_siguiShaderComponentFile*(name: untyped) =
+    doRefactor_siguiShaderComponentFile(name, instantiationInfo(fullPaths=true))
+
+else:
+  # please don't mind {.deprecated.} here, i don't know any other way to display a warning inside a template for code that called it
+  
+  template refactor_siguiMinimalMain*()
+    {.deprecated: "compile with -d:refactor to apply refactoring".} = discard
+
+  template refactor_siguiComponentFile*(name: untyped)
+    {.deprecated: "compile with -d:refactor to apply refactoring".} = discard
+  
+  template refactor_siguiShaderComponentFile*(name: untyped)
+    {.deprecated: "compile with -d:refactor to apply refactoring".} = discard
 
 
 
