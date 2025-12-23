@@ -13,6 +13,8 @@ type
     center
     `end`
 
+
+  UiLayout* {.deprecated: "use Layout instead".} = Layout
   Layout* = ref object of Uiobj
     orientation*: Property[LayoutOrientation]
 

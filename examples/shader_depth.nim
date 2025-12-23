@@ -262,14 +262,6 @@ method draw*(this: Sandbox, ctx: DrawContext) =
 
 
 test "\"Fake\" 3D":
-  preview(
-    clearColor = color(0, 0, 0, 0),
-    size = ivec2(600, 600),
-    transparent = true,
-    margin = 20,
-    title = "\"Fake\" 3D",
-    withWindow = proc: Uiobj =
-      let this = Sandbox()
-      init this
-      this
-  )
+  preview(transparent = true, title = "\"Fake\" 3D", size = ivec2(600, 600)):
+    - Sandbox.new:
+      this.margin = 20

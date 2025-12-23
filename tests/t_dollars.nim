@@ -9,20 +9,21 @@ type MyComponent = ref object of UiRect
 registerComponent MyComponent
 
 test "properties":
-  let x = MyComponent()
-  x.makeLayout:
-    this.color[] = color(1, 0, 0)
-    this.w[] = 20
-    this.h[] = 30
-    this.field = 2
+  let x = MyComponent.new
+  UiRoot.new.makeLayout:
+    - x:
+      this.color[] = color(1, 0, 0)
+      this.w[] = 20
+      this.h[] = 30
+      this.field = 2
 
-    - RectShadow.new as shadow:
-      this.fill(parent, -5)
-      this.drawLayer = before parent
-      this.radius[] = 5
-    
-    - MouseArea.new:
-      this.mouseDownAndUpInside.connectTo parent:
-        discard
+      - RectShadow.new as shadow:
+        this.fill(parent, -5)
+        this.drawLayer = before parent
+        this.radius[] = 5
+      
+      - MouseArea.new:
+        this.mouseDownAndUpInside.connectTo parent:
+          discard
 
   echo x

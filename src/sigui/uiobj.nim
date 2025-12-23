@@ -861,6 +861,9 @@ method connectFirstHandHandlers*(this: Uiobj) {.base.} =
 #----- Uiobj initialization -----
 
 method init*(obj: Uiobj) {.base.} =
+  if not (obj of UiRoot):
+    assert obj.parent != nil, "ui object must be added to a parent before initializing"
+  
   obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
   obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
 
@@ -1796,7 +1799,16 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       )
 
 
-template withRoot*(obj: Uiobj, rootVar: untyped, body: untyped) =
+template makeLayoutInside*[T](res: var T, container: Uiobj, init: T, body: untyped) =
+  res = init
+  let obj = res
+  addChild(container, obj)
+  initIfNeeded(obj)
+  makeLayout(obj, body)
+  markCompleted(obj)
+
+
+template withRoot*(obj: Uiobj, rootVar: untyped, body: untyped) {.deprecated: "Ui objects always have a parent before initializing".} =
   proc bodyProc(rootVar {.inject.}: UiRoot) =
     body
   if obj.root != nil:
@@ -1962,3 +1974,5 @@ macro registerComponent*(t: typed) =
   result.add nnkCall.newTree(bindSym("declareComponentTypeName"), t)
   result.add nnkCall.newTree(bindSym("declareFormatFields"), t)
 
+template registerWidget*(t: typed) =
+  registerComponent(t)

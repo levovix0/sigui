@@ -18,12 +18,11 @@ test "anchors":
 
     - Uiobj.new as background
 
-    proc text(s: string): UiText =
-      result = UiText.new
-      initIfNeeded result
-      result.text[] = s
-      result.font[] = typeface.withSize(16)
-      result.makeLayout:
+    proc text(container: Uiobj, s: string): UiText =
+      result.makeLayoutInside(container, UiText.new):
+        text = s
+        font = typeface.withSize(16)
+        
         - UiRect.new:
           this.fill parent
           drawLayer = after background
@@ -33,28 +32,28 @@ test "anchors":
       left = parent.left + margin
       top = parent.top + margin
 
-      - text "right = parent.right":
+      + this.text "right = parent.right":
         right = parent.right
     
     - UiRectBorder.new as rect_tm:
       left = rect_tl.right + margin
       top = parent.top + margin
 
-      - text "top = parent.bottom":
+      + this.text "top = parent.bottom":
         top = parent.bottom
     
     - UiRectBorder.new as rect_tr:
       right = parent.right - margin
       top = parent.top + margin
 
-      - text "bottom = parent.top":
+      + this.text "bottom = parent.top":
         bottom = parent.top
 
     - UiRectBorder.new as rect_ml:
       left = parent.left + margin
       top = rect_tl.bottom + margin
 
-      - text "left = parent.left\nright = parent.right\n(fillHorizontal parent)\nmargin = 10":
+      + this.text "left = parent.left\nright = parent.right\n(fillHorizontal parent)\nmargin = 10":
         # hAlign = CenterAlign
         left = parent.left
         right = parent.right
@@ -64,21 +63,21 @@ test "anchors":
       left = rect_ml.right + margin
       top = rect_tl.bottom + margin
 
-      - text "centerIn parent":
+      + this.text "centerIn parent":
         this.centerIn parent
     
     - UiRectBorder.new as rect_mr:
       right = parent.right - margin
       top = rect_tl.bottom + margin
 
-      - text "centerY = parent.center":
+      + this.text "centerY = parent.center":
         centerY = parent.center
     
     - UiRectBorder.new as rect_bl:
       left = parent.left + margin
       bottom = parent.bottom - margin
 
-      - text "centerY = parent.top\nright = parent.right":
+      + this.text "centerY = parent.top\nright = parent.right":
         # this.hAlign[] = CenterAlign
         centerY = parent.top
         right = parent.right
@@ -87,14 +86,14 @@ test "anchors":
       left = rect_bl.right + margin
       bottom = parent.bottom - margin
 
-      - text "bottom = parent.bottom - 10":
+      + this.text "bottom = parent.bottom - 10":
         bottom = parent.bottom - 10
     
     - UiRectBorder.new as rect_br:
       right = parent.right - margin
       bottom = parent.bottom - margin
 
-      - text "left = parent.left + 10":
+      + this.text "left = parent.left + 10":
         left = parent.left + 10
     
     for this in [rect_tl, rect_tm, rect_tr, rect_ml, rect_mm, rect_mr, rect_bl, rect_bm, rect_br]:

@@ -3,6 +3,7 @@ import ./[events {.all.}, properties, uiobj {.all.}, window]
 export MouseButton, MouseMoveEvent
 
 type
+  UiMouseArea* {.deprecated: "use MouseArea instead".} = MouseArea
   MouseArea* = ref object of Uiobj
     acceptedButtons*: Property[set[MouseButton]] = {MouseButton.left}.property
       ## handle only events of these buttons

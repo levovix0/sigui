@@ -1,4 +1,4 @@
-import tables
+import std/[tables, macros, sequtils]
 import pkg/[vmath, bumpy, shady, chroma]
 import pkg/pixie/fileformats/[svg], pkg/pixie/[fonts, images]
 import ./[events, properties, cvmath, uiobj, window, windowCreation]
@@ -43,6 +43,7 @@ type
       ## the image loaded to GPU
 
 
+  SvgImage* {.deprecated: "use UiSvgImage instead".} = UiSvgImage
   UiSvgImage* = ref object of Uiobj
     ## pixel-perfect svg image
     ## expensive resize
@@ -63,6 +64,7 @@ type
     tex: Texture
 
 
+  RectBorder* {.deprecated: "use UiRectBorder instead".} = UiRectBorder
   UiRectBorder* = ref object of UiRect
     ## thin rectangular line, representing a border
 
@@ -78,8 +80,10 @@ type
       ## color of "invisible" line segment of a dotted line, transparent by default
 
   UiRectStroke* {.deprecated: "renamed to UiRectBorder".} = UiRectBorder
+  RectStroke* {.deprecated: "renamed to UiRectBorder".} = UiRectBorder
 
 
+  UiRectShadow* {.deprecated: "use RectShadow instead".} = RectShadow
   RectShadow* = ref object of UiRect
     ## shadow of a rect
 
@@ -88,6 +92,7 @@ type
       ## todo: make blur outside of component's rect, this is the most used case, setting margin equal to negative blurRadius is inconvinient
   
 
+  UiClipRect* {.deprecated: "use ClipRect instead".} = ClipRect
   ClipRect* = ref object of Uiobj
     ## displays content clipping it to the box of this component
 
@@ -122,32 +127,52 @@ type
 
 #----- utils -----
 
-proc preview*(
-  size = ivec2(),
-  clearColor = color(0, 0, 0, 0),
-  margin = 10'f32,
-  transparent = false,
-  withWindow: proc(): Uiobj,
-  title: string = "",
-) =
-  let win = newUiWindow(
-    size =
-      if size != ivec2(): size
-      else: ivec2(100, 100),
-    transparent = transparent,
-    title = title,
-  )
-  let obj = withWindow()
-
-  if size == ivec2() and obj.wh != vec2():
-    win.siwinWindow.size = (obj.wh + margin * 2).ivec2
-
-  win.clearColor = clearColor
-  win.makeLayout:
-    - obj:
-      this.fill(parent, margin)
+macro preview*(args: varargs[untyped]) =
+  let body = args[^1]
   
-  run win
+  let win = ident("win")
+  let obj = ident("obj")
+  let margin = ident("margin")
+  
+  let windowCreate = nnkCall.newTree(bindSym("newUiWindow") & args[0..^2])
+  let windowMkLayout = nnkCall.newTree(bindSym("makeLayout"), win, body)
+  
+  let setWindowSize =
+    if args.anyIt(it.kind == nnkExprEqExpr and it.len == 2 and it[0] == ident("size")):
+      newEmptyNode()
+    else:
+      quote do:
+        var objSize = `obj`.wh
+        if objSize.x == 0: objSize.x = 100
+        if objSize.y == 0: objSize.y = 100
+      
+        `win`.wh = objSize + vec2(`margin`.left + `margin`.right, `margin`.top + `margin`.bottom)
+        `win`.siwinWindow.size = `win`.wh.ivec2  # todo: siwin on Wayland ignores this resize
+  
+  let setClearColor =
+    if args.anyIt(it.kind == nnkExprEqExpr and it.len == 2 and it[0] == ident("transparent") and it[1] == ident("true")):
+      quote do:
+        `win`.clearColor = color(0, 0, 0, 0)
+    else:
+      newEmptyNode()
+  
+  result = quote do:
+    let `win` = `windowCreate`
+    `setClearColor`
+
+    `windowMkLayout`
+
+    if `win`.childs.len > 0:
+      let `obj` = `win`.childs[0]
+
+      let `margin` = `obj`.margin
+      
+      `setWindowSize`
+      
+      `win`.childs[0].fill(`win`)
+      `obj`.margin = `margin`
+    
+    run `win`
 
 
 
@@ -616,6 +641,7 @@ method draw*(rect: RectShadow, ctx: DrawContext) =
 
 
 method draw*(this: ClipRect, ctx: DrawContext) =
+  # todo: sometimes draws nothing if ClipRect was created without parent and added to a parent later (which should be an error, though)
   this.drawBefore(ctx)
   if this.visibility == visible:
     if this.w[] <= 0 or this.h[] <= 0: return

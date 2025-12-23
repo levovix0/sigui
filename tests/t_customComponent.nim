@@ -51,8 +51,7 @@ method init*(this: Switch) =
 
 
 when isMainModule:
-  preview(clearColor = color(1, 1, 1), margin = 20, withWindow = proc: Uiobj =
-    var r = Switch.new
-    init r
-    r
-  )
+  preview:
+    this.clearColor = color(1, 1, 1)
+    - Switch.new:
+      this.margin = 20

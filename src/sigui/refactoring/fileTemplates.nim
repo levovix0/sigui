@@ -31,10 +31,10 @@ method init*(this: <|name|>) =
 
 
 when isMainModule:
-  preview(
-    clearColor = color(1, 1, 1), margin = 20,
-    withWindow = proc: Uiobj = (var r = <|name|>.new; init r; r)
-  )
+  preview:
+    this.clearColor = color(1, 1, 1)
+    - <|name|>.new:
+      this.margin = 20
 """
 
 
@@ -91,9 +91,10 @@ method draw*(this: <|name|>, ctx: DrawContext) =
 
 
 when isMainModule:
-  preview(
-    clearColor = color(1, 1, 1), margin = 20,
-    withWindow = proc: Uiobj = (var r = <|name|>.new; init r; r)
+  preview:
+    this.clearColor = color(1, 1, 1)
+    - <|name|>.new:
+      this.margin = 20
   )
 """
 

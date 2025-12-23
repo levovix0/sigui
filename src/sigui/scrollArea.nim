@@ -16,6 +16,7 @@ type
     instantScrollWhenClickedOnScrollBarArea
 
 
+  UiScrollArea* {.deprecated: "use ScrollArea instead".} = ScrollArea
   ScrollArea* = ref object of Uiobj
     scrollY*: Property[float]
       ## has default transition, use clearTransition() to get rid if it
@@ -123,36 +124,37 @@ method init*(this: ScrollArea) =
   let scrollArea = this
 
 
+  proc withAlpha(c: Color, a: float): Color = color(c.r, c.g, c.b, a)
+
   template makeScrollBar(
     sbArea, defaultSb, sbOpacity, right, w, h
   ) =
     scrollArea.sbArea = MouseArea.new
 
     let defaultSb {.inject.} = UiRect.new
-    defaultSb.makeLayout:
-      this.right = scrollArea.sbArea.right
-      
-      this.bindingProperty radius: this.w[] / 2
+    defaultSb.right = scrollArea.sbArea.right
+    
+    defaultSb.bindingProperty radius: defaultSb.w[] / 2
 
-      proc withAlpha(c: Color, a: float): Color = color(c.r, c.g, c.b, a)
-      this.bindingProperty color: this.color[].withAlpha(scrollArea.sbOpacity[])
+    defaultSb.bindingProperty color: defaultSb.color[].withAlpha(scrollArea.sbOpacity[])
 
-      this.bindingProperty visibility:
-        if this.h[] == scrollArea.sbArea.h[]: hiddenTree
-        elif scrollArea.sbOpacity[] == 0.0: hiddenTree
-        else: visible
+    defaultSb.bindingProperty visibility:
+      if defaultSb.h[] == scrollArea.sbArea.h[]: hiddenTree
+      elif scrollArea.sbOpacity[] == 0.0: hiddenTree
+      else: visible
 
 
   makeScrollBar verticalScrollBarArea, defaultVerticalScrollBar, verticalScrollbarOpacity, right, w, h
   makeScrollBar horizontalScrollBarArea, defaultHorizontalScrollBar, horizontalScrollbarOpacity, bottom, h, w
  
 
-  scrollArea.withWindow win:
-    win.onTick.connectTo this: scrollArea.onTick.p.changed.emit()
+  let animator = this.parentAnimator
+  if animator != nil:
+    animator.onTick.connectTo this: this.onTick.p.changed.emit()
+  else:
+    let animator = this.parentUiRoot
+    animator.onTick.connectTo this: this.onTick.p.changed.emit()
 
-  scrollArea.withAnimator anim:
-    anim.onTick.connectTo this: scrollArea.onTick.p.changed.emit()
-  
 
   scrollArea.onTick.p.changed.connectTo scrollArea:
     if hideScrollBarWhenNotHoveredOrScrolled in scrollArea.settings[]:
@@ -380,43 +382,37 @@ method init*(this: ScrollArea) =
 when isMainModule:
   import ./[layouts, styles]
 
-  preview(clearColor = color(1, 1, 1), margin = 10,
-    withWindow = proc: Uiobj =
-      let this = ScrollArea()
-      this.makeLayout:
-        w = 200
-        h = 200
-        padding = 10
+  preview:
+    this.clearColor = color(1, 1, 1)
+    - ScrollArea.new:
+      w = 200; h = 200
+      this.margin = 10; padding = 10
 
-        - Styler.new:
-          style = makeStyle:
-            UiRect:
-              w = 180
-              h = 100
+      - Styler.new:
+        style = makeStyle:
+          UiRect:
+            w = 180; h = 100
 
-          - Layout.new:
-            parent.fill this
-            orientation = vertical
+        - Layout.new:
+          parent.fill this
+          orientation = vertical
 
-            - UiRect.new:
-              color = color(1, 0, 0)
+          - UiRect.new:
+            color = color(1, 0, 0)
 
-            - UiRect.new:
-              color = color(0, 1, 0)
-              radius = 20
+          - UiRect.new:
+            color = color(0, 1, 0)
+            radius = 20
 
-            - UiRect.new:
-              color = color(0, 0, 1)
+          - UiRect.new:
+            color = color(0, 0, 1)
 
-            - UiRect.new:
-              color = color(1, 0.3, 0.3)
+          - UiRect.new:
+            color = color(1, 0.3, 0.3)
 
-            - UiRect.new:
-              color = color(0.3, 1, 0.3)
-              radius = 20
+          - UiRect.new:
+            color = color(0.3, 1, 0.3)
+            radius = 20
 
-            - UiRect.new:
-              color = color(0.3, 0.3, 1)
-
-      this
-  )
+          - UiRect.new:
+            color = color(0.3, 0.3, 1)

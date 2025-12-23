@@ -58,9 +58,8 @@ registerComponent PluginUiRoot
 
 method init(this: HostUiRoot) =
   procCall this.super.init()
-  this.withRoot r:
-    r.onTick.connectTo this, e:
-      this.plugin.iface.onTick(this.plugin.env, e)
+  this.parentUiRoot.onTick.connectTo this, e:
+    this.plugin.iface.onTick(this.plugin.env, e)
   
   template makeEvent(prop) =
     this.prop.changed.connectTo this:

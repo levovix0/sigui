@@ -19,6 +19,7 @@ type
     
     firstTick: bool
   
+  UiAnimator* {.deprecated: "use Animator instead".} = Animator
   Animator* = ref object of Uiobj
     onTick*: Event[Duration]
 
@@ -65,16 +66,6 @@ proc parentAnimator*(obj: Uiobj): Animator =
     if obj == nil: return nil
     if obj of Animator: return obj.Animator
     obj = obj.parent
-
-template withAnimator*(obj: Uiobj, animVar: untyped, body: untyped) =
-  proc bodyProc(animVar {.inject.}: Animator) =
-    body
-  let anim = obj.parentAnimator
-  if anim != nil:
-    bodyProc(anim)
-  obj.onSignal.connect obj.eventHandler, proc(e: Signal) =
-    if e of ParentChanged and e.ParentChanged.newParentInTree of Animator:
-      bodyProc(e.ParentChanged.newParentInTree.Animator)
 
 
 proc currentValue*[T](a: Animation[T]): T =
@@ -128,17 +119,12 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
   a.easing.changed.connectTo a: act()
   a.duration.changed.connectTo a: act()
 
-  var hasAnimator = false
-
-  obj.withAnimator anim:
-    if hasAnimator: return
-    hasAnimator = true
-    anim.onTick.connectTo a, args: tick(args)
-
-  obj.withRoot win:
-    if hasAnimator: return
-    hasAnimator = true
-    win.onTick.connectTo a, args: tick(args.deltaTime)
+  let animator = obj.parentAnimator
+  if animator != nil:
+    animator.onTick.connectTo a, deltaTime: tick(deltaTime)
+  else:
+    let animator = obj.parentUiRoot
+    animator.onTick.connectTo a, e: tick(e.deltaTime)
 
 
 proc start*(a: Animation) =

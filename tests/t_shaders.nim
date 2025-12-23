@@ -54,10 +54,8 @@ method draw*(this: ChessTiles, ctx: DrawContext) =
 
 
 test "Custom shaders":
-  preview(clearColor = color(0.5, 0.5, 0.5), margin = 20,
-    withWindow = proc: Uiobj =
-      let this = ChessTiles()
-      init this
-      this.bindingValue this.tileSize: min(this.w[] / 10, this.h[] / 10)
-      this
-  )
+  preview:
+    this.clearColor = color(0.5, 0.5, 0.5)
+    - ChessTiles.new:
+      this.margin = 20
+      this.tileSize = binding: min(this.w[] / 10, this.h[] / 10)

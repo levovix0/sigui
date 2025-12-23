@@ -42,6 +42,7 @@ type
     # deactivatingAndActivatingUsingMiddleMouseButton
 
 
+  UiTextArea* {.deprecated: "use TextArea instead".} = TextArea
   TextArea* = ref object of Uiobj
     textEdited*: Event[void]
       ## text was edited by user
@@ -463,9 +464,8 @@ method init*(this: TextArea) =
 
   
   this.makeLayout:
-    this.withRoot win:
-      win.onTick.connectTo this:
-        this.blinking.time[] = (this.blinking.time + e.deltaTime) mod (this.blinking.period[] * 2)
+    this.parentUiRoot.onTick.connectTo this:
+      this.blinking.time[] = (this.blinking.time + e.deltaTime) mod (this.blinking.period[] * 2)
 
     - MouseArea.new:
       this.fill parent
@@ -548,7 +548,7 @@ method init*(this: TextArea) =
           root.textObj = UiText.new
           
 
-          root.selectionObj --- (let r = UiRect(); initIfNeeded(r); r.color[] = "78A7FF".color; r.Uiobj):
+          root.selectionObj --- (let r = UiRect.new; r.color[] = "78A7FF".color; r.Uiobj):
             binding:
               if root.textObj.h[] != 0 or root.textObj.font[] == nil:
                 this.fillVertical root.textObj
@@ -571,7 +571,7 @@ method init*(this: TextArea) =
           root.bindingProperty selectionEndX: positionOfCharacter(root.textObj.arrangement[], root.selectionEnd[])
           
 
-          root.cursorObj --- (let r = UiRect(); initIfNeeded(r); r.w[] = 1; r.Uiobj):
+          root.cursorObj --- (let r = UiRect.new; r.w[] = 1; r.Uiobj):
             x := root.cursorX[]
             binding:
               if root.textObj.h[] != 0 or root.textObj.font[] == nil:
@@ -606,21 +606,19 @@ when isMainModule:
   const typefaceFile = staticRead "../../tests/Roboto-Regular.ttf"
   let typeface = parseTtf(typefaceFile)
 
-  preview(clearColor = color(1, 1, 1), margin = 20,
-    withWindow = proc: Uiobj =
-      let this = TextArea()
-      this.makeLayout:
-        text = "start text"
-        w = 400
-        h = 30
-        
-        + this.textObj:
-          font = typeface.withSize(24)
-        
-        + this.textArea:
-          this.fill(this.parent, 10, 5)
+  preview:
+    this.clearColor = color(1, 1, 1)
+    - TextArea.new:
+      text = "start text"
+      w = 400
+      h = 30
+      this.margin = 20
+      
+      + this.textObj:
+        font = typeface.withSize(24)
+      
+      + this.textArea:
+        this.fill(this.parent, 10, 5)
 
-        - UiRectBorder.new:
-          this.fill(parent, -1)
-      this
-  )
+      - UiRectBorder.new:
+        this.fill(parent, -1)

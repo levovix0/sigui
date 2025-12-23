@@ -87,14 +87,6 @@ method draw*(this: Cat, ctx: DrawContext) =
 
 
 test "Cat shader":
-  preview(
-    clearColor = color(0, 0, 0, 0),
-    size = ivec2(600, 600),
-    transparent = true,
-    margin = 20,
-    title = "the Cat",
-    withWindow = proc: Uiobj =
-      let this = Cat()
-      init this
-      this
-  )
+  preview(transparent = true, title = "The Cat", size = ivec2(600, 600)):
+    - Cat.new:
+      this.margin = 20
