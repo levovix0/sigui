@@ -96,7 +96,7 @@ test "todo app":
       top = taskAdder.bottom + 20
 
       app.layout --- Layout.new:
-        <--- Layout.new: app.tasksChanged[]
+        <--- {update}: app.tasksChanged[]
         this.col(gap = 5)
 
         w = binding: parent.w[]

@@ -548,12 +548,12 @@ elementsObj --- Layout.new:
         text = "+"
 ```
 
-The `<--- ctor: prop[]; event[]; ...` syntax can be used to re-build tree based on property changes
+The `<--- ctor: prop[]; event[]; ...` syntax can be used to re-build tree based on property changes.
 ```nim
 var elements = ["first", "second"].property
 
 --- Layout.new:
-  <--- Layout.new: elements[]
+  <--- {update}: elements[]
 
   # ...
 
@@ -569,6 +569,7 @@ var elements = ["first", "second"].property
 
       # ...
 ```
+`<--- {update}` re-creates object with the same code used for inital object creation (for example, `--- Layout.new: <--- {update}: elements[]` will be the same as `--- Layout.new: <--- Layout.new: elements[]`).
 
 
 ## Anchors

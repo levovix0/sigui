@@ -10,6 +10,12 @@ type
     bindValue
     bindProc
     bindBody
+  
+  MkLayoutContext = object
+    changableChild: NimNode
+    changableChildCtor: NimNode
+    changableChildUpdaters: NimNode
+
 
 
 proc bindingImpl*(
@@ -256,7 +262,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
           implFwd(x[3] #[ body ]#, res)
 
 
-  proc impl(parent: NimNode, obj: NimNode, body: NimNode, changableChild: NimNode, changableChildUpdaters: NimNode): NimNode =
+  proc impl(parent: NimNode, obj: NimNode, body: NimNode, c: MkLayoutContext): NimNode =
     proc checkCtor(ctor: NimNode): bool =
       if ctor == ident "root": warning("adding root to itself causes recursion", ctor)
       if ctor == ident "this": warning("adding this to itself causes recursion", ctor)
@@ -278,7 +284,11 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
         initIfNeeded(`this`)
 
       if body != nil:
-        updateBody.add impl(ident("parent"), ident("this"), body, prop, updaters)
+        var c = c
+        c.changableChild = prop
+        c.changableChildCtor = ctor
+        c.changableChildUpdaters = updaters
+        updateBody.add impl(ident("parent"), ident("this"), body, c)
       
       updateBody.add quote do:
         markCompleted(`this`)
@@ -341,7 +351,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   call(ident("markCompleted"), alias)
                 else:
                   let body = x[2]
-                  impl(ident "this", alias, body, changableChild, changableChildUpdaters)
+                  impl(ident "this", alias, body, c)
                   call(ident("markCompleted"), alias)
 
 
@@ -360,9 +370,13 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   call(ident("markCompleted"), alias)
                 else:
                   let body = x[3]
-                  impl(ident "this", alias, body, changableChild, changableChildUpdaters)
+                  impl(ident "this", alias, body, c)
                   call(ident("markCompleted"), alias)
               
+
+              # todo: ctor {.param: val.}: body
+              # todo: ctor {.param: val.} as alias: body
+
 
               # to --- ctor: body
               elif (
@@ -381,27 +395,52 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 let ctor = x[1]
                 let anonimusChangableChild = nskVar.genSym("anonimusChangableChild")
                 discard checkCtor ctor
-                quote do:
-                  var `anonimusChangableChild`: ChangableChild[typeof(`ctor`)]
+
+                # var `anonimusChangableChild`: ChangableChild[typeof(`ctor`)]
+                nnkVarSection.newTree(
+                  nnkIdentDefs.newTree(
+                    anonimusChangableChild,
+                    nnkBracketExpr.newTree(
+                      newIdentNode("ChangableChild"),
+                      nnkCall.newTree(
+                        newIdentNode("typeof"),
+                        ctor
+                      )
+                    ),
+                    newEmptyNode()
+                  )
+                )
+
                 changableImpl(anonimusChangableChild, ctor, x[2])
+              
+
+              # todo: to --- {inline}: body
+              # todo: --- {inline}: body
 
               
-              # <--- ctor: body
+              # <--- ctor: triggers
               elif (
                 x.kind == nnkPrefix and x.len == 3 and x[0] == ident("<---")
               ):
-                let ctor = x[1]
-                let body = x[2]
-                if changableChild.kind == nnkEmpty:
+                let ctor =
+                  if x[1].kind == nnkCurly and x[1].len == 1 and x[1][0] == ident("update"):
+                    # <--- {update}: triggers
+                    c.changableChildCtor
+                  else:
+                    x[1] #[ ctor ]#
+                
+                let triggers = x[2]
+                
+                if c.changableChild.kind == nnkEmpty:
                   (error("Must be inside changable child", x))
 
-                changableChildUpdaters.add:
+                c.changableChildUpdaters.add:
                   buildAst:
                     call bindSym("bindingChangableChild"):
                       ident "this"
                       bracketExpr:
-                        changableChild
-                      body
+                        c.changableChild
+                      triggers
                       ctor
 
               
@@ -429,7 +468,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                   call(ident"initIfNeeded", alias)
                 else:
                   let body = x[2]
-                  impl(ident "this", alias, body, changableChild, changableChildUpdaters)
+                  impl(ident "this", alias, body, c)
               
 
               # binding: body
@@ -579,7 +618,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                           var fwd: seq[NimNode]
                           (implFwd(x[^1], fwd))
                           for x in fwd: x
-                          impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
+                          impl(ident "parent", ident "this", x[^1], c)
                     
                     for param in x[0..^3]:
                       param
@@ -595,7 +634,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                       var fwd: seq[NimNode]
                       (implFwd(branch[^1], fwd))
                       for x in fwd: x
-                      impl(ident "parent", ident "this", branch[^1], changableChild, changableChildUpdaters)
+                      impl(ident "parent", ident "this", branch[^1], c)
                   branches.add branch
                 
                 x.kind.newTree(branches)
@@ -613,7 +652,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                         var fwd: seq[NimNode]
                         (implFwd(x[^1], fwd))
                         for x in fwd: x
-                        impl(ident "parent", ident "this", x[^1], changableChild, changableChildUpdaters)
+                        impl(ident "parent", ident "this", x[^1], c)
                     x
               
 
@@ -677,8 +716,11 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
         nnkDotExpr.newTree(ident "root", ident "parent"),
         ident "root",
         if body.kind == nnkStmtList: body else: newStmtList(body),
-        newEmptyNode(),
-        newStmtList()
+        MkLayoutContext(
+          changableChild: newEmptyNode(),
+          changableChildCtor: newEmptyNode(),
+          changableChildUpdaters: newStmtList(),
+        )
       )
 
 

@@ -74,7 +74,7 @@ method init*(this: TabBar) =
     this.bindingValue tabWidth[]: this.w[] / this.tabs[].len.float32
 
     --- Uiobj.new:
-      <--- Uiobj.new: root.tabs[]
+      <--- {update}: root.tabs[]
       
       this.fill(parent)
 
@@ -122,7 +122,7 @@ test "tab bar":
         selectedTab = 0
 
       --- Uiobj.new:
-        <--- Uiobj.new: tabbar.selectedTab[]
+        <--- {update}: tabbar.selectedTab[]
 
         this.fill(parent)
         top = tabbar.bottom
