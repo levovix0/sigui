@@ -4,7 +4,7 @@
 import pkg/siwin/[windowOpengl, platforms]
 import pkg/siwin/platforms/any/window
 import pkg/[chroma, vmath, opengl]
-import ./[uiobj, events]
+import ./[uiobjOnly, events]
 import ./render/[contexts]
 
 

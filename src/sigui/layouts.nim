@@ -1,6 +1,6 @@
 import std/[sequtils, importutils]
 import pkg/[vmath]
-import ./[uiobj {.all.}, properties, events]
+import ./[uiobjOnly {.all.}, properties, events]
 import ./render/[contexts]
 
 type

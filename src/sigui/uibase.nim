@@ -1,13 +1,13 @@
 import std/[tables, macros, sequtils]
 import pkg/[vmath, bumpy, shady, chroma]
 import pkg/pixie/fileformats/[svg], pkg/pixie/[fonts, images]
-import ./[events, properties, cvmath, uiobj, window, windowCreation]
+import ./[events, properties, cvmath, uiobjOnly, uiobjMacros, window, windowCreation]
 import ./render/[gl, contexts]
 
 when hasImageman:
   import imageman except Rect, color, Color
 
-export vmath, cvmath, bumpy, gl, chroma, fonts, images, events, properties, tables, contexts, uiobj, window, windowCreation
+export vmath, cvmath, bumpy, gl, chroma, fonts, images, events, properties, tables, contexts, uiobjOnly, uiobjMacros, window, windowCreation
 
 
 type

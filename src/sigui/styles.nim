@@ -1,5 +1,7 @@
 import std/[macros]
-import ./[uiobj, properties]
+import ./[uiobjOnly, uiobjMacros, properties]
+export uiobjMacros
+
 
 type
   Styler* = ref object of Uiobj

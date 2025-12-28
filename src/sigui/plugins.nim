@@ -1,5 +1,5 @@
 import ./window
-import ./[uiobj, events, properties]
+import ./[uiobjOnly, events, properties]
 import ./render/contexts
 
 

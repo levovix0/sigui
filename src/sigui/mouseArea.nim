@@ -1,5 +1,5 @@
 import pkg/[vmath]
-import ./[events {.all.}, properties, uiobj {.all.}, window]
+import ./[events {.all.}, properties, uiobjOnly {.all.}, window]
 export MouseButton, MouseMoveEvent
 
 type

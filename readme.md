@@ -170,24 +170,24 @@ when isMainModule:
 
 Create an empty file and type:
 ```nim
-import sigui; refactor_siguiComponentFile(MyComponent)
+import sigui/refactoring; refactor_siguiComponentFile(MyComponent)
 ```
 then compile it with -d:refactor to create the minimal example in the file.
 
 This is more useful for creating custom component skeletons
 
 ```nim
-import sigui; refactor_siguiComponentFile(MyComponent)
+import sigui/refactoring; refactor_siguiComponentFile(MyComponent)
 ```
 
 ```nim
-import sigui; refactor_siguiShaderComponentFile(MyShaderComponent)
+import sigui/refactoring; refactor_siguiShaderComponentFile(MyShaderComponent)
 ```
 
 If you find yourself writing this often, consider using a shell script
 ```fish
 function sigui-create
-  echo "import sigui/uiobj; refactor_sigui"$argv[2]"("$argv[2..-1]")" > $argv[1] && nim c -d:refactor $argv[1]
+  echo "import sigui/refactoring; refactor_sigui"$argv[2]"("$argv[2..-1]")" > $argv[1] && nim c --hints:off -d:refactor $argv[1]
 end
 ```
 ```fish
@@ -279,7 +279,7 @@ items{}[2][] = 10
 `binding` macros macros group will automatically subscribe to all properties' change events if they are mentioned. It isn't magic, binding macro will determine if smth is property if you call `[]` on it (which is the get proc).
 
 There is:
-- `uiobj.binding prop: ...`: binds property that is field named `prop` inside `uiobj`
+- `obj.binding prop: ...`: binds property that is field named `prop` inside `obj`
 - `eh.bindingValue val: ...` binds to assignment to `val`
 - `eh.bindingProc f: ...` bind to call f(eh, body). Useful for nim-like properties (image=, len=, etc.)
 
