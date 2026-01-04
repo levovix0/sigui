@@ -47,6 +47,10 @@ test "layers":
           
           radius = 10
           color = color(0.7, 0.7, 0.7)
+
+          - MouseArea.new:
+            this.fill(parent)
+            on this.mouseDownAndUpInside: echo "non-clipped (itself)"
         
           - Layout.new:
             this.fillVertical(parent, 20)
@@ -61,6 +65,10 @@ test "layers":
               radius = 10
               color = color(0.3, 0.3, 1)
 
+              - MouseArea.new:
+                this.fill(parent)
+                on this.mouseDownAndUpInside: echo "non-clipped -> no modifications"
+
               - UiText.new:
                 centerY = parent.center
                 left = parent.left + 20
@@ -68,13 +76,17 @@ test "layers":
                 text = "no modifications"
             
             - UiRect.new:
-              drawLayer = after nonClipped_rect
+              layer = after nonClipped_rect
 
               h = 80
               w = 500
 
               radius = 10
               color = color(0.25, 0.25, 0.85)
+
+              - MouseArea.new:
+                this.fill(parent)
+                on this.mouseDownAndUpInside: echo "non-clipped -> after parent"
 
               - UiText.new:
                 centerY = parent.center
@@ -83,13 +95,17 @@ test "layers":
                 text = "after parent*"
             
             - UiRect.new:
-              drawLayer = before nonClipped_rect
+              layer = before nonClipped_rect
 
               h = 80
               w = 500
 
               radius = 10
               color = color(0.2, 0.2, 0.7)
+
+              - MouseArea.new:
+                this.fill(parent)
+                on this.mouseDownAndUpInside: echo "non-clipped -> before parent"
 
               - UiText.new:
                 centerY = parent.center
@@ -102,6 +118,10 @@ test "layers":
           h = binding: parent.h[]
           
           radius = 10
+
+          - MouseArea.new:
+            this.fill(parent)
+            on this.mouseDownAndUpInside: echo "clipped (itself)"
 
           - UiRect.new:
             this.fill parent
@@ -121,13 +141,17 @@ test "layers":
                 radius = 10
                 color = color(0.3, 1, 0.3)
 
+                - MouseArea.new:
+                  this.fill(parent)
+                  on this.mouseDownAndUpInside: echo "clipped -> no modifications"
+
                 - UiText.new:
                   centerY = parent.center
                   right = parent.right - 20
                   text = "no modifications"
               
               - UiRect.new:
-                drawLayer = after clipped_rect
+                layer = after clipped_rect
 
                 h = 80
                 w = 500
@@ -135,19 +159,27 @@ test "layers":
                 radius = 10
                 color = color(0.25, 0.85, 0.25)
 
+                - MouseArea.new:
+                  this.fill(parent)
+                  on this.mouseDownAndUpInside: echo "clipped -> after parent"
+
                 - UiText.new:
                   centerY = parent.center
                   left = parent.left + 20
                   text = "after parent*"
               
               - UiRect.new:
-                drawLayer = before clipped_rect
+                layer = before clipped_rect
 
                 h = 80
                 w = 500
 
                 this.radius[] = 10
                 this.color[] = color(0.2, 0.7, 0.2)
+
+                - MouseArea.new:
+                  this.fill(parent)
+                  on this.mouseDownAndUpInside: echo "clipped -> before parent"
 
                 - UiText.new:
                   centerY = parent.center

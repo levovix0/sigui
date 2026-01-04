@@ -25,7 +25,7 @@ test "anchors":
         
         - UiRect.new:
           this.fill parent
-          drawLayer = after background
+          layer = after background
           color = "c0c0c0"
 
     - UiRectBorder.new as rect_tl:

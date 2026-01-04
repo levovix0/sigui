@@ -125,11 +125,6 @@ template newUiRoot*(siwinWindow: Window): UiWindow =
   newUiWindow(siwinWindow)
 
 
-method addChild*(this: UiWindow, child: Uiobj) =
-  procCall this.super.addChild(child)
-  child.recieve(AttachedToRoot(root: this))
-
-
 
 proc newUiWindow*(
   size = ivec2(1280, 720),

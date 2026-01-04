@@ -1,4 +1,4 @@
-import std/[sequtils, importutils]
+import std/[sequtils, importutils, algorithm]
 import pkg/[vmath]
 import ./[uiobjOnly {.all.}, properties, events]
 import ./render/[contexts]
@@ -77,6 +77,8 @@ proc reposition(this: Layout)
 
 
 iterator potentially_visible_childs*(this: Layout): Uiobj =
+  # todo: this can cause bugs. A more efficient and reliable way should be found to skip singal dispatching for for-sure-not-handling-this-event parts of ui tree, and skip drawing for-sure-invisible elements. Probably something like making a small separate tree for handling mouse-related events
+
   block notOptimized:
     block optimized:
       if this.lengthBeforeWrap[] == 0 and this.elementsBeforeWrap[] == 0 and this.assumeChildsClipped[]:
@@ -112,28 +114,30 @@ iterator potentially_visible_childs*(this: Layout): Uiobj =
 
 method draw*(obj: Layout, ctx: DrawContext) =
   privateAccess Uiobj
-  privateAccess DrawLayering
-  privateAccess DrawLayer
+  privateAccess Layering
+  privateAccess LayerPinned
   privateAccess UiobjCursor
 
-  for x in obj.drawLayering.before:
+  for x in obj.layering.before:
     draw(x.obj, ctx)
-  for x in obj.drawLayering.beforeChilds:
+  for x in obj.layering.beforeChilds:
     draw(x.obj, ctx)
   
   if obj.visibility notin {hiddenTree, collapsed}:
     for child in obj.potentially_visible_childs:
-      if child.m_drawLayer.obj == nil:
+      if child.m_layer.obj == nil:
         draw(child, ctx)
 
-  for x in obj.drawLayering.after:
+  for x in obj.layering.after:
     draw(x.obj, ctx)
 
 
 
 method recieve*(this: Layout, signal: Signal) =
-  if signal of AttachedToRoot:
-    this.root = signal.AttachedToRoot.root
+  privateAccess Uiobj
+  privateAccess Layering
+  privateAccess LayerPinned
+  privateAccess UiobjCursor
 
   if signal of Completed:
     if this.lockFromReposition:
@@ -152,14 +156,7 @@ method recieve*(this: Layout, signal: Signal) =
 
   this.onSignal.emit signal
 
-  if signal of SubtreeSignal:
-    let childs = this.potentially_visible_childs.toSeq()
-    for x in childs:
-      x.recieve(signal)
-  
-  if signal of UptreeSignal:
-    if this.parent != nil:
-      this.parent.recieve(signal)
+  handleSubtreeSignals(this, signal)
 
 
 
@@ -184,8 +181,6 @@ proc doReposition(this: Layout) =
 
   var rows: seq[tuple[childs: seq[Uiobj]; freeSpace, spaceBetween, h: float32]] =
     @[(@[], this.get_this_w, 0'f32, 0'f32)]
-  
-  # todo: element bigger than lengthBeforeWrap causes empty row, there should be at least one element in a row
 
   block:
     var
@@ -208,7 +203,8 @@ proc doReposition(this: Layout) =
         (
           (this.elementsBeforeWrap[] > 0 and i > this.elementsBeforeWrap[]) or
           (this.lengthBeforeWrap[] > 0 and x > this.lengthBeforeWrap[])
-        )
+        ) and
+        (rows[^1].childs.len != 0)
       ):
         if shouldMakeGap and not(child of LayoutGap):
           rows[^1].freeSpace += this.gap[]

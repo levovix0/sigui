@@ -544,7 +544,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 )
 
                 if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:
-                  if $name notin ["drawLayer", "top", "left", "bottom", "right", "centerX", "centerY"]:
+                  if $name notin ["drawLayer", "layer", "top", "left", "bottom", "right", "centerX", "centerY"]:
                     asgnField = nnkStmtList.newTree(
                       asgnField,
                       nnkPragma.newTree(

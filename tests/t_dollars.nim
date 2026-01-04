@@ -19,7 +19,7 @@ test "properties":
 
       - RectShadow.new as shadow:
         this.fill(parent, -5)
-        this.drawLayer = before parent
+        layer = before parent
         this.radius[] = 5
       
       - MouseArea.new:

@@ -37,7 +37,7 @@ type
     sender* {.cursor.}: Uiobj
   
 
-  DrawLayering = object
+  Layering = object
     before: seq[UiobjCursor]
     beforeChilds: seq[UiobjCursor]
     after: seq[UiobjCursor]
@@ -47,11 +47,12 @@ type
     beforeChilds
     after
 
-  Layer = object
-    obj {.cursor.}: Uiobj
-    order: LayerOrder
+  Layer* = object
+    obj* {.cursor.}: Uiobj
+    order*: LayerOrder
 
-  DrawLayer = object
+  LayerPinned = object
+    ## to correctly destruct itself, layer needs to know what object it is layering
     obj {.cursor.}: Uiobj
     order: LayerOrder
     this {.cursor.}: Uiobj
@@ -71,7 +72,7 @@ type
     parent* {.cursor.}: Uiobj
       ## parent of this object, that must have this object as child
       ## note: object can have no parent
-    childs*: seq[owned(Uiobj)]
+    childs*: seq[Uiobj]
       ## childs that should be deleted when this object is deleted
     
     x*, y*, w*, h*: Property[float32]
@@ -102,8 +103,13 @@ type
     
     anchors: Anchors
 
-    drawLayering: DrawLayering
-    m_drawLayer: DrawLayer
+    layering: Layering
+    m_layer: LayerPinned
+
+    childsCow: ptr seq[Uiobj]
+    beforeCow: ptr seq[UiobjCursor]
+    beforeChildsCow: ptr seq[UiobjCursor]
+    afterCow: ptr seq[UiobjCursor]
 
 
   UiobjCursor = object
@@ -128,9 +134,6 @@ type
 
   SubtreeReverseSignal* = ref object of SubtreeSignal
     ## signal sends to all childs recursively in reverse order (by default)
-  
-  AttachedToRoot* = ref object of SubtreeSignal
-    root*: UiRoot
 
   ParentChanged* = ref object of SubtreeSignal
     newParentInTree*: Uiobj
@@ -276,26 +279,59 @@ template `deteached=`*(this: Uiobj, v: bool) {.deprecated: "renamed to isDeteach
   this.isInitialized = v
 
 
+proc makeCopy[T](arr: var seq[T], cow: var ptr seq[T]) =
+  if cow == arr.addr:
+    cow = create seq[T]
+    cow[] = arr
+
+
+iterator iterateChangeAware[T](arr: var seq[T], cow: var ptr seq[T]): T =
+  let shouldReset = cow == nil
+  if cow == nil: cow = arr.addr
+  var i = 0
+  while i < cow[].high:
+    if (when T is UiobjCursor: not cow[][i].obj.isDeteached else: not cow[][i].isDeteached):
+      yield cow[][i]
+    inc i
+  if shouldReset:
+    if cow != arr.addr: dealloc(cow)
+    cow = nil
+
+iterator iterateChangeAwareReversed[T](arr: var seq[T], cow: var ptr seq[T]): T =
+  let shouldReset = cow == nil
+  if cow == nil: cow = arr.addr
+  var i = arr.high
+  while true:
+    if i < 0: break
+    if (when T is UiobjCursor: not cow[][i].obj.isDeteached else: not cow[][i].isDeteached):
+      yield cow[][i]
+    dec i
+  if shouldReset:
+    if cow != arr.addr: dealloc(cow)
+    cow = nil
+
+
+
 method draw*(obj: Uiobj, ctx: DrawContext) {.base.}
   ## draw current state to a window or framebuffer
   ## ! do not update state of ui objects on draw() !  handle BeforeDraw signal instead
 
 proc drawBefore*(obj: Uiobj, ctx: DrawContext) =
-  for x in obj.drawLayering.before:
+  for x in obj.layering.before:
     draw(x.obj, ctx)
 
 proc drawChilds*(obj: Uiobj, ctx: DrawContext) =
   if obj.visibility notin {hiddenTree, collapsed}:
     for x in obj.childs:
-      if x.m_drawLayer.obj == nil:
+      if x.m_layer.obj == nil:
         draw(x, ctx)
 
 proc drawBeforeChilds*(obj: Uiobj, ctx: DrawContext) =
-  for x in obj.drawLayering.beforeChilds:
+  for x in obj.layering.beforeChilds:
     draw(x.obj, ctx)
 
 proc drawAfterLayer*(obj: Uiobj, ctx: DrawContext) =
-  for x in obj.drawLayering.after:
+  for x in obj.layering.after:
     draw(x.obj, ctx)
 
 proc drawAfter*(obj: Uiobj, ctx: DrawContext) =
@@ -656,32 +692,46 @@ proc spreadGlobalYChange(obj: Uiobj, delta: float32) =
 
 #----- receiving signals -----
 
-method recieve*(obj: Uiobj, signal: Signal) {.base.} =
-  # todo: find more optimized way to iterate over possibly deleting elements
-  
-  if signal of AttachedToRoot:
-    obj.root = signal.AttachedToRoot.root
+method recieve*(this: Uiobj, signal: Signal) {.base.}
 
-  obj.onSignal.emit signal
-
+proc handleSubtreeSignals(this: Uiobj, signal: Signal) =
   if signal of SubtreeReverseSignal:
-    var i = obj.childs.high
-    while i >= 0:
-      if i < obj.childs.len:
-        if not obj.childs[i].isDeteached:
-          obj.childs[i].recieve(signal)
-      dec i
+    for child in this.childs.iterateChangeAwareReversed(this.childsCow):
+      if child.m_layer.obj == nil:
+        for after in child.layering.after.iterateChangeAwareReversed(child.afterCow):
+          after.obj.recieve(signal)
+
+        for beforeChilds in child.layering.beforeChilds.iterateChangeAwareReversed(child.beforeChildsCow):
+          beforeChilds.obj.recieve(signal)
+        
+        child.recieve(signal)
+        
+        for before in child.layering.before.iterateChangeAwareReversed(child.beforeCow):
+          before.obj.recieve(signal)
 
   elif signal of SubtreeSignal:
-    var i = 0
-    while i < obj.childs.len:
-      if not obj.childs[i].isDeteached:
-        obj.childs[i].recieve(signal)
-      inc i
+    for child in this.childs.iterateChangeAware(this.childsCow):
+      if child.m_layer.obj == nil:
+        for before in child.layering.before.iterateChangeAware(child.beforeCow):
+          before.obj.recieve(signal)
+
+        child.recieve(signal)
+
+        for beforeChilds in child.layering.beforeChilds.iterateChangeAware(child.beforeChildsCow):
+          beforeChilds.obj.recieve(signal)
+
+        for after in child.layering.after.iterateChangeAware(child.afterCow):
+          after.obj.recieve(signal)
   
-  if signal of UptreeSignal:
-    if obj.parent != nil:
-      obj.parent.recieve(signal)
+  elif signal of UptreeSignal:
+    if this.parent != nil:
+      this.parent.recieve(signal)
+
+
+method recieve*(this: Uiobj, signal: Signal) {.base.} =
+  this.onSignal.emit signal
+
+  handleSubtreeSignals(this, signal)
 
 
 
@@ -831,17 +881,16 @@ method init*(obj: Uiobj) {.base.} =
   if not (obj of UiRoot):
     assert obj.parent != nil, "ui object must be added to a parent before initializing"
   
+  if not (obj of UiRoot):
+    obj.root = obj.parent.root
+  
   obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
   obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
 
   connectFirstHandHandlers(obj)
-  
-  if obj.root == nil:
-    let root = obj.parentUiRoot(forceFind = true)
-    if root != nil:
-      obj.recieve(AttachedToRoot(root: root))
 
   obj.isInitialized = true
+
 
 proc initIfNeeded*(obj: Uiobj) =
   if obj.isInitialized: return
@@ -882,20 +931,28 @@ proc fill*[T: Uiobj](this: Uiobj, obj: T, marginX: float32, marginY: float32) =
 
 #----- Layers -----
 
-proc `=destroy`(l: DrawLayer) =
+proc `=destroy`(l: LayerPinned) =
   if l.obj != nil:
     case l.order
-    of before: l.obj.drawLayering.before.delete l.obj.drawLayering.before.find(UiobjCursor(obj: l.this))
-    of beforeChilds: l.obj.drawLayering.beforeChilds.delete l.obj.drawLayering.beforeChilds.find(UiobjCursor(obj: l.this))
-    of after: l.obj.drawLayering.after.delete l.obj.drawLayering.after.find(UiobjCursor(obj: l.this))
+    of before:
+      l.obj.layering.before.makeCopy(l.obj.beforeCow)
+      l.obj.layering.before.delete l.obj.layering.before.find(UiobjCursor(obj: l.this))
+    
+    of beforeChilds:
+      l.obj.layering.beforeChilds.makeCopy(l.obj.beforeChildsCow)
+      l.obj.layering.beforeChilds.delete l.obj.layering.beforeChilds.find(UiobjCursor(obj: l.this))
+    
+    of after:
+      l.obj.layering.after.makeCopy(l.obj.afterCow)
+      l.obj.layering.after.delete l.obj.layering.after.find(UiobjCursor(obj: l.this))
 
-proc `=destroy`(l: DrawLayering) =
+proc `=destroy`(l: Layering) =
   for x in l.before:
-    x.obj.m_drawLayer.obj = nil
-    x.obj.m_drawLayer = DrawLayer()
+    x.obj.m_layer.obj = nil
+    x.obj.m_layer = LayerPinned()
   for x in l.after:
-    x.obj.m_drawLayer.obj = nil
-    x.obj.m_drawLayer = DrawLayer()
+    x.obj.m_layer.obj = nil
+    x.obj.m_layer = LayerPinned()
 
 
 proc before*(this: Uiobj): Layer =
@@ -908,18 +965,33 @@ proc after*(this: Uiobj): Layer =
   Layer(obj: this, order: LayerOrder.after)
 
 
-proc `drawLayer=`*(this: Uiobj, layer: typeof nil) =
-  this.m_drawLayer = DrawLayer()
+proc `layer=`*(this: Uiobj, layer: typeof nil) =
+  this.m_layer = LayerPinned()
 
-proc `drawLayer=`*(this: Uiobj, layer: Layer) =
-  if this.m_drawLayer.obj != nil: this.drawLayer = nil
+proc `layer=`*(this: Uiobj, layer: Layer) =
+  if this.m_layer.obj != nil: this.layer = nil
   if layer.obj == nil: return
-  this.m_drawLayer = DrawLayer(obj: layer.obj, order: layer.order, this: this)
+  this.m_layer = LayerPinned(obj: layer.obj, order: layer.order, this: this)
 
   case layer.order
-  of before: layer.obj.drawLayering.before.add UiobjCursor(obj: this)
-  of beforeChilds: layer.obj.drawLayering.beforeChilds.add UiobjCursor(obj: this)
-  of after: layer.obj.drawLayering.after.add UiobjCursor(obj: this)
+  of before:
+    layer.obj.layering.before.makeCopy(layer.obj.beforeCow)
+    layer.obj.layering.before.add UiobjCursor(obj: this)
+  
+  of beforeChilds:
+    layer.obj.layering.beforeChilds.makeCopy(layer.obj.beforeChildsCow)
+    layer.obj.layering.beforeChilds.add UiobjCursor(obj: this)
+  
+  of after:
+    layer.obj.layering.after.makeCopy(layer.obj.afterCow)
+    layer.obj.layering.after.add UiobjCursor(obj: this)
+
+
+proc `drawLayer=`*(this: Uiobj, layer: typeof nil) {.deprecated: "use layer= instead".} =
+  this.layer = nil
+
+proc `drawLayer=`*(this: Uiobj, layer: Layer) {.deprecated: "use layer= instead".} =
+  this.layer = layer
 
 
 
@@ -930,7 +1002,7 @@ method deteach*(this: Uiobj) {.base.}
 proc deteachStatic[T: Uiobj](this: T) =
   if this == nil: return
 
-  this.drawLayer = nil
+  this.layer = nil
   this.isDeteached = true
 
   disconnect this.eventHandler
@@ -977,10 +1049,8 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
 
   else:
     child.parent = parent
+    parent.childs.makeCopy(parent.childsCow)
     parent.childs.add child
-
-    if child.root == nil and parent.root != nil:
-      child.recieve(AttachedToRoot(root: parent.root))
 
     if child.isInitialized:
       child.recieve(ParentChanged(newParentInTree: parent))
@@ -988,7 +1058,11 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
 
 
 proc `val=`*[T](p: var ChangableChild[T], v: T) =
-  if v.Uiobj == p.child: return
+  when T is Uiobj:
+    if v == p.child: return
+  else:
+    if v.Uiobj == p.child: return
+  
   let i = p.parent.childs.find(p.child)
 
   let oldChild = p.child
@@ -1037,9 +1111,6 @@ method addChangableChildUntyped*(parent: Uiobj, child: Uiobj): ChangableChild[Ui
     child.parent = parent
     parent.childs.add child
 
-    if child.root == nil and parent.root != nil:
-      child.recieve(AttachedToRoot(root: parent.root))
-
     if child.isInitialized:
       child.recieve(ParentChanged(newParentInTree: parent))
       parent.recieve(ChildAdded(child: child))
@@ -1059,6 +1130,7 @@ proc removeChild*(child: Uiobj) =
   child.parent.recieve(ChildRemoved(child: child))
   let i = child.parent.childs.find(child)
   if i != -1:
+    child.parent.childs.makeCopy(child.parent.childsCow)
     child.parent.childs.delete i
   child.parent = nil
 
@@ -1092,11 +1164,7 @@ proc newUiobj*(): Uiobj = new result
 template withRoot*(obj: Uiobj, rootVar: untyped, body: untyped) {.deprecated: "Ui objects always have a parent before initializing".} =
   proc bodyProc(rootVar {.inject.}: UiRoot) =
     body
-  if obj.root != nil:
-    bodyProc(obj.root)
-  obj.onSignal.connect obj.eventHandler, proc(e: Signal) =
-    if e of AttachedToRoot:
-      bodyProc(obj.root)
+  bodyProc(obj.root)
 
 
 #----- reflection -----
@@ -1159,13 +1227,18 @@ proc formatValue[T](res: var seq[string], name: string, val: T) =
 
 
 proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
+  # todo: this generates around 10% of binary size, used rarely for debugging. should be optimized
   {.push, warning[Deprecated]: off.}
   result.add "box: " & $rect(this.x, this.y, this.w, this.h)
   
   for k, v in this.fieldPairs:
-    when k in [
+    when k == "m_layer":
+      if v.obj != nil:
+        result.add "layer: " & $v.order & " " & v.obj.componentTypeName
+    
+    elif k in [
       "eventHandler", "parent", "childs", "x", "y", "w", "h", "globalX", "globalY",
-      "isInitialized", "anchors", "drawLayering", "isDeteached", "isCompleted"
+      "isInitialized", "anchors", "layering", "isDeteached", "isCompleted"
     ] or k.startsWith("m_"):
       discard
     
