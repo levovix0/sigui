@@ -8,11 +8,14 @@
 /.vscode
 /build
 /build-*
-/config.nims
 *.exe
 *.so
 *.dll
+*.out
 /docs
+/deps
+/nim.cfg
+nimcache
 
 local_*
 local-*

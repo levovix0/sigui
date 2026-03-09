@@ -145,7 +145,7 @@ proc newUiWindow*(
 
     siwinGlobals = newSiwinGlobals(preferedPlatform)
 
-  siwinGlobals.newOpenglWindow(
+  result = siwinGlobals.newOpenglWindow(
     size,
     title,
     screen,
@@ -156,6 +156,8 @@ proc newUiWindow*(
     vsync,
     class,
   ).newUiWindow
+
+  result.root = result
 
 
 proc parentUiWindow*(obj: Uiobj): UiWindow =

@@ -353,6 +353,7 @@ proc parentUiRoot*(obj: Uiobj, forceFind = false): UiRoot =
       obj = obj.parent
 
   else:
+    if obj.root == nil and obj of UiRoot: return obj.UiRoot
     return obj.root
 
 
@@ -882,7 +883,7 @@ method init*(obj: Uiobj) {.base.} =
     assert obj.parent != nil, "ui object must be added to a parent before initializing"
   
   if not (obj of UiRoot):
-    obj.root = obj.parent.root
+    obj.root = obj.parent.parentUiRoot
   
   obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
   obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
