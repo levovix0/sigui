@@ -102,7 +102,7 @@ type
 
 registerComponent MyComponent
 
-method init*(this: Switch) =
+method init*(this: MyComponent) =
   procCall this.super.init()
 ```
 
