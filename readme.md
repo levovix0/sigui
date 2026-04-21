@@ -600,11 +600,13 @@ Unlike other ui libs, sigui don't have z-indices. Instead, you can directly spec
   #...
 
   - UiRect.new as rect:
-    drawLayer = before parent
+    layer = before parent
   
 - UiRect.new:
-  drawLayer = after rect
+  layer = after rect
 ```
+
+Layers also affect the order, in which signals (like window events) are handled
 
 ## Custom shaders
 ![image](http://levovix.ru:8000/docs/sigui/example%20images/custom%20shader.png)
