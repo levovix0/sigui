@@ -1,6 +1,6 @@
 import ./window
 import ./[uiobjOnly, events, properties]
-import ./render/contexts
+import rice/contexts
 
 
 type

@@ -4,8 +4,8 @@
 import pkg/siwin/[windowOpengl, platforms]
 import pkg/siwin/platforms/any/window
 import pkg/[chroma, vmath, opengl]
-import ./[uiobjOnly, events]
-import ./render/[contexts]
+import ./[uiobjOnly, events, properties]
+import rice/[contexts, transform]
 
 
 when defined(sigui_debug_useLogging):
@@ -16,7 +16,7 @@ type
   UiWindow* = ref object of UiRoot
     siwinWindow*: Window
     clearColor*: Color = color(0, 0, 0)
-    ctx*: DrawContextRef
+    ctx*: DrawContext
 
 registerComponent UiWindow
 
@@ -69,9 +69,9 @@ proc setupEventsHandling*(win: UiWindow) =
     ,
     onRender: proc(e: RenderEvent) =
       win.recieve(BeforeDraw(sender: win))
-      win.draw(cast[DrawContext](win.ctx))
-      cast[DrawContext](win.ctx).deleteUnusedEffectBuffers()
-      cast[DrawContext](win.ctx).markAllFreeEffectBuffersAsUnused()
+      win.draw(win.ctx)
+      win.ctx.deleteUnusedFrameBuffers()
+      win.ctx.markAllFreeFrameBuffersAsUnused()
     ,
     onTick: proc(e: TickEvent) =
       win.onTick.emit(e)
@@ -79,8 +79,14 @@ proc setupEventsHandling*(win: UiWindow) =
     onResize: proc(e: ResizeEvent) =
       win.wh = e.size.vec2
       glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
-      win.ctx.windowWh = e.size
-      cast[DrawContext](win.ctx).updateDrawingAreaSize(e.size)
+      assert win.ctx.fbo == 0
+      win.ctx.fboSize = e.size
+      win.ctx.updateDrawingAreaSize(e.size)
+
+      win.ctx.projection = combine(
+        scale(vec3(2 / win.w[], -2 / win.h[], 1)),
+        translate(vec3(-1, 1, 0)),
+      )
 
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
@@ -137,12 +143,11 @@ proc newUiWindow*(
   vsync = true,
 
   class = "", # window class (used in x11), equals to title if not specified
+  preferedPlatform =
+    when defined(linux) and defined(sigui_prefer_x11): Platform.x11
+    else: defaultPreferedPlatform(),
 ): UiWindow =
   if siwinGlobals == nil:
-    let preferedPlatform =
-      when defined(linux) and defined(sigui_prefer_x11): Platform.x11
-      else: defaultPreferedPlatform()
-
     siwinGlobals = newSiwinGlobals(preferedPlatform)
 
   result = siwinGlobals.newOpenglWindow(

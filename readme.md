@@ -166,34 +166,6 @@ when isMainModule:
       this.margin = 20.allSides
 ```
 
-## File templates
-
-Create an empty file and type:
-```nim
-import sigui/refactoring; refactor_siguiComponentFile(MyComponent)
-```
-then compile it with -d:refactor to create the minimal example in the file.
-
-This is more useful for creating custom component skeletons
-
-```nim
-import sigui/refactoring; refactor_siguiComponentFile(MyComponent)
-```
-
-```nim
-import sigui/refactoring; refactor_siguiShaderComponentFile(MyShaderComponent)
-```
-
-If you find yourself writing this often, consider using a shell script
-```fish
-function sigui-create
-  echo "import sigui/refactoring; refactor_sigui"$argv[2]"("$argv[2..-1]")" > $argv[1] && nim c --hints:off -d:refactor $argv[1]
-end
-```
-```fish
-sigui-create a.nim ShaderComponentFile
-```
-
 # Features
 ## Events
 ```nim

@@ -1,7 +1,7 @@
-import std/[sequtils, importutils, algorithm]
+import std/[sequtils, importutils]
 import pkg/[vmath]
 import ./[uiobjOnly {.all.}, properties, events]
-import ./render/[contexts]
+import rice/[contexts]
 
 type
   LayoutOrientation* = enum

@@ -1,8 +1,7 @@
 import std/[times, macros, strutils, importutils, macrocache]
 import pkg/[vmath, bumpy, chroma]
-# import pkg/fusion/[astdsl]
+import pkg/rice/contexts
 import ./[events {.all.}, properties, window]
-import ./render/[gl, contexts]
 
 when defined(refactor):
   import refactoring/fileTemplates
@@ -1059,10 +1058,7 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
 
 
 proc `val=`*[T](p: var ChangableChild[T], v: T) =
-  when T is Uiobj:
-    if v == p.child: return
-  else:
-    if v.Uiobj == p.child: return
+  if v.Uiobj == p.child: return
   
   let i = p.parent.childs.find(p.child)
 

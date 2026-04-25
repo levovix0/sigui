@@ -1,6 +1,6 @@
 import ./[uibase]
-import ./render/[gl, contexts]
-import pkg/pixie/[images, paths, paints]
+import rice/[paths, contextutils, antialiasing]
+import pkg/pixie/[paths, paints]
 
 
 type
@@ -18,11 +18,12 @@ type
     
     lineCap*: Property[LineCap]
     lineJoin*: Property[LineJoin]
+    antialiasing*: Property[bool] = true.property
     
     changed: bool
-    tex: Texture
+    meshes: seq[Mesh]
     offset: Vec2
-    texWh: IVec2
+    aafb: AntialiasedFramebuffer
 
 
 addFirstHandHandler UiPath, "path": this.changed = true; redraw(this)
@@ -34,12 +35,10 @@ registerComponent UiPath
 
 
 
-proc updateTexture(this: UiPath) =
-  this.tex = nil
+proc updateMesh(this: UiPath) =
+  this.meshes = @[]
+  if this.path[] == nil: return
 
-  if this.path[] == nil:
-    return
-  
   let bounds = this.path[].computeBounds(this.transform[])
   var boundsI = (x: bounds.x.floor.int32, y: bounds.y.floor.int32, w: bounds.w.ceil.int32, h: bounds.h.ceil.int32)
 
@@ -50,38 +49,24 @@ proc updateTexture(this: UiPath) =
   boundsI.y -= grow
   boundsI.w += grow * 2
   boundsI.h += grow * 2
+  # todo: do not draw outside window
 
-  this.offset = vec2(boundsI.x.float32, boundsI.y.float32)
-  this.texWh = ivec2(boundsI.w, boundsI.h)
+  if this.antialiasing[]:
+    this.offset = vec2(boundsI.x.float32, boundsI.y.float32)
+    if this.aafb.fbo.len == 0:
+      this.aafb = newAntialiasedFramebuffer()
+    this.aafb.resize(ivec2(boundsI.w, boundsI.h))
+  else:
+    this.offset = vec2(0, 0)
 
   if boundsI.w <= 0 or bounds.h <= 0:
     return
   
-  this.tex = newTexture()
-
-  let img = newImage(boundsI.w, boundsI.h)
-  let paint = newPaint(SolidPaint)
-  paint.color = this.color[]
-  
   case this.kind[]
   of StrokePath:
-    img.strokePath(
-      this.path[],
-      paint,
-      translate(-this.offset) * this.transform[],
-      this.strokeWidth[],
-      this.lineCap[],
-      this.lineJoin[]
-    )
-
+    this.meshes = this.path[].toStrokeMeshes(this.strokeWidth[], this.lineCap[], this.lineJoin[])
   of FillPath:
-    img.fillPath(
-      this.path[],
-      paint,
-      translate(-this.offset) * this.transform[]
-    )
-
-  this.tex.load(img)
+    this.meshes = this.path[].toMeshes()
 
 
 method recieve*(this: UiPath, signal: Signal) =
@@ -89,7 +74,7 @@ method recieve*(this: UiPath, signal: Signal) =
 
   if signal of BeforeDraw:
     if this.changed and this.visibility[] == visible:
-      this.updateTexture()
+      this.updateMesh()
       this.changed = false
 
 
@@ -97,11 +82,31 @@ method draw*(this: UiPath, ctx: DrawContext) =
   this.drawBefore(ctx)
   
   if this.visibility[] == visible:
-    if this.tex != nil:
-      ctx.drawImage(
-        (this.globalXy + ctx.offset + this.offset).round, this.texWh.vec2, this.tex.raw,
-        this.color.vec4, 0, true, 0
-      )
+    let m = this.transform[]
+    let transform = mat4(
+      m[0,0], m[0,1], 0, m[0,2],
+      m[1,0], m[1,1], 0, m[1,2],
+      0,      0,      1, 0,
+      m[2,0], m[2,1], 0, 1,
+    )
+    ctx.withPushPopIf BlendRgbx, this.color[].a != 1 or this.antialiasing[]:
+      var prevFbo: PushedFrameBuffer
+      if this.antialiasing[]:
+        prevFbo = ctx.push this.aafb
+        glClearColor(0, 0, 0, 0)
+        glClear(GL_COLOR_BUFFER_BIT)
+      
+      let prevM = ctx.viewportToGlMatrix
+      ctx.viewportToGlMatrix =
+        translate(vec3(-1, -1, 0)) *
+        scale(vec3(2/this.aafb.size.x.float32, 2/this.aafb.size.y.float32, 0)) *
+        translate(vec3(-this.offset, 0))
+      ctx.drawWithSolidColor(this.meshes, this.color, transform)
+      ctx.viewportToGlMatrix = prevM
+      
+      if this.antialiasing[]:
+        ctx.pop this.aafb, prevFbo
+        ctx.draw(this.aafb, translate((this.xy + this.offset).round.vec3(0)))
   
   this.drawAfter(ctx)
 
