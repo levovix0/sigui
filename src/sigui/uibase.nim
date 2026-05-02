@@ -1,7 +1,7 @@
 import std/[tables, macros, sequtils]
 import pkg/[vmath, bumpy, chroma]
 import pkg/pixie/fileformats/[svg], pkg/pixie/[fonts, images]
-import pkg/rice/[gl, contexts, primitivesAA, transform]
+import pkg/rice/[gl, contexts, primitivesAA, transform, texts]
 import ./[events, properties, uiobjOnly, uiobjMacros, window, windowCreation]
 
 export vmath, bumpy, gl, contexts, chroma, fonts, images, tables

@@ -1,5 +1,5 @@
 import ./[uibase]
-import rice/[paths, contextutils, antialiasing]
+import rice/[paths, contextutils, antialiasing, transform]
 import pkg/pixie/[paths, paints]
 
 
@@ -28,14 +28,14 @@ type
 
 addFirstHandHandler UiPath, "path": this.changed = true; redraw(this)
 addFirstHandHandler UiPath, "transform": this.changed = true; redraw(this)
-addFirstHandHandler UiPath, "strokeWidth": this.changed = true; redraw(this)
+addFirstHandHandler UiPath, "strokeWidth": this.changed = this.changed or (this.kind[] == StrokePath); redraw(this)
 
 
 registerComponent UiPath
 
 
 
-proc updateMesh(this: UiPath) =
+proc updateMesh(this: UiPath, ctx: DrawContext) =
   this.meshes = @[]
   if this.path[] == nil: return
 
@@ -51,13 +51,8 @@ proc updateMesh(this: UiPath) =
   boundsI.h += grow * 2
   # todo: do not draw outside window
 
-  if this.antialiasing[]:
-    this.offset = vec2(boundsI.x.float32, boundsI.y.float32)
-    if this.aafb.fbo.len == 0:
-      this.aafb = newAntialiasedFramebuffer()
-    this.aafb.resize(ivec2(boundsI.w, boundsI.h))
-  else:
-    this.offset = vec2(0, 0)
+  this.offset = vec2(boundsI.x.float32, boundsI.y.float32)
+  ctx.resize(this.aafb, ivec2(boundsI.w, boundsI.h))
 
   if boundsI.w <= 0 or bounds.h <= 0:
     return
@@ -74,7 +69,7 @@ method recieve*(this: UiPath, signal: Signal) =
 
   if signal of BeforeDraw:
     if this.changed and this.visibility[] == visible:
-      this.updateMesh()
+      this.updateMesh(signal.BeforeDraw.ctx)
       this.changed = false
 
 
@@ -90,7 +85,7 @@ method draw*(this: UiPath, ctx: DrawContext) =
       m[2,0], m[2,1], 0, 1,
     )
     ctx.withPushPopIf BlendRgbx, this.color[].a != 1 or this.antialiasing[]:
-      var prevFbo: PushedFrameBuffer
+      var prevFbo: PushedAntialiasedFrameBuffer
       if this.antialiasing[]:
         prevFbo = ctx.push this.aafb
         glClearColor(0, 0, 0, 0)
@@ -98,14 +93,14 @@ method draw*(this: UiPath, ctx: DrawContext) =
       
       let prevM = ctx.viewportToGlMatrix
       ctx.viewportToGlMatrix =
-        translate(vec3(-1, -1, 0)) *
-        scale(vec3(2/this.aafb.size.x.float32, 2/this.aafb.size.y.float32, 0)) *
-        translate(vec3(-this.offset, 0))
+        translate(-1, -1) *
+        scale(2/this.aafb.size.x.float32, 2/this.aafb.size.y.float32) *
+        translate(vec3((if this.antialiasing[]: -this.offset else: vec2()), 0))
       ctx.drawWithSolidColor(this.meshes, this.color, transform)
       ctx.viewportToGlMatrix = prevM
       
       if this.antialiasing[]:
-        ctx.pop this.aafb, prevFbo
+        ctx.pop prevFbo
         ctx.draw(this.aafb, translate((this.xy + this.offset).round.vec3(0)))
   
   this.drawAfter(ctx)

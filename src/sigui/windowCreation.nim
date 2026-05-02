@@ -68,7 +68,7 @@ proc setupEventsHandling*(win: UiWindow) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
     onRender: proc(e: RenderEvent) =
-      win.recieve(BeforeDraw(sender: win))
+      win.recieve(BeforeDraw(sender: win, ctx: win.ctx))
       win.draw(win.ctx)
       win.ctx.deleteUnusedFrameBuffers()
       win.ctx.markAllFreeFrameBuffersAsUnused()

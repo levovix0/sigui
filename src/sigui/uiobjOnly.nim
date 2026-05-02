@@ -153,6 +153,7 @@ type
     ## this signal sends after onTick, just before draw
     ## this signal should be used to trigger compute-heavy private data updates that will be displayed on an upcoming frame
     ## call procCall this.super.recieve(signal) before handling it (unless you know what you're doing)
+    ctx*: DrawContext
 
   
   UptreeSignal* = ref object of Signal
