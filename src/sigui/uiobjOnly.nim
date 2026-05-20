@@ -302,7 +302,7 @@ iterator iterateChangeAwareReversed[T](arr: var seq[T], cow: var ptr seq[T]): T 
   if cow == nil: cow = arr.addr
   var i = arr.high
   while true:
-    if i < 0: break
+    if i < 0 or i >= cow[].len: break
     if (when T is UiobjCursor: not cow[][i].obj.isDeteached else: not cow[][i].isDeteached):
       yield cow[][i]
     dec i
