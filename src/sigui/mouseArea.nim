@@ -63,16 +63,24 @@ type
 proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal)
 
 
+proc parentCollapsed(this: Uiobj): Uiobj =
+  var p = this
+  while p != nil:
+    if p.visibility[] == collapsed:
+      return p
+    p = p.parent
+
+
 disableAutoRedrawHook MouseArea
 
 addFirstHandHandler MouseArea, "globalX":
   superHook()
-  if this.root != nil:
+  if (not this.globalTransform) and (this.root != nil):
     handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiRoot.mouseState.pos), nil)
 
 addFirstHandHandler MouseArea, "globalY":
   superHook()
-  if this.root != nil:
+  if (not this.globalTransform) and (this.root != nil):
     handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiRoot.mouseState.pos), nil)
 
 proc onHoveredOrCursorChanged(this: MouseArea)
@@ -112,8 +120,8 @@ proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal) =
 
   let d = this.globalXy
 
-  let xChanged = this.mouseX[] != e.pos.x.float32 - d.x
-  let yChanged = this.mouseY[] != e.pos.y.float32 - d.y
+  let xChanged = not almostEqual(this.mouseX[], e.pos.x.float32 - d.x)
+  let yChanged = not almostEqual(this.mouseY[], e.pos.y.float32 - d.y)
 
   this.mouseX{} = e.pos.x.float32 - d.x
   this.mouseY{} = e.pos.y.float32 - d.y
@@ -172,15 +180,15 @@ proc onHoveredOrCursorChanged(this: MouseArea) =
 method recieve*(this: MouseArea, signal: Signal) =
   procCall this.super.recieve(signal)
 
-  if this.visibility != collapsed:
+  if this.parentCollapsed == nil:
     if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent:
       handleMouseButtonEvent(this, ((ref MouseButtonEvent)signal.WindowEvent.event)[], signal)
       if this.hovered[]: this.mouseButton.emit(((ref MouseButtonEvent)signal.WindowEvent.event)[])
-    
+
 
     elif signal of WindowEvent and signal.WindowEvent.event of ClickEvent:
       if this.hovered[]: this.clicked.emit(((ref ClickEvent)signal.WindowEvent.event)[])
-    
+
 
     elif signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent:
       handleMouseMoveEvent(this, ((ref MouseMoveEvent)signal.WindowEvent.event)[], signal)
@@ -188,7 +196,7 @@ method recieve*(this: MouseArea, signal: Signal) =
 
     elif signal of WindowEvent and signal.WindowEvent.event of ScrollEvent:
       if signal.WindowEvent.handled == false:
-        if this.visibility != collapsed:
+        if this.parentCollapsed == nil:
           let e = (ref ScrollEvent)signal.WindowEvent.event
           if this.hovered[]:
             this.scrolled.emit(vec2(e.deltaX, e.delta))
@@ -204,7 +212,9 @@ method recieve*(this: MouseArea, signal: Signal) =
 
   if signal of VisibilityChanged:
     if signal.VisibilityChanged.visibility == collapsed:
+      this.pressed[] = false
       this.hovered[] = false
+      this.grabbed[] = false
 
 
 proc newMouseArea*(): MouseArea = new result

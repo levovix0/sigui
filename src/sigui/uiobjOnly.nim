@@ -691,16 +691,16 @@ proc `margin=`*(obj: Uiobj, v: SideOffsets) =
   obj.applyAnchors()
 
 
-proc spreadGlobalXChange(obj: Uiobj, delta: float32) =
-  obj.globalX{} += delta
-  for x in obj.childs:
-    x.spreadGlobalXChange(delta)
+proc spreadGlobalXChange(obj: Uiobj, parentGlobalX: float32) =
+  obj.globalX{} = if obj.globalTransform[]: obj.x[] else: parentGlobalX + obj.x[]
+  for child in obj.childs:
+    child.spreadGlobalXChange(obj.globalX{})
   obj.globalX.changed.emit()
 
-proc spreadGlobalYChange(obj: Uiobj, delta: float32) =
-  obj.globalY{} += delta
-  for x in obj.childs:
-    x.spreadGlobalYChange(delta)
+proc spreadGlobalYChange(obj: Uiobj, parentGlobalY: float32) =
+  obj.globalY{} = if obj.globalTransform[]: obj.y[] else: parentGlobalY + obj.y[]
+  for child in obj.childs:
+    child.spreadGlobalYChange(obj.globalY{})
   obj.globalY.changed.emit()
 
 
@@ -857,17 +857,11 @@ addFirstHandHandler Uiobj, "w": this.applyAnchors(); autoredraw(this)
 addFirstHandHandler Uiobj, "h": this.applyAnchors(); autoredraw(this)
 
 addFirstHandHandler Uiobj, "x":
-  this.spreadGlobalXChange(
-    if this.parent == nil or this.globalTransform[]: this.x[] - this.globalX[]
-    else: this.x[] - (this.globalX[] - this.parent.globalX[])
-  )
+  this.spreadGlobalXChange(if this.parent == nil: 0'f32 else: this.parent.globalX[])
   autoredraw(this)
 
 addFirstHandHandler Uiobj, "y":
-  this.spreadGlobalYChange(
-    if this.parent == nil or this.globalTransform[]: this.y[] - this.globalY[]
-    else: this.y[] - (this.globalY[] - this.parent.globalY[])
-  )
+  this.spreadGlobalYChange(if this.parent == nil: 0'f32 else: this.parent.globalY[])
   autoredraw(this)
 
 
