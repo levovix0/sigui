@@ -230,5 +230,10 @@ proc hasExternalHandlers*(e: Event): bool =
       return true
 
 
+proc hasHandlers*(e: EventHandler): bool =
+  if e.p == nil: return false
+  e.p.connected.len > 0
+
+
 template changed*[T](e: Event[T]): Event[T] =
   e
