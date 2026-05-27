@@ -379,9 +379,12 @@ proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
   var obj {.cursor.} = obj
   while true:
     if obj == nil: return
+    if obj.globalTransform[]:
+      result.x -= obj.globalX[]
+      result.y -= obj.globalY[]
+      return
     result.x -= obj.x[]
     result.y -= obj.y[]
-    if obj.globalTransform[]: return
     obj = obj.parent
 
 
@@ -390,9 +393,12 @@ proc posToGlobal*(pos: Vec2, obj: Uiobj): Vec2 =
   var obj {.cursor.} = obj
   while true:
     if obj == nil: return
+    if obj.globalTransform[]:
+      result.x += obj.globalX[]
+      result.y += obj.globalY[]
+      return
     result.x += obj.x[]
     result.y += obj.y[]
-    if obj.globalTransform[]: return
     obj = obj.parent
 
 
@@ -504,31 +510,35 @@ proc pos*(anchor: Anchor, isY: bool, toObject: Uiobj): float32 =
 
 
 proc applyAnchors*(obj: Uiobj) =
+  # when globalTransform is true, x/y are in global (root) coordinates,
+  # so anchor positions must not subtract the parent's global offset
+  let toObject = if obj.globalTransform[]: nil else: obj.parent
+
   # x and w
   if obj.anchors.left.obj != nil:
-    obj.x[] = obj.anchors.left.pos(isY=false, obj.parent)
-  
+    obj.x[] = obj.anchors.left.pos(isY=false, toObject)
+
   if obj.anchors.right.obj != nil:
     if obj.anchors.left.obj != nil:
-      obj.w[] = obj.anchors.right.pos(isY=false, obj.parent) - obj.x[]
+      obj.w[] = obj.anchors.right.pos(isY=false, toObject) - obj.x[]
     else:
-      obj.x[] = obj.anchors.right.pos(isY=false, obj.parent) - obj.w[]
-  
+      obj.x[] = obj.anchors.right.pos(isY=false, toObject) - obj.w[]
+
   if obj.anchors.centerX.obj != nil:
-    obj.x[] = obj.anchors.centerX.pos(isY=false, obj.parent) - obj.w[] / 2
+    obj.x[] = obj.anchors.centerX.pos(isY=false, toObject) - obj.w[] / 2
 
   # y and h
   if obj.anchors.top.obj != nil:
-    obj.y[] = obj.anchors.top.pos(isY=true, obj.parent)
-  
+    obj.y[] = obj.anchors.top.pos(isY=true, toObject)
+
   if obj.anchors.bottom.obj != nil:
     if obj.anchors.top.obj != nil:
-      obj.h[] = obj.anchors.bottom.pos(isY=true, obj.parent) - obj.y[]
+      obj.h[] = obj.anchors.bottom.pos(isY=true, toObject) - obj.y[]
     else:
-      obj.y[] = obj.anchors.bottom.pos(isY=true, obj.parent) - obj.h[]
-  
+      obj.y[] = obj.anchors.bottom.pos(isY=true, toObject) - obj.h[]
+
   if obj.anchors.centerY.obj != nil:
-    obj.y[] = obj.anchors.centerY.pos(isY=true, obj.parent) - obj.h[] / 2
+    obj.y[] = obj.anchors.centerY.pos(isY=true, toObject) - obj.h[] / 2
 
 
 proc left*(obj: Uiobj, margin: float32 = 0): Anchor =
@@ -562,30 +572,34 @@ proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
   let env = cast[pointer](this)
 
   if anchor.obj == nil: return
+  # for globalTransform objects, x/y are global, so we must track parent's globalX/Y too
+  let connectToParentGlobal = this.globalTransform[] or anchor.obj != this.parent
+  
   if not isY:
     case anchor.offsetFrom:
     of start:
-      if anchor.obj != this.parent:
+      if connectToParentGlobal:
         anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of `end`:
-      if anchor.obj != this.parent:
+      if connectToParentGlobal:
         anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
       anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of center:
-      if anchor.obj != this.parent:
+      if connectToParentGlobal:
         anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
       anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+  
   else:
     case anchor.offsetFrom:
     of start:
-      if anchor.obj != this.parent:
+      if connectToParentGlobal:
         anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of `end`:
-      if anchor.obj != this.parent:
+      if connectToParentGlobal:
         anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
       anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
     of center:
-      if anchor.obj != this.parent:
+      if connectToParentGlobal:
         anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
       anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
   anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
@@ -838,6 +852,7 @@ addFirstHandHandler Uiobj, "visibility":
   this.recieve(VisibilityChanged(sender: this, visibility: this.visibility[]))
   redraw(this, ifVisible = false)
 
+addFirstHandHandler Uiobj, "globalTransform": this.applyAnchors(); autoredraw(this)
 addFirstHandHandler Uiobj, "w": this.applyAnchors(); autoredraw(this)
 addFirstHandHandler Uiobj, "h": this.applyAnchors(); autoredraw(this)
 
