@@ -26,13 +26,13 @@ proc property*[T](v: T): Property[T] =
   Property[T](unsafeVal: v)
 
 
-proc `val=`*[T](p: var Property[T], v: T) =
+proc `[]=`*[T](p: var Property[T], v: T) =
   ## note: p.changed will not be emitted if new value is same as previous value
   if v == p.unsafeVal: return
   p.unsafeVal = v
   emit(p.changed)
 
-proc `[]=`*[T](p: var Property[T], v: T) {.inline.} = p.val = v
+proc `val=`*[T](p: var Property[T], v: T) {.inline.} = p[] = v
 
 proc val*[T](p: Property[T]): T {.inline.} = p.unsafeVal
 proc `[]`*[T](p: Property[T]): T {.inline.} = p.unsafeVal
