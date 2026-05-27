@@ -386,6 +386,7 @@ method addChild*(this: Layout, child: Uiobj) =
   
   child.w.changed.connectTo this: reposition(this)
   child.h.changed.connectTo this: reposition(this)
+  child.visibility.changed.connectTo this: reposition(this)
 
   if child of InLayout:
     child.InLayout.align.changed.connectTo this: reposition(this)
