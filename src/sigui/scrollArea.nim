@@ -31,6 +31,9 @@ type
     scrollH*: Property[float]
     scrollW*: Property[float]
 
+    scrollYAnimation*: Animation[float]
+    scrollXAnimation*: Animation[float]
+
     verticalScrollSpeed*: Property[float] = 100.0.property
     horizontalScrollSpeed*: Property[float] = 100.0.property
 
@@ -230,11 +233,13 @@ method init*(this: ScrollArea) =
     scrollY := this.targetY[]
 
 
-    - this.scrollY.transition(0.2's):
-      easing = outSquareEasing
+    this.scrollYAnimation = this.scrollY.transition(0.2's)
+    this.scrollYAnimation.easing[] = outSquareEasing
+    addChild(this, this.scrollYAnimation)
 
-    - this.scrollX.transition(0.2's):
-      easing = outSquareEasing
+    this.scrollXAnimation = this.scrollX.transition(0.2's)
+    this.scrollXAnimation.easing[] = outSquareEasing
+    addChild(this, this.scrollXAnimation)
     
     - scrollArea.verticalScrollbarOpacity.transition(0.2's):
       easing = outSquareEasing
@@ -253,16 +258,28 @@ method init*(this: ScrollArea) =
         this.scrolled.connectTo root, xy:
           let xy = if this.parentWindow.keyboard.pressed.containsShift(): vec2(xy.y, xy.x) else: xy
           if enableHorizontalScroll in root.settings[]:
-            root.targetX[] = (root.targetX[] + xy.x * root.horizontalScrollSpeed).clamp(
+            let newX = (root.targetX[] + xy.x * root.horizontalScrollSpeed).clamp(
               0,
               (root.scrollW[] - (root.w[] - root.padding[].left - root.padding[].right)).max(0)
             )
+            if abs(xy.x) < 0.5:
+              root.scrollXAnimation.currentTime[] = root.scrollXAnimation.duration[]
+              root.targetX[] = newX
+              root.scrollXAnimation.currentTime[] = root.scrollXAnimation.duration[]
+            else:
+              root.targetX[] = newX
 
           if enableVerticalScroll in root.settings[]:
-            root.targetY[] = (root.targetY[] + xy.y * root.verticalScrollSpeed).clamp(
+            let newY = (root.targetY[] + xy.y * root.verticalScrollSpeed).clamp(
               0,
               (root.scrollH[] - (root.h[] - root.padding[].top - root.padding[].bottom)).max(0)
             )
+            if abs(xy.y) < 0.5:
+              root.scrollYAnimation.currentTime[] = root.scrollYAnimation.duration[]
+              root.targetY[] = newY
+              root.scrollYAnimation.currentTime[] = root.scrollYAnimation.duration[]
+            else:
+              root.targetY[] = newY
 
         - Uiobj.new as container:
           x := -root.scrollX[] + root.padding[].left

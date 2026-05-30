@@ -118,6 +118,9 @@ proc setupEventsHandling*(win: UiWindow) =
     onTextInput: proc(e: TextInputEvent) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
+    onDrop: proc(e: DropEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
   )
 
 proc newUiWindow*(siwinWindow: Window): UiWindow =
