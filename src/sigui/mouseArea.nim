@@ -113,7 +113,11 @@ proc mouseXy*(this: MouseArea): CustomProperty[Vec2] =
 
 proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal) =
   let pos = this.globalXy
-  if e.pos.x.float32 in pos.x..(pos.x + this.w[]) and e.pos.y.float32 in pos.y..(pos.y + this.h[]):
+  if (
+    e.kind != MouseMoveKind.leave and
+    e.pos.x.float32 in pos.x..(pos.x + this.w[]) and
+    e.pos.y.float32 in pos.y..(pos.y + this.h[])
+  ):
     this.hovered[] = true
   else:
     this.hovered[] = false
