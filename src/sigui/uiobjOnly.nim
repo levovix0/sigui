@@ -16,14 +16,14 @@ type
     `end`
 
   Anchor* = object
-    obj {.cursor.}: Uiobj
+    obj* {.cursor.}: Uiobj
       # if nil, anchor is disabled
-    offsetFrom: AnchorOffsetFrom
-    offset: float32
-    eventHandler: EventHandler
+    offsetFrom*: AnchorOffsetFrom
+    offset*: float32
+    eventHandler*: EventHandler
   
   Anchors = object
-    left, right, top, bottom, centerX, centerY: Anchor
+    left*, right*, top*, bottom*, centerX*, centerY*: Anchor
   
   Visibility* = enum
     visible     ## draws itself, draws children
@@ -37,9 +37,9 @@ type
   
 
   Layering = object
-    before: seq[UiobjCursor]
-    beforeChilds: seq[UiobjCursor]
-    after: seq[UiobjCursor]
+    before*: seq[UiobjCursor]
+    beforeChilds*: seq[UiobjCursor]
+    after*: seq[UiobjCursor]
   
   LayerOrder = enum
     before
@@ -52,9 +52,9 @@ type
 
   LayerPinned = object
     ## to correctly destruct itself, layer needs to know what object it is layering
-    obj {.cursor.}: Uiobj
-    order: LayerOrder
-    this {.cursor.}: Uiobj
+    obj* {.cursor.}: Uiobj
+    order*: LayerOrder
+    this* {.cursor.}: Uiobj
 
   SideOffsets* = object
     left*: float32
