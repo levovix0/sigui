@@ -193,30 +193,25 @@ when hasImageman:
     obj.imageWh[] = ivec2(img.width.int32, img.height.int32)
 
 
-method draw*(rect: UiRect, ctx: DrawContext) =
-  rect.drawBefore(ctx)
-  if rect.visibility[] == visible:
-    ctx.drawRect(
-      (rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh,
-      rect.color.vec4, rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle
+method drawInner*(rect: UiRect, ctx: DrawContext) =
+  ctx.drawRect(
+    (rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh,
+    rect.color.vec4, rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle
+  )
+
+
+method drawInner*(this: UiImage, ctx: DrawContext) =
+  if this.tex == nil: return
+  if this.colorOverlay[]:
+    ctx.drawIcon(
+      (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh, this.tex.raw,
+      this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
     )
-  rect.drawAfter(ctx)
-
-
-method draw*(this: UiImage, ctx: DrawContext) =
-  this.drawBefore(ctx)
-  if this.visibility[] == visible and this.tex != nil:
-    if this.colorOverlay[]:
-      ctx.drawIcon(
-        (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh, this.tex.raw,
-        this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
-      )
-    else:
-      ctx.drawImage(
-        (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh, this.tex.raw,
-        this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
-      )
-  this.drawAfter(ctx)
+  else:
+    ctx.drawImage(
+      (this.xy.posToGlobal(this.parent) + ctx.offset).round, this.wh, this.tex.raw,
+      this.color.vec4, this.radius, this.blend or this.radius != 0, this.angle
+    )
 
 
 method init*(this: UiSvgImage) =
@@ -249,11 +244,9 @@ method init*(this: UiSvgImage) =
   this.h.changed.connectTo this: updateTexture(this.wh.ceil.ivec2)
 
 
-method draw*(ico: UiSvgImage, ctx: DrawContext) =
-  ico.drawBefore(ctx)
-  if ico.visibility[] == visible and ico.tex != nil:
-    ctx.drawIcon((ico.xy.posToGlobal(ico.parent) + ctx.offset).round, ico.wh.ceil, ico.tex.raw, ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
-  ico.drawAfter(ctx)
+method drawInner*(ico: UiSvgImage, ctx: DrawContext) =
+  if ico.tex == nil: return
+  ctx.drawIcon((ico.xy.posToGlobal(ico.parent) + ctx.offset).round, ico.wh.ceil, ico.tex.raw, ico.color.vec4, ico.radius, ico.blend or ico.radius != 0, ico.angle)
 
 
 proc `fontSize=`*(this: UiText, size: float32) =
@@ -282,31 +275,26 @@ method init*(this: UiText) =
   this.vAlign.changed.connectTo this: this.arrangement[] = newArrangement(this)
 
 
-method draw*(text: UiText, ctx: DrawContext) =
-  text.drawBefore(ctx)
+method drawInner*(text: UiText, ctx: DrawContext) =
   let pos =
     if text.roundPositionOnDraw[]:
       (text.xy.posToGlobal(text.parent) + ctx.offset).round
     else:
       text.xy.posToGlobal(text.parent) + ctx.offset
 
-  if text.visibility[] == visible:
-    ctx.drawRasterText(pos.vec3(0), text.arrangement[], text.color.vec4, origin=vec2(0, 0))
-  text.drawAfter(ctx)
+  ctx.drawRasterText(pos.vec3(0), text.arrangement[], text.color.vec4, origin=vec2(0, 0))
 
 
-method draw*(rect: UiRectBorder, ctx: DrawContext) =
-  rect.drawBefore(ctx)
-  if rect.visibility[] == visible:
-    ctx.drawRectStroke((rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh, rect.color.vec4, rect.radius, true, rect.angle, rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4)
-  rect.drawAfter(ctx)
+method drawInner*(rect: UiRectBorder, ctx: DrawContext) =
+  ctx.drawRectStroke(
+    (rect.xy.posToGlobal(rect.parent) + ctx.offset).round,
+    rect.wh, rect.color.vec4, rect.radius, true, rect.angle,
+    rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4
+  )
 
 
-method draw*(rect: RectShadow, ctx: DrawContext) =
-  rect.drawBefore(ctx)
-  if rect.visibility[] == visible:
-    ctx.drawShadowRect((rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh, rect.color.vec4, rect.radius, true, rect.blurRadius, rect.angle)
-  rect.drawAfter(ctx)
+method drawInner*(rect: RectShadow, ctx: DrawContext) =
+  ctx.drawShadowRect((rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh, rect.color.vec4, rect.radius, true, rect.blurRadius, rect.angle)
 
 
 method draw*(this: ClipRect, ctx: DrawContext) =

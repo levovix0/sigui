@@ -315,6 +315,11 @@ iterator iterateChangeAwareReversed[T](arr: var seq[T], cow: var ptr seq[T]): T 
 method draw*(obj: Uiobj, ctx: DrawContext) {.base.}
   ## draw current state to a window or framebuffer
   ## ! do not update state of ui objects on draw() !  handle BeforeDraw signal instead
+  ## todo: rename to drawTree
+
+method drawInner*(obj: Uiobj, ctx: DrawContext) {.base.} = discard
+  ## overload this method instead of draw for standard drawing order
+  ## todo: rename to `draw`
 
 proc drawBefore*(obj: Uiobj, ctx: DrawContext) =
   for x in obj.layering.before:
@@ -341,6 +346,8 @@ proc drawAfter*(obj: Uiobj, ctx: DrawContext) =
 
 method draw*(obj: Uiobj, ctx: DrawContext) {.base.} =
   obj.drawBefore(ctx)
+  if obj.visibility[] == Visibility.visible:
+    obj.drawInner(ctx)
   obj.drawAfter(ctx)
 
 

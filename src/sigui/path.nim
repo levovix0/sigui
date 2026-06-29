@@ -73,37 +73,32 @@ method recieve*(this: UiPath, signal: Signal) =
       this.changed = false
 
 
-method draw*(this: UiPath, ctx: DrawContext) =
-  this.drawBefore(ctx)
-  
-  if this.visibility[] == visible:
-    let m = this.transform[]
-    let transform = mat4(
-      m[0,0], m[0,1], 0, m[0,2],
-      m[1,0], m[1,1], 0, m[1,2],
-      0,      0,      1, 0,
-      m[2,0], m[2,1], 0, 1,
-    )
-    ctx.withPushPopIf BlendRgbx, this.color[].a != 1 or this.antialiasing[]:
-      var prevFbo: PushedAntialiasedFrameBuffer
-      if this.antialiasing[]:
-        prevFbo = ctx.push this.aafb
-        glClearColor(0, 0, 0, 0)
-        glClear(GL_COLOR_BUFFER_BIT)
-      
-      let prevM = ctx.viewportToGlMatrix
-      ctx.viewportToGlMatrix =
-        translate(-1, -1) *
-        scale(2/this.aafb.size.x.float32, 2/this.aafb.size.y.float32) *
-        translate(vec3((if this.antialiasing[]: -this.offset else: vec2()), 0))
-      ctx.fill2dMeshFlat(this.mesh, this.color, transform)
-      ctx.viewportToGlMatrix = prevM
-      
-      if this.antialiasing[]:
-        ctx.pop prevFbo
-        ctx.draw(this.aafb, translate((this.xy + this.offset).round.vec3(0)))
-  
-  this.drawAfter(ctx)
+method drawInner*(this: UiPath, ctx: DrawContext) =
+  let m = this.transform[]
+  let transform = mat4(
+    m[0,0], m[0,1], 0, m[0,2],
+    m[1,0], m[1,1], 0, m[1,2],
+    0,      0,      1, 0,
+    m[2,0], m[2,1], 0, 1,
+  )
+  ctx.withPushPopIf BlendRgbx, this.color[].a != 1 or this.antialiasing[]:
+    var prevFbo: PushedAntialiasedFrameBuffer
+    if this.antialiasing[]:
+      prevFbo = ctx.push this.aafb
+      glClearColor(0, 0, 0, 0)
+      glClear(GL_COLOR_BUFFER_BIT)
+    
+    let prevM = ctx.viewportToGlMatrix
+    ctx.viewportToGlMatrix =
+      translate(-1, -1) *
+      scale(2/this.aafb.size.x.float32, 2/this.aafb.size.y.float32) *
+      translate(vec3((if this.antialiasing[]: -this.offset else: vec2()), 0))
+    ctx.fill2dMeshFlat(this.mesh, this.color, transform)
+    ctx.viewportToGlMatrix = prevM
+    
+    if this.antialiasing[]:
+      ctx.pop prevFbo
+      ctx.draw(this.aafb, translate((this.xy + this.offset).round.vec3(0)))
 
 
 when isMainModule:
