@@ -2,10 +2,10 @@ import std/[tables, macros, sequtils]
 import pkg/[vmath, bumpy, chroma]
 import pkg/pixie/fileformats/[svg], pkg/pixie/[fonts, images]
 import pkg/rice/[gl, contexts, primitivesAA, transform, rasterTexts]
-import ./[events, properties, uiobjOnly, uiobjMacros, window, windowCreation]
+import ./[events, properties, uiobj, uiobjMacros, window, windowCreation]
 
 export vmath, bumpy, gl, contexts, chroma, fonts, images, tables
-export events, properties, contexts, uiobjOnly, uiobjMacros, window, windowCreation
+export events, properties, contexts, uiobj, uiobjMacros, window, windowCreation
 
 
 type

@@ -1,5 +1,5 @@
 import std/[times, strutils, math]
-import ./[uiobjOnly, properties, events {.all.}]
+import ./[uiobj, properties, events {.all.}]
 export times
 
 

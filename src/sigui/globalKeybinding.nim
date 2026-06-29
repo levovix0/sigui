@@ -1,4 +1,4 @@
-import ./[uiobjOnly, properties, events, window]
+import ./[uiobj, properties, events, window]
 
 type
   GlobalKeybinding* = ref object of Uiobj

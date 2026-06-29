@@ -1,6 +1,6 @@
 import std/[macros, strutils]
 import pkg/fusion/[astdsl]
-import ./[uiobjOnly, events, properties]
+import ./[uiobj, events, properties]
 export events, properties
 
 

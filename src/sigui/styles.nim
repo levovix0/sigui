@@ -1,5 +1,5 @@
 import std/[macros]
-import ./[uiobjOnly, uiobjMacros, properties]
+import ./[uiobj, uiobjMacros, properties]
 export uiobjMacros
 
 

@@ -1,5 +1,5 @@
 import ./window
-import ./[uiobjOnly, events, properties]
+import ./[uiobj, events, properties]
 import rice/contexts
 
 
