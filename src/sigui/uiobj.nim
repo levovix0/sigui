@@ -756,6 +756,18 @@ method recieve*(this: Uiobj, signal: Signal) {.base.} =
   handleSubtreeSignals(this, signal)
 
 
+template match*[T: Signal](signalObj: Signal, targetType: typedesc[T], body: untyped) =
+  if signal of T:
+    let signal {.inject.} = T(signalObj)
+    block: body
+
+template match*[T: AnyWindowEvent](signalObj: Signal, targetType: typedesc[T], body: untyped) =
+  if signalObj of WindowEvent and signalObj.WindowEvent.event of T:
+    let signal {.inject.} = WindowEvent(signalObj)
+    let e {.inject.} = (ref T)(signal.event)
+    block: body
+
+
 
 #----- reflection: trigger redraw automatically when property changes -----
 
@@ -1074,8 +1086,11 @@ method addChild*(parent: Uiobj, child: Uiobj) {.base.} =
       parent.recieve(ChildAdded(child: child))
 
 
-proc `val=`*[T](p: var ChangableChild[T], v: T) =
-  if v.Uiobj == p.child: return
+proc `val=`*[T: Uiobj](p: var ChangableChild[T], v: T) =
+  when Uiobj is T:
+    if v == p.child: return
+  else:
+    if v.Uiobj == p.child: return
   
   let i = p.parent.childs.find(p.child)
 

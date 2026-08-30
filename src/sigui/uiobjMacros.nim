@@ -654,6 +654,30 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                         for x in fwd: x
                         impl(ident "parent", ident "this", x[^1], c)
                     x
+
+
+              # on SignalType: body
+              elif x.kind == nnkCommand and x.len == 3 and x[0] == ident("on") and x[1].kind == nnkIdent and x[1].strVal[0].isUpperAscii:
+                let signalType = x[1]
+                let signalUntypedIdent = ident("signalUntyped")
+                
+                let body = nnkCall.newTree(
+                  bindSym("match", brOpen),
+                  signalUntypedIdent,
+                  signalType,
+                  x[2],
+                )
+
+                let connectCall = nnkCall.newTree(
+                  bindSym("connectTo"),
+                  nnkDotExpr.newTree(ident("this"), ident("onSignal")),
+                  ident("this"),
+                  signalUntypedIdent,
+                  body,
+                )
+                (connectCall[0].copyLineInfo(x[0]))
+                
+                connectCall
               
 
               # on property[] == value: body

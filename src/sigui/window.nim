@@ -1,9 +1,9 @@
 # should be used instead of directly importing siwin
 # todo: add windy support
 
-import pkg/siwin/platforms/any/window
+import pkg/siwin/platforms/any/[window, clipboards]
 
-export MouseButton, Key, Touch, Cursor, CursorKind, BuiltinCursor, ImageCursor
+export MouseButton, Key, ModifierKey, Touch, Cursor, CursorKind, BuiltinCursor, ImageCursor
 export Window, Mouse, Keyboard, TouchScreen
 export
   AnyWindowEvent, CloseEvent, RenderEvent, TickEvent, ResizeEvent, WindowMoveEvent,
@@ -12,7 +12,9 @@ export
   TouchEvent, TouchMoveEvent,
   StateBoolChangedEventKind, StateBoolChangedEvent, DropEvent
 
-export `size=`, size
+export clipboards
+
+export `size=`, size, clipboard
 
 
 converter toRefCursor*(x: BuiltinCursor): ref Cursor =
