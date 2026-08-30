@@ -758,13 +758,13 @@ method recieve*(this: Uiobj, signal: Signal) {.base.} =
 
 template match*[T: Signal](signalObj: Signal, targetType: typedesc[T], body: untyped) =
   if signal of T:
-    let signal {.inject.} = T(signalObj)
+    let signal {.inject, used.} = T(signalObj)
     block: body
 
 template match*[T: AnyWindowEvent](signalObj: Signal, targetType: typedesc[T], body: untyped) =
   if signalObj of WindowEvent and signalObj.WindowEvent.event of T:
-    let signal {.inject.} = WindowEvent(signalObj)
-    let e {.inject.} = (ref T)(signal.event)
+    let signal {.inject, used.} = WindowEvent(signalObj)
+    let e {.inject, used.} = (ref T)(signal.event)
     block: body
 
 
@@ -1251,7 +1251,9 @@ proc formatProperty[T](res: var seq[string], name: static string, prop: CustomPr
 
 proc formatValue[T](res: var seq[string], name: string, val: T) =
   if (val is bool) or (val is enum) or (val != typeof(val).default):
-    when compiles($val):
+    when val is Color:
+      res.add name & ": " & val.toHtmlHex
+    elif compiles($val):
       res.add name & ": " & $val
 
 
@@ -1302,15 +1304,6 @@ proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
 
 method formatFields*(this: Uiobj): seq[string] {.base.} =
   formatFieldsStatic(this[])
-
-
-proc `$`*(x: Color): string =
-  result.add '"'
-  if x.a == 1:
-    result.add x.toHex
-  else:
-    result.add x.toHexAlpha
-  result.add '"'
 
 
 proc formatChilds(this: Uiobj): string =

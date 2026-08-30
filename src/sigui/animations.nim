@@ -10,7 +10,7 @@ type
     running*: Property[bool]
     duration*: Property[Duration]
     action*: proc(x: T)
-    easing*: Property[proc(x: float): float]
+    easing*: Property[proc(x: float): float {.nimcall.}]
     a*, b*: Property[T]
     loop*: Property[bool]
     ended*: Event[void]
@@ -18,6 +18,10 @@ type
     currentTime*: Property[Duration]
     
     firstTick: bool
+  
+  InsertablePropertyTransition*[T] = object
+    transition*: PropertyTransition[T]
+    prop*: ptr Property[T]
   
   UiAnimator* {.deprecated: "use Animator instead".} = Animator
   Animator* = ref object of Uiobj
@@ -48,16 +52,16 @@ func interpolate*[T: object | tuple](a, b: T, x: float): T =
         y = interpolate(af, bf, x)
 
 
-proc linearEasing*(x: float): float = x
+proc linearEasing*(x: float): float {.nimcall.} = x
 
-proc inSquareEasing*(x: float): float = x * x
-proc inCubicEasing*(x: float): float = x * x * x
+proc inSquareEasing*(x: float): float {.nimcall.} = x * x
+proc inCubicEasing*(x: float): float {.nimcall.} = x * x * x
 
-proc outSquareEasing*(x: float): float = 1 - (x - 1) * (x - 1)
-proc outCubicEasing*(x: float): float = 1 + (x - 1) * (x - 1) * (x - 1)
+proc outSquareEasing*(x: float): float {.nimcall.} = 1 - (x - 1) * (x - 1)
+proc outCubicEasing*(x: float): float {.nimcall.} = 1 + (x - 1) * (x - 1) * (x - 1)
 
-proc inBounceEasing*(x: float): float = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
-proc outBounceEasing*(x: float): float = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
+proc inBounceEasing*(x: float): float {.nimcall.} = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
+proc outBounceEasing*(x: float): float {.nimcall.} = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
 
 
 proc parentAnimator*(obj: Uiobj): Animator =
@@ -144,29 +148,55 @@ proc `'ms`*(lit: cstring): Duration =
   initDuration(milliseconds = lit.int64, nanoseconds = ((lit - lit.int64.float) * 1_000_000).int64)
 
 
-proc clearTransition*(prop: var AnyProperty) =
-  prop.changed.disconnect({EventConnectionFlag.transition}, fullDeteach = true)
+template init*[T](t: InsertablePropertyTransition[T]) = discard
+template initIfNeeded*[T](t: InsertablePropertyTransition[T]) = discard
+template markCompleted*[T](t: InsertablePropertyTransition[T]) = discard
+
+proc easing*[T](t: InsertablePropertyTransition[T]): var proc(x: float): float {.nimcall.} = t.transition.easing
+proc duration*[T](t: InsertablePropertyTransition[T]): var Duration = t.transition.duration
+
+proc `[]=`*(x: var proc(x: float): float {.nimcall.}, v: proc(x: float): float {.nimcall.}) {.inline.} =
+  x = v
+
+proc `[]=`*(x: var Duration, v: Duration) {.inline.} =
+  x = v
 
 
-template transition*[T](prop: var AnyProperty[T], dur: Duration): Animation[T] =
-  prop.clearTransition()
-  let a = Animation[T](
-    action: (proc(x: T) =
-      prop{} = x
-      prop.changed.emit({EventConnectionFlag.transition})
-    ),
-    duration: dur.property
+proc addChild*[T](obj: Uiobj, a: InsertablePropertyTransition[T]) =
+  a.prop[].clearTransition()
+  a.prop[].transition = a.transition
+  a.transition.a = a.prop[].unsafeVal
+  a.transition.b = a.prop[].unsafeVal
+  a.transition.currentTime = a.transition.duration
+  
+  proc tick(deltaTime: Duration) =
+    if a.transition.currentTime >= a.transition.duration: return
+
+    a.transition.currentTime = a.transition.currentTime + deltaTime
+    if a.transition.currentTime > a.transition.duration:
+      a.transition.currentTime = a.transition.duration
+    
+    let v = interpolate(
+      a.transition.a, a.transition.b,
+      a.transition.easing(a.transition.currentTime.inMicroseconds.float / a.transition.duration.inMicroseconds.float)
+    )
+    if v != a.prop[].unsafeVal:
+      a.prop[].unsafeVal = v
+      emit(a.prop[].changed)
+
+  let animator = obj.parentAnimator
+  if animator != nil:
+    animator.onTick.connectTo a.transition.eh, deltaTime: tick(deltaTime)
+  else:
+    let animator = obj.parentUiRoot
+    animator.onTick.connectTo a.transition.eh, e: tick(e.deltaTime)
+
+
+proc transition*[T](prop: var Property[T], dur: Duration, easing = linearEasing): InsertablePropertyTransition[T] =
+  InsertablePropertyTransition[T](
+    transition: PropertyTransition[T](duration: dur, easing: easing),
+    prop: prop.addr,
   )
-  a.a{} = prop[]
-  a.b{} = prop[]
-
-  prop.changed.connect(a.eventHandler, proc() =
-    a.a{} = a.currentValue
-    a.b{} = prop[]
-    start a
-  , flags = {EventConnectionFlag.transition})
-
-  a
 
 
 when isMainModule:

@@ -6,7 +6,7 @@ type
     connected: seq[ptr EventBase]
 
   EventConnectionFlag = enum
-    transition
+    # transition
     internal
 
   EventConnection[T] = tuple

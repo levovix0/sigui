@@ -1,4 +1,4 @@
-import std/[sequtils]
+import std/[sequtils, times]
 import ./[uibase, events {.all.}, animations, mouseArea]
 
 type
@@ -31,8 +31,8 @@ type
     scrollH*: Property[float]
     scrollW*: Property[float]
 
-    scrollYAnimation*: Animation[float]
-    scrollXAnimation*: Animation[float]
+    scrollYAnimation*: InsertablePropertyTransition[float]
+    scrollXAnimation*: InsertablePropertyTransition[float]
 
     verticalScrollSpeed*: Property[float] = 100.0.property
     horizontalScrollSpeed*: Property[float] = 100.0.property
@@ -184,7 +184,7 @@ method init*(this: ScrollArea) =
       proc setScrollY(scrollArea: ScrollArea, newScrollY: float) =
         if disableAnimationsWhenScrollingUsingBar in scrollArea.settings[]:
           scrollArea.scrollY{} = newScrollY
-          scrollArea.scrollY.changed.emit({EventConnectionFlag.transition})
+          scrollArea.scrollY.changed.emit()
           scrollArea.targetY[] = newScrollY
         else:
           scrollArea.targetY[] = newScrollY
@@ -263,9 +263,9 @@ method init*(this: ScrollArea) =
               (root.scrollW[] - (root.w[] - root.padding[].left - root.padding[].right)).max(0)
             )
             if abs(xy.x) < 0.5:
-              root.scrollXAnimation.currentTime[] = root.scrollXAnimation.duration[]
+              root.scrollXAnimation.transition.currentTime = root.scrollXAnimation.duration - initDuration(milliseconds = 1)
               root.targetX[] = newX
-              root.scrollXAnimation.currentTime[] = root.scrollXAnimation.duration[]
+              root.scrollXAnimation.transition.currentTime = root.scrollXAnimation.duration - initDuration(milliseconds = 1)
             else:
               root.targetX[] = newX
 
@@ -275,9 +275,9 @@ method init*(this: ScrollArea) =
               (root.scrollH[] - (root.h[] - root.padding[].top - root.padding[].bottom)).max(0)
             )
             if abs(xy.y) < 0.5:
-              root.scrollYAnimation.currentTime[] = root.scrollYAnimation.duration[]
+              root.scrollYAnimation.transition.currentTime = root.scrollYAnimation.duration - initDuration(milliseconds = 1)
               root.targetY[] = newY
-              root.scrollYAnimation.currentTime[] = root.scrollYAnimation.duration[]
+              root.scrollYAnimation.transition.currentTime = root.scrollYAnimation.duration - initDuration(milliseconds = 1)
             else:
               root.targetY[] = newY
 
