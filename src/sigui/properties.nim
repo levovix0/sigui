@@ -3,12 +3,14 @@ import ./[events]
 
 type
   PropertyTransition*[T] = ref object
+    ## constructors are in ./animations
+    eventHandler*: EventHandler
+    
     easing*: proc(x: float): float {.nimcall.}
     duration*: Duration
     
     a*, b*: T
     currentTime*: Duration
-    eh*: EventHandler
 
   Property*[T] = object
     unsafeVal*: T
@@ -79,7 +81,7 @@ proc clearTransition*[T](p: var Property[T]) =
     if p.unsafeVal != p.transition.b:
       p.unsafeVal = p.transition.b
       emit(p.changed)
-    disconnect p.transition.eh
+    disconnect p.transition.eventHandler
     p.transition = nil
 
 

@@ -473,7 +473,7 @@ method init*(this: TextArea) =
 
       cursor = BuiltinCursor.text
 
-      this.onSignal.connectTo this, signal:
+      this.gotSignal.connectTo this, signal:
         if deactivatingUsingMouse in root.allowedInteractions and root.active[] and not this.hovered[]:
           if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent:
             let e = (ref MouseButtonEvent)signal.WindowEvent.event

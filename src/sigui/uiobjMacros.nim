@@ -657,7 +657,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
 
               # on SignalType: body
-              elif x.kind == nnkCommand and x.len == 3 and x[0] == ident("on") and x[1].kind == nnkIdent and x[1].strVal[0].isUpperAscii:
+              elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on") and x[1].kind == nnkIdent and x[1].strVal[0].isUpperAscii:
                 let signalType = x[1]
                 let signalUntypedIdent = ident("signalUntyped")
                 
@@ -670,7 +670,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
                 let connectCall = nnkCall.newTree(
                   bindSym("connectTo"),
-                  nnkDotExpr.newTree(ident("this"), ident("onSignal")),
+                  nnkDotExpr.newTree(ident("this"), ident("gotSignal")),
                   ident("this"),
                   signalUntypedIdent,
                   body,
@@ -681,7 +681,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
               
 
               # on property[] == value: body
-              elif x.kind == nnkCommand and x.len == 3 and x[0] == ident("on") and x[1].kind == nnkInfix and x[1][1].kind == nnkBracketExpr:
+              elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on") and x[1].kind == nnkInfix and x[1][1].kind == nnkBracketExpr:
                 let cond = x[1]
                 let property = x[1][1]
                 let body = x[2]
@@ -703,7 +703,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
 
 
               # on event: body
-              elif x.kind == nnkCommand and x.len == 3 and x[0] == ident("on"):
+              elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on"):
                 let event = x[1]
                 let body = x[2]
 
@@ -716,6 +716,22 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 (connectCall[0].copyLineInfo(x[0]))
                 
                 connectCall
+
+              
+              # capture a, b=c, ...: body
+              # capture(a, b=c, ...): body
+              elif x.kind in CallNodes and x.len >= 3 and x[0].eqIdent("capture"):
+                var fwd: seq[NimNode]
+                (implFwd(x[^1], fwd))
+                x.kind.newTree(
+                  @[
+                    x[0],
+                    ident("parent"),
+                    ident("this"),
+                  ] &
+                  x[1..^2] &
+                  impl(ident("parent"), ident("this"), x[^1], c)
+                )
               
 
               else:

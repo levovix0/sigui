@@ -186,7 +186,7 @@ template withWindow*(obj: Uiobj, winVar: untyped, body: untyped) =
     body
   if obj.root != nil:
     bodyProc(obj.parentUiWindow)
-  obj.onSignal.connect obj.eventHandler, proc(e: Signal) =
+  obj.gotSignal.connect obj.eventHandler, proc(e: Signal) =
     if e of AttachedToRoot:
       bodyProc(obj.parentUiWindow)
 

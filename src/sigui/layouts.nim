@@ -154,7 +154,7 @@ method recieve*(this: Layout, signal: Signal) =
       disconnect(signal.ChildRemoved.child.w.changed, this.eventHandler)
       disconnect(signal.ChildRemoved.child.h.changed, this.eventHandler)
 
-  this.onSignal.emit signal
+  this.gotSignal.emit signal
 
   handleSubtreeSignals(this, signal)
 

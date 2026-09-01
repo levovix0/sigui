@@ -62,6 +62,19 @@ type
     top*: float32
     bottom*: float32
 
+  
+  UiobjDeletionAnimation* = ref object
+    ## constructors are in ./animations
+    eventHandler*: EventHandler
+    
+    target* {.cursor.}: Uiobj
+    action*: proc(t: float)
+    
+    easing*: proc(x: float): float {.nimcall.}
+    duration*: Duration
+    
+    currentTime*: Duration
+
 
   Uiobj* = ref UiobjObjType
   UiobjObjType = object of RootObj
@@ -90,15 +103,18 @@ type
     globalX*, globalY*: Property[float32]
       ## position, relative to UiRoot (the window)
     
-    onSignal*: Event[Signal]  #? todo: rename to gotSignal?
-    completed*: Event[void]
+    gotSignal*: Event[Signal]  # emits when Signal is recieved by this object (before subtree signals)
+    completed*: Event[void]    # emits when object and it's childs is fully constructed by makeLayout (see ./uiobjMacros)
+    deleted*: Event[void]      # emits when delete is called, before actiual deletion or deletionAnimation start
     
-    newChildsObject*: Uiobj
+    newChildsObject*: Uiobj  # if !=nil, addChild (and makeLayour) will place new childs here, instead of this object
 
     isInitialized*: bool
     isDeteached*: bool
     isCompleted*: bool
-    root* {.cursor.}: UiRoot
+    root* {.cursor.}: UiRoot  # parent UiRoot, guaranteed to be !=nil before init
+
+    deletionAnimation*: UiobjDeletionAnimation  # if !=nil, delete will hold up actual deletion for the duration of this animation
     
     anchors: Anchors
 
@@ -712,7 +728,7 @@ proc spreadGlobalYChange(obj: Uiobj, parentGlobalY: float32) =
 
 
 
-#----- receiving signals -----
+#----- recieving signals -----
 
 method recieve*(this: Uiobj, signal: Signal) {.base.}
 
@@ -751,7 +767,7 @@ proc handleSubtreeSignals(this: Uiobj, signal: Signal) =
 
 
 method recieve*(this: Uiobj, signal: Signal) {.base.} =
-  this.onSignal.emit signal
+  this.gotSignal.emit signal
 
   handleSubtreeSignals(this, signal)
 
@@ -1056,7 +1072,7 @@ method deteach*(this: Uiobj) {.base.} =
   deteachStatic(this)
 
 
-proc delete*(this: Uiobj) =
+proc deleteWithoutAnimation*(this: Uiobj) =
   if this == nil: return
   if this.parent != nil:
     this.parent.recieve(ChildRemoved(child: this))
@@ -1068,6 +1084,15 @@ proc delete*(this: Uiobj) =
     if i != -1:
       this.parent.childs.delete i
     this.parent = nil
+
+
+proc delete*(this: Uiobj) =
+  if this.deletionAnimation == nil:
+    deleteWithoutAnimation(this)
+  else:
+    assert this.deletionAnimation.target == this
+    if this.deletionAnimation.eventHandler.hasHandlers: return  # (is animation already running)
+
 
 
 method addChild*(parent: Uiobj, child: Uiobj) {.base.} =

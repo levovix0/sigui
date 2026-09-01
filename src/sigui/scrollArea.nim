@@ -151,12 +151,7 @@ method init*(this: ScrollArea) =
   makeScrollBar horizontalScrollBarArea, defaultHorizontalScrollBar, horizontalScrollbarOpacity, bottom, h, w
  
 
-  let animator = this.parentAnimator
-  if animator != nil:
-    animator.onTick.connectTo this: this.onTick.p.changed.emit()
-  else:
-    let animator = this.parentUiRoot
-    animator.onTick.connectTo this: this.onTick.p.changed.emit()
+  this.parentUiRoot.onTick.connectTo this: this.onTick.p.changed.emit()
 
 
   scrollArea.onTick.p.changed.connectTo scrollArea:

@@ -22,12 +22,6 @@ type
   InsertablePropertyTransition*[T] = object
     transition*: PropertyTransition[T]
     prop*: ptr Property[T]
-  
-  UiAnimator* {.deprecated: "use Animator instead".} = Animator
-  Animator* = ref object of Uiobj
-    onTick*: Event[Duration]
-
-registerComponent Animator
 
 
 func interpolate*[T: enum | bool](a, b: T, x: float): T =
@@ -62,14 +56,6 @@ proc outCubicEasing*(x: float): float {.nimcall.} = 1 + (x - 1) * (x - 1) * (x -
 
 proc inBounceEasing*(x: float): float {.nimcall.} = (-0.25 + (x * 1.45 - 0.45).pow(2) * 1.24).round(4)
 proc outBounceEasing*(x: float): float {.nimcall.} = (1.25 - (x * 1.447215 - 1).pow(2) * 1.25).round(4)
-
-
-proc parentAnimator*(obj: Uiobj): Animator =
-  var obj {.cursor.} = obj
-  while true:
-    if obj == nil: return nil
-    if obj of Animator: return obj.Animator
-    obj = obj.parent
 
 
 proc currentValue*[T](a: Animation[T]): T =
@@ -123,12 +109,8 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
   a.easing.changed.connectTo a: act()
   a.duration.changed.connectTo a: act()
 
-  let animator = obj.parentAnimator
-  if animator != nil:
-    animator.onTick.connectTo a, deltaTime: tick(deltaTime)
-  else:
-    let animator = obj.parentUiRoot
-    animator.onTick.connectTo a, e: tick(e.deltaTime)
+  obj.parentUiRoot.onTick.connectTo a, e:
+    tick(e.deltaTime)
 
 
 proc start*(a: Animation) =
@@ -184,12 +166,8 @@ proc addChild*[T](obj: Uiobj, a: InsertablePropertyTransition[T]) =
       a.prop[].unsafeVal = v
       emit(a.prop[].changed)
 
-  let animator = obj.parentAnimator
-  if animator != nil:
-    animator.onTick.connectTo a.transition.eh, deltaTime: tick(deltaTime)
-  else:
-    let animator = obj.parentUiRoot
-    animator.onTick.connectTo a.transition.eh, e: tick(e.deltaTime)
+  obj.parentUiRoot.onTick.connectTo a.transition.eventHandler, e:
+    tick(e.deltaTime)
 
 
 proc transition*[T](prop: var Property[T], dur: Duration, easing = linearEasing): InsertablePropertyTransition[T] =

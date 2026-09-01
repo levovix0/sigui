@@ -312,7 +312,7 @@ type
 method recieve*(this: MyComponent, signal: Signal) =
   if signal of MySignal:
     echo signal.MySignal.val
-    # note: not calling this.super.recieve(signal) to not send MySignal to childs of this object and not emit this.onSignal
+    # note: not calling this.super.recieve(signal) to not send MySignal to childs of this object and not emit this.gotSignal
   else:
     procCall this.super.recieve(signal)
 
@@ -326,7 +326,7 @@ Signals is global "events", recieved by all ui objects in hierarchy. Window even
 
 Signals are more useful than events when you need to control order in which signals are handled.
 
-Ui objects also have onSignal event.
+Ui objects also have gotSignal event.
 
 ## Animations and transitions
 Animation is just interpolation between 2 values over time and doing action using this value.
