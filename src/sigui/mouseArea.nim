@@ -24,10 +24,7 @@ type
     mouseButton*: Event[MouseButtonEvent]
       ## mouse pressed or released inside this area (doesn't require pressed[] to be true)
 
-    clicked*: Event[ClickEvent]
-      ## mouse pressed and released without movement
-
-    mouseDownAndUpInside*: Event[void]
+    clicked*: Event[void]
       ## mouse button pressed and released inside this area (also if pressed, leaved, re-entered and released)
     
     scrolled*: Event[Vec2]
@@ -61,6 +58,12 @@ type
 
 
 proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal)
+
+
+template mouseDownAndUpInside*(this: MouseArea): var Event[void] {.
+  deprecated: "renamed to clicked. old `clicked` event was unnacessary duplicate of `on ClickEvent: if this.hovered[]:`"
+.} =
+  this.clicked
 
 
 proc parentCollapsed(this: Uiobj): Uiobj =
@@ -165,7 +168,7 @@ proc handleMouseButtonEvent(this: MouseArea, e: MouseButtonEvent, signal: Signal
             this.hovered[] and
             not e.generated
           ):
-            this.mouseDownAndUpInside.emit()
+            this.clicked.emit()
           
           if this.hovered[] and not this.allowEventFallthrough[]:
             signal.WindowEvent.handled = true
@@ -188,10 +191,6 @@ method recieve*(this: MouseArea, signal: Signal) =
     if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent:
       handleMouseButtonEvent(this, ((ref MouseButtonEvent)signal.WindowEvent.event)[], signal)
       if this.hovered[]: this.mouseButton.emit(((ref MouseButtonEvent)signal.WindowEvent.event)[])
-
-
-    elif signal of WindowEvent and signal.WindowEvent.event of ClickEvent:
-      if this.hovered[]: this.clicked.emit(((ref ClickEvent)signal.WindowEvent.event)[])
 
 
     elif signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent:

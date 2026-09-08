@@ -58,7 +58,7 @@ test "todo app":
           font = typeface.withSize(32)
 
         this.onKeyDown enter:
-          mouse.mouseDownAndUpInside.emit()
+          mouse.clicked.emit()
       
       - UiRect.new as addTask:
         right = parent.right - 5
@@ -83,7 +83,7 @@ test "todo app":
         - MouseArea.new as mouse:
           this.fill parent
 
-          on this.mouseDownAndUpInside:
+          on this.clicked:
             if taskName.text[] == "": return
             app.tasks.add((name: taskName.text[], complete: false.property))
             app.tasksChanged.emit()
@@ -131,7 +131,7 @@ test "todo app":
 
               - MouseArea.new as mouse:
                 this.fill parent
-                on this.mouseDownAndUpInside:
+                on this.clicked:
                   task.complete[] = not task.complete[]
                   echo "made sure ", logger.inner.message, " works"
 

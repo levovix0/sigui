@@ -1052,9 +1052,11 @@ proc deteachStatic[T: Uiobj](this: T) =
 
   disconnect this.eventHandler
 
-  # for x in this[].fields:
-  #   when x is Property or x is CustomProperty:
-  #     disconnect x.changed
+  for x in this[].fields:
+    when x is Property:
+      clearTransition x
+    when x is Property or x is CustomProperty:
+      disconnect x.changed
 
   for anchor in this.anchors.fields:
     disconnect anchor.eventHandler

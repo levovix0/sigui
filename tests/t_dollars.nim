@@ -23,7 +23,7 @@ test "properties":
         this.radius[] = 5
       
       - MouseArea.new:
-        this.mouseDownAndUpInside.connectTo parent:
+        this.clicked.connectTo parent:
           discard
 
   echo x

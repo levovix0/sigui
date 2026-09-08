@@ -84,7 +84,7 @@ win.makeLayout:
 
     - MouseArea.new as mouse:
       this.fill(parent)
-      on this.mouseDownAndUpInside:
+      on this.clicked:
         state[] = (state[] + 1) mod 3
       cursor = BuiltinCursor.pointingHand
 
@@ -131,7 +131,7 @@ method init*(this: Switch) =
 
     - MouseArea.new as mouse:
       this.fill(parent)
-      this.mouseDownAndUpInside.connectTo root:
+      this.clicked.connectTo root:
         if root.enabled[]:
           root.isOn[] = not root.isOn[]
 
@@ -511,7 +511,7 @@ elementsObj --- Layout.new:
     - MouseArea.new:
       h = 20
 
-      on this.mouseDownAndUpInside:
+      on this.clicked:
         elements.add "new"
         elementsObj[] = Layout.new  # re-build tree
 
@@ -535,7 +535,7 @@ var elements = ["first", "second"].property
     - MouseArea.new:
       # ...
 
-      this.mouseDownAndUpInside.connectTo this:
+      this.clicked.connectTo this:
         elements{}.add "new"
         elements.changed.emit()
 

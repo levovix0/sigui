@@ -479,28 +479,28 @@ method init*(this: TextArea) =
             let e = (ref MouseButtonEvent)signal.WindowEvent.event
             if e.pressed: root.active[] = false
 
-
-      this.clicked.connectTo root, e:
-        if selectingWordsByDobleClick in root.allowedInteractions and e.double:
-          root.selectionStart[] = root.findLeftCtrlWord(inBorders=true)
-          root.selectionEnd[] = root.findRightCtrlWord(inBorders=true)
-          root.cursorPos[] = root.selectionEnd[]
-          root.doubleClick = true
-        
-        if selectingAllTextByDobleClick in root.allowedInteractions and e.double:
-          root.selectionStart[] = 0
-          root.selectionEnd[] = root.text[].runeLen
-          root.cursorPos[] = root.selectionEnd[]
-          root.doubleClick = true
-        
-        if getTime() - root.lastDoubleClickTime <= initDuration(milliseconds=300):
-          if selectingAllTextByTripleClick in root.allowedInteractions:
+      on ClickEvent:
+        if this.hovered[]:
+          if selectingWordsByDobleClick in root.allowedInteractions and e.double:
+            root.selectionStart[] = root.findLeftCtrlWord(inBorders=true)
+            root.selectionEnd[] = root.findRightCtrlWord(inBorders=true)
+            root.cursorPos[] = root.selectionEnd[]
+            root.doubleClick = true
+          
+          if selectingAllTextByDobleClick in root.allowedInteractions and e.double:
             root.selectionStart[] = 0
             root.selectionEnd[] = root.text[].runeLen
             root.cursorPos[] = root.selectionEnd[]
+            root.doubleClick = true
+          
+          if getTime() - root.lastDoubleClickTime <= initDuration(milliseconds=300):
+            if selectingAllTextByTripleClick in root.allowedInteractions:
+              root.selectionStart[] = 0
+              root.selectionEnd[] = root.text[].runeLen
+              root.cursorPos[] = root.selectionEnd[]
 
-        if e.double:
-          root.lastDoubleClickTime = getTime()
+          if e.double:
+            root.lastDoubleClickTime = getTime()
 
 
       this.pressed.changed.connectTo root:

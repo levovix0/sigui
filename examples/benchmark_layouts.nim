@@ -36,7 +36,7 @@ test "layout benchmark":
         - MouseArea.new as recreate:
           this.fill(parent)
 
-          on this.mouseDownAndUpInside:
+          on this.clicked:
             generate = true
             let startTime = now()
             manyButtons[] = Layout.new
@@ -79,7 +79,7 @@ test "layout benchmark":
                 - MouseArea.new as mouse:
                   this.fill(parent)
 
-                  on this.mouseDownAndUpInside:
+                  on this.clicked:
                     txt.text[] = &"Clicked {i}!"
 
 

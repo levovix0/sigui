@@ -22,7 +22,7 @@ method init*(this: Switch) =
 
     - MouseArea.new as mouse:
       this.fill(parent)
-      this.mouseDownAndUpInside.connectTo root:
+      this.clicked.connectTo root:
         if root.enabled[]:
           root.isOn[] = not root.isOn[]
 

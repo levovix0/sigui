@@ -23,7 +23,7 @@ win.makeLayout:
     - MouseArea.new as mouse:
       this.fill(parent)
       
-      on this.mouseDownAndUpInside:
+      on this.clicked:
         state[] = (state[] + 1) mod 3
       
       cursor = BuiltinCursor.pointingHand

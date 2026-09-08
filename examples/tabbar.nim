@@ -19,7 +19,7 @@ method init*(this: Tab) =
     - MouseArea.new as mouse:
       this.fill(parent)
 
-      on this.mouseDownAndUpInside:
+      on this.clicked:
         root.selfSelected.emit()
 
     - UiRect.new:

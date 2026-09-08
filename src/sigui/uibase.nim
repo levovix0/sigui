@@ -194,9 +194,9 @@ when hasImageman:
 
 
 method drawInner*(rect: UiRect, ctx: DrawContext) =
-  ctx.drawRect(
+  ctx.fillRect(
     (rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh,
-    rect.color.vec4, rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle
+    rect.color[], rect.radius, rect.color[].a != 1 or rect.radius != 0, rect.angle
   )
 
 
@@ -282,14 +282,14 @@ method drawInner*(text: UiText, ctx: DrawContext) =
     else:
       text.xy.posToGlobal(text.parent) + ctx.offset
 
-  ctx.drawRasterText(pos.vec3(0), text.arrangement[], text.color.vec4, origin=vec2(0, 0))
+  ctx.drawRasterText(pos.vec3(0), text.arrangement[], text.color[].vec4, origin=vec2(0, 0))
 
 
 method drawInner*(rect: UiRectBorder, ctx: DrawContext) =
-  ctx.drawRectStroke(
-    (rect.xy.posToGlobal(rect.parent) + ctx.offset).round,
-    rect.wh, rect.color.vec4, rect.radius, true, rect.angle,
-    rect.borderWidth[], rect.tiled[], rect.tileSize[], rect.tileSecondSize[], rect.secondColor[].vec4
+  ctx.drawRect(
+    (rect.xy.posToGlobal(rect.parent) + ctx.offset).round, rect.wh, rect.color[],
+    thickness = rect.borderWidth[], radius = rect.radius[], blend = true, angle = rect.angle[],
+    tiled = rect.tiled[], tileSize = rect.tileSize[], tileSecondSize = rect.tileSecondSize[], secondColor = rect.secondColor[]
   )
 
 

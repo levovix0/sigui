@@ -1,6 +1,6 @@
 import std/[times, strutils, math]
-import ./[uiobj, properties, events {.all.}]
-export times
+import ./[uiobj, properties, events, timeutils]
+export times, timeutils
 
 
 type
@@ -120,14 +120,6 @@ proc start*(a: Animation) =
 
 template animation*[T](val: T): Animation[T] =
   Animation[T](action: proc(x: T) = val = x)
-
-
-proc `'s`*(lit: cstring): Duration =
-  let lit = ($lit).parseFloat
-  initDuration(seconds = lit.int64, nanoseconds = ((lit - lit.int64.float) * 1_000_000_000).int64)
-proc `'ms`*(lit: cstring): Duration =
-  let lit = ($lit).parseFloat
-  initDuration(milliseconds = lit.int64, nanoseconds = ((lit - lit.int64.float) * 1_000_000).int64)
 
 
 template init*[T](t: InsertablePropertyTransition[T]) = discard

@@ -50,7 +50,7 @@ test "layers":
 
           - MouseArea.new:
             this.fill(parent)
-            on this.mouseDownAndUpInside: echo "non-clipped (itself)"
+            on this.clicked: echo "non-clipped (itself)"
         
           - Layout.new:
             this.fillVertical(parent, 20)
@@ -67,7 +67,7 @@ test "layers":
 
               - MouseArea.new:
                 this.fill(parent)
-                on this.mouseDownAndUpInside: echo "non-clipped -> no modifications"
+                on this.clicked: echo "non-clipped -> no modifications"
 
               - UiText.new:
                 centerY = parent.center
@@ -86,7 +86,7 @@ test "layers":
 
               - MouseArea.new:
                 this.fill(parent)
-                on this.mouseDownAndUpInside: echo "non-clipped -> after parent"
+                on this.clicked: echo "non-clipped -> after parent"
 
               - UiText.new:
                 centerY = parent.center
@@ -105,7 +105,7 @@ test "layers":
 
               - MouseArea.new:
                 this.fill(parent)
-                on this.mouseDownAndUpInside: echo "non-clipped -> before parent"
+                on this.clicked: echo "non-clipped -> before parent"
 
               - UiText.new:
                 centerY = parent.center
@@ -121,7 +121,7 @@ test "layers":
 
           - MouseArea.new:
             this.fill(parent)
-            on this.mouseDownAndUpInside: echo "clipped (itself)"
+            on this.clicked: echo "clipped (itself)"
 
           - UiRect.new:
             this.fill parent
@@ -143,7 +143,7 @@ test "layers":
 
                 - MouseArea.new:
                   this.fill(parent)
-                  on this.mouseDownAndUpInside: echo "clipped -> no modifications"
+                  on this.clicked: echo "clipped -> no modifications"
 
                 - UiText.new:
                   centerY = parent.center
@@ -161,7 +161,7 @@ test "layers":
 
                 - MouseArea.new:
                   this.fill(parent)
-                  on this.mouseDownAndUpInside: echo "clipped -> after parent"
+                  on this.clicked: echo "clipped -> after parent"
 
                 - UiText.new:
                   centerY = parent.center
@@ -179,7 +179,7 @@ test "layers":
 
                 - MouseArea.new:
                   this.fill(parent)
-                  on this.mouseDownAndUpInside: echo "clipped -> before parent"
+                  on this.clicked: echo "clipped -> before parent"
 
                 - UiText.new:
                   centerY = parent.center
