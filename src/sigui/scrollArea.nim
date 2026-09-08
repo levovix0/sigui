@@ -170,7 +170,7 @@ method init*(this: ScrollArea) =
   
 
   template makeScrollBar3(
-    this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbarObj, verticalScrollOverFit, verticalScrollSpeed
+    this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbarObj, verticalScrollSpeed
   ) =
     var isDraggingScrollbar: bool
     var prevMouseY: float
@@ -188,15 +188,15 @@ method init*(this: ScrollArea) =
         let d = mouseY - prevMouseY
         prevMouseY = mouseY
         scrollArea.setScrollY (
-          scrollArea.targetY[] + (d / this.h[] * (scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[]))
-        ).min(scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[]).max(0)
+          scrollArea.targetY[] + (d / this.h[] * (scrollArea.scrollH[]))
+        ).min(scrollArea.scrollH[] - scrollArea.h[]).max(0)
       
       else:
         if instantScrollWhenClickedOnScrollBarArea in scrollArea.settings[]:
           scrollArea.setScrollY (
             (this.mouseY[] - scrollArea.verticalScrollbarObj[].h[] / 2) / (this.h[] - scrollArea.verticalScrollbarObj[].h[]) *
-            (scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[])
-          ).min(scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[]).max(0)
+            (scrollArea.scrollH[] - scrollArea.h[])
+          ).min(scrollArea.scrollH[] - scrollArea.h[]).max(0)
         
         else:
           if this.mouseY[] notin (
@@ -206,7 +206,7 @@ method init*(this: ScrollArea) =
             scrollArea.setScrollY (
               scrollArea.targetY[] +
               scrollArea.verticalScrollSpeed[] * (if this.mouseY[] < scrollArea.verticalScrollbarObj[].y[]: -1 else: 1)
-            ).min(scrollArea.scrollH[] + scrollArea.verticalScrollOverFit[] - scrollArea.h[]).max(0)
+            ).min(scrollArea.scrollH[] - scrollArea.h[]).max(0)
 
     
     this.pressed.changed.connectTo scrollArea:
@@ -298,16 +298,16 @@ method init*(this: ScrollArea) =
           else:
             scrollArea.verticalScrollBarArea.w[]
         
-        h := ((scrollArea.h[] / scrollArea.scrollH[]).min(1).max(0) * parent.h[]).max(scrollArea.verticalScrollBarMinHeight[])
+        h := ((scrollArea.h[] / (scrollArea.scrollH[])).min(1).max(0) * parent.h[]).max(scrollArea.verticalScrollBarMinHeight[])
         
         y := (
-          scrollArea.scrollY[] / (scrollArea.scrollH[] - scrollArea.h[] + scrollArea.verticalScrollOverFit[])
+          scrollArea.scrollY[] / (scrollArea.scrollH[] - scrollArea.h[])
         ).min(1).max(0) * (parent.h[] - this.h[])
 
         - this.w.transition(0.2's):
           easing = outSquareEasing
       
-      makeScrollBar3(this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbar, verticalScrollOverFit, verticalScrollSpeed)
+      makeScrollBar3(this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbar, verticalScrollSpeed)
     
 
     - scrollArea.horizontalScrollBarArea:
@@ -330,13 +330,13 @@ method init*(this: ScrollArea) =
         w := ((scrollArea.w[] / scrollArea.scrollW[]).min(1).max(0) * parent.w[]).max(scrollArea.horizontalScrollBarMinWidth[])
         
         x := (
-          scrollArea.scrollX[] / (scrollArea.scrollW[] - scrollArea.w[] + scrollArea.horizontalScrollOverFit[])
+          scrollArea.scrollX[] / (scrollArea.scrollW[] - scrollArea.w[])
         ).min(1).max(0) * (parent.w[] - this.w[])
 
         - this.h.transition(0.2's):
           easing = outSquareEasing
       
-      makeScrollBar3(this, mouseX, scrollX, targetX, scrollW, x, w, horizontalScrollbar, horizontalScrollOverFit, horizontalScrollSpeed)
+      makeScrollBar3(this, mouseX, scrollX, targetX, scrollW, x, w, horizontalScrollbar, horizontalScrollSpeed)
 
 
     this.newChildsObject = container
