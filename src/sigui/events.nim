@@ -8,6 +8,7 @@ type
   EventConnection[T] = tuple
     eh: ptr EventHandlerObj
     f: proc(v: T) {.closure.}
+    flags: pointer
 
   EventBase = object
     connected: seq[EventConnection[int]]  # type of function argument does not matter for this
@@ -62,7 +63,7 @@ proc initIfNeeded(c: var EventHandler) =
 
 
 proc destroyEvent(s: ptr EventBase) =
-  for (handler, _) in s[].connected:
+  for (handler, _, _) in s[].connected:
     var i = 0
     while i < handler[].connected.len:
       if handler[].connected[i] == s:
@@ -133,23 +134,23 @@ proc emit*(s: Event[void]) =
 # todo: -d:sigui_benchmark_event_emits, to see how much and which exactly events are chain-emited
 
 
-proc connect*[T](s: var Event[T], c: var EventHandler, f: proc(v: T)) =
+proc connect*[T](s: var Event[T], c: var EventHandler, f: proc(v: T), flags: pointer = nil) =
   initIfNeeded s
   initIfNeeded c
-  s.p[].connected.add (c.p, f)
+  s.p[].connected.add (c.p, f, flags)
   c.p[].connected.add cast[ptr EventBase](s.p)
 
-proc connect*(s: var Event[void], c: var EventHandler, f: proc()) =
+proc connect*(s: var Event[void], c: var EventHandler, f: proc(), flags: pointer = nil) =
   initIfNeeded s
   initIfNeeded c
-  s.p[].connected.add (c.p, f)
+  s.p[].connected.add (c.p, f, flags)
   c.p[].connected.add cast[ptr EventBase](s.p)
 
-proc connect*(s: var Event[void], c: var EventHandler, f: proc(env: pointer) {.nimcall.}, env: pointer) =
+proc connect*(s: var Event[void], c: var EventHandler, f: proc(env: pointer) {.nimcall.}, env: pointer, flags: pointer = nil) =
   initIfNeeded s
   initIfNeeded c
   let fe = (f, env)
-  s.p[].connected.add (c.p, cast[ptr proc(v: void) {.closure.}](fe.addr)[])
+  s.p[].connected.add (c.p, cast[ptr proc(v: void) {.closure.}](fe.addr)[], flags)
   c.p[].connected.add cast[ptr EventBase](s.p)
 
 
