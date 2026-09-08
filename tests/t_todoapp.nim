@@ -11,18 +11,8 @@ type
 
     layout: ChangableChild[Layout]
 
-  DestroyLoggerInner = object
-    message: string
-
-  DestroyLogger = ref object of Uiobj
-    inner: DestroyLoggerInner
-
 registerComponent App
 
-
-proc `=destroy`(x: DestroyLoggerInner) =
-  if x.message != "":
-    echo x.message
 
 
 test "todo app":
@@ -104,26 +94,23 @@ test "todo app":
         for i in 0..app.tasks.high:
           template task: auto = app.tasks[i]
 
-          - DestroyLogger.new as logger:
-            this.inner.message = "destroyed: " & $i
-
-          - Layout.row(gap = 10):
+          - Layout.row(gap = 10) as taskRow:
             align = center
-            
+
             - Switch(isOn: task.complete[].property):
               color = color(0.43, 0.15, 0.76)
-              
+
               isOn := task.complete[]
               this.bindingValue task.complete[]: this.isOn[]
 
             - UiText.new:
               text = task.name
-              
+
               font = binding:
                 let it = typeface.withSize(24)
                 it.strikethrough = task.complete[]
                 it
-              
+
               color = binding:
                 if mouse.pressed[]: color(0.2, 0.2, 0.2)
                 elif mouse.hovered[]: color(0.4, 0.4, 0.4)
@@ -133,6 +120,35 @@ test "todo app":
                 this.fill parent
                 on this.clicked:
                   task.complete[] = not task.complete[]
-                  echo "made sure ", logger.inner.message, " works"
+
+            - UiRectBorder.new as deleteTask:
+              w = 30
+              h = 30
+              radius = 5
+              color = binding:
+                if delMouse.pressed[]: color(0.83, 0.17, 0.17).lighten(0.1)
+                elif delMouse.hovered[]: color(0.83, 0.17, 0.17).lighten(0.2)
+                else: color(0.83, 0.17, 0.17)
+
+              - this.color.transition(0.4's):
+                easing = outCubicEasing
+
+              - UiText.new:
+                this.centerIn parent
+                text = "×"
+                font = typeface.withSize(24)
+                color = color(0, 0, 0)
+
+              - MouseArea.new as delMouse:
+                this.fill parent
+
+                on this.clicked:
+                  # todo: "data model" for ChangableChild and it's deletion and insertion animations
+                  app.layout[].animateOnDelete(taskRow.x[], taskRow.x[] - taskRow.w[], 0.2's, outCubicEasing)
+                  for x in app.layout[].childs:
+                    if x != taskRow:
+                      x.visibility[] = Visibility.hidden
+                  app.tasks.delete(i)
+                  app.tasksChanged.emit()
 
   run window

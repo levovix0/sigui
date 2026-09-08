@@ -19,7 +19,7 @@ Base type for all components. Displays nothing. Can be used as container for anc
 
 Properties:
 - `x, y, w, h: Property[float32]` - position of rect of the object
-- `visibility: Property[Visibility]` - is component `visible`, `hidden` (does not draw anything), `hiddenTree` (does not draw, including it's children) or `collapsed` (does not draw, does not count in layouts, behaves like zero-sized component in anchoring)
+- `visibility: Property[Visibility]` - is component `visible`, `hiddenThisOnly` (does not draw anything, except for it's children), `hidden` (does not draw, including it's children) or `collapsed` (does not draw, does not count in layouts, behaves like zero-sized component in anchoring)
 - `globalTransform: Property[bool]` - if true, x and y of this object is relative to UiRoot's top-left courner, if false, relative to parent's top-left courner
 - `globalX, globalY: Property[float32]` - position, relative to UiRoot (the window)
 

@@ -1,16 +1,18 @@
-import std/[times, strutils, math]
+import std/[times, math]
 import ./[uiobj, properties, events, timeutils]
 export times, timeutils
 
 
 type
+  Easing = proc(x: float): float {.nimcall.}
+
   Animation*[T] = ref object
     eventHandler: EventHandler
     enabled*: Property[bool] = true.property
     running*: Property[bool]
     duration*: Property[Duration]
     action*: proc(x: T)
-    easing*: Property[proc(x: float): float {.nimcall.}]
+    easing*: Property[Easing]
     a*, b*: Property[T]
     loop*: Property[bool]
     ended*: Event[void]
@@ -162,11 +164,35 @@ proc addChild*[T](obj: Uiobj, a: InsertablePropertyTransition[T]) =
     tick(e.deltaTime)
 
 
-proc transition*[T](prop: var Property[T], dur: Duration, easing = linearEasing): InsertablePropertyTransition[T] =
+proc transition*[T](prop: var Property[T], dur: Duration, easing = outSquareEasing): InsertablePropertyTransition[T] =
   InsertablePropertyTransition[T](
     transition: PropertyTransition[T](duration: dur, easing: easing),
     prop: prop.addr,
   )
+
+
+proc deletionAnimation*(this: Uiobj, duration: Duration, easing = outSquareEasing): UiobjDeletionAnimation =
+  ## attaches a UiobjDeletionAnimation to `this` and returns it
+  ## use in combination with `on (...).tick`
+  if this.deletionAnimation != nil:
+    result = this.deletionAnimation
+  else:
+    result = UiobjDeletionAnimation(duration: duration, easing: easing)
+    this.deletionAnimation = result
+
+template animateOnDelete*(obj: Uiobj, val: untyped, toVal: untyped, duration: Duration = 0.2's, easing = outSquareEasing) =
+  ## attaches (or extends) a UiobjDeletionAnimation to `this` that interpolates val to toVal
+  ## val and toVal is queried just before deletion animation starts
+  (proc(this: Uiobj) =
+    let anim = deletionAnimation(this, duration, easing)
+    var a: typeof(val)
+    var b: typeof(val)
+    this.deleted.connectTo this:
+      a = val
+      b = toVal
+    anim.tick.connect this.eventHandler, proc(t: float) =
+      val = interpolate(a, b, t)
+  )(obj)
 
 
 when isMainModule:

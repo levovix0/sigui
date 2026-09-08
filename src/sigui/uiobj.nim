@@ -1,7 +1,7 @@
 import std/[times, macros, strutils, importutils, macrocache]
 import pkg/[vmath, bumpy, chroma]
 import pkg/rice/contexts
-import ./[events {.all.}, properties, window]
+import ./[events, properties, window]
 
 when defined(refactor):
   import refactoring/fileTemplates
@@ -26,10 +26,10 @@ type
     left*, right*, top*, bottom*, centerX*, centerY*: Anchor
   
   Visibility* = enum
-    visible     ## draws itself, draws children
-    hidden      ## does not draw anything itself, but still draw children
-    hiddenTree  ## does not draw, including children
-    collapsed   ## does not draw, does not count in layouts, behaves like zero-sized component in anchoring
+    visible         ## draws itself, draws children
+    hidden          ## does not draw, including children
+    hiddenThisOnly  ## does not draw anything itself, but still draw children
+    collapsed       ## does not draw, does not count in layouts, behaves like zero-sized component in anchoring
   
   
   Signal* = ref object of RootObj
@@ -66,9 +66,9 @@ type
   UiobjDeletionAnimation* = ref object
     ## constructors are in ./animations
     eventHandler*: EventHandler
-    
-    target* {.cursor.}: Uiobj
-    action*: proc(t: float)
+
+    tick*: Event[float]  # 0..1
+    ended*: Event[void]
     
     easing*: proc(x: float): float {.nimcall.}
     duration*: Duration
@@ -92,8 +92,8 @@ type
 
     visibility*: Property[Visibility]
       ## is component `visible`,
-      ## hidden` (does not draw anything),
-      ## `hiddenTree` (does not draw, including it's children), or
+      ## `hiddenThisOnly` (does not draw anything),
+      ## `hidden` (does not draw, including it's children), or
       ## `collapsed` (does not draw, does not count in layouts, behaves like zero-sized component in anchoring)
     
     globalTransform*: Property[bool]
@@ -342,7 +342,7 @@ proc drawBefore*(obj: Uiobj, ctx: DrawContext) =
     draw(x.obj, ctx)
 
 proc drawChilds*(obj: Uiobj, ctx: DrawContext) =
-  if obj.visibility notin {hiddenTree, collapsed}:
+  if obj.visibility notin {hidden, collapsed}:
     for x in obj.childs:
       if x.m_layer.obj == nil:
         draw(x, ctx)
@@ -602,30 +602,30 @@ proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
     case anchor.offsetFrom:
     of start:
       if connectToParentGlobal:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env)
     of `end`:
       if connectToParentGlobal:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env)
     of center:
       if connectToParentGlobal:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env)
   
   else:
     case anchor.offsetFrom:
     of start:
       if connectToParentGlobal:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env)
     of `end`:
       if connectToParentGlobal:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env)
     of center:
       if connectToParentGlobal:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
-  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors, env, {EventConnectionFlag.internal})
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors, env)
 
 template anchorAssign(anchor: untyped, isY: bool): untyped {.dirty.} =
   proc `anchor=`*(obj: Uiobj, v: Anchor) =
@@ -1079,6 +1079,12 @@ proc deleteWithoutAnimation*(this: Uiobj) =
   if this.parent != nil:
     this.parent.recieve(ChildRemoved(child: this))
 
+  if this.deletionAnimation != nil:
+    this.deletionAnimation.ended.emit()
+    disconnect this.deletionAnimation.tick
+    disconnect this.deletionAnimation.ended
+    disconnect this.deletionAnimation.eventHandler
+  
   deteach this
   
   if this.parent != nil:
@@ -1089,11 +1095,23 @@ proc deleteWithoutAnimation*(this: Uiobj) =
 
 
 proc delete*(this: Uiobj) =
+  if this == nil: return
+  this.deleted.emit()
+
   if this.deletionAnimation == nil:
     deleteWithoutAnimation(this)
   else:
-    assert this.deletionAnimation.target == this
     if this.deletionAnimation.eventHandler.hasHandlers: return  # (is animation already running)
+    this.parentUiRoot.onTick.connect this.deletionAnimation.eventHandler, proc(e: TickEvent) =
+      let anim = this.deletionAnimation
+      anim.currentTime += e.deltaTime
+      
+      if anim.currentTime >= anim.duration:
+        anim.currentTime = anim.duration
+        anim.tick.emit(anim.easing(1))
+        deleteWithoutAnimation this
+      else:
+        anim.tick.emit(anim.easing(anim.currentTime.inMicroseconds.float / anim.duration.inMicroseconds.float))
 
 
 
@@ -1118,7 +1136,7 @@ proc `val=`*[T: Uiobj](p: var ChangableChild[T], v: T) =
     if v == p.child: return
   else:
     if v.Uiobj == p.child: return
-  
+
   let i = p.parent.childs.find(p.child)
 
   let oldChild = p.child
@@ -1126,11 +1144,17 @@ proc `val=`*[T: Uiobj](p: var ChangableChild[T], v: T) =
   if i == -1:
     delete oldChild
     p.parent.addChild(v)
-  
+
   else:
-    oldChild.parent = nil
-    deteach oldChild
-    p.parent.childs[i] = v
+    if oldChild.deletionAnimation == nil:
+      delete oldChild
+      # old child was deleted instantly, new child takes it's place
+      p.parent.childs.insert(v, i)
+    else:
+      delete oldChild
+      # old child stays in the tree while it's deletion animation is playing
+      p.parent.childs.insert(v, i + 1)
+
     v.parent = p.parent
 
     if v.isInitialized:
@@ -1256,7 +1280,7 @@ method componentTypeName*(this: Uiobj): string {.base.} = "Uiobj"
 
 
 proc formatProperty[T](res: var seq[string], name: static string, prop: Property[T]) =
-  if (prop[] != typeof(prop[]).default or prop.changed.hasExternalHandlers):
+  if (prop[] != typeof(prop[]).default or prop.changed.hasHandlers):
     when v is Uiobj:
       result.add name & ": -> " & prop[].componentTypeName
     
@@ -1267,7 +1291,7 @@ proc formatProperty[T](res: var seq[string], name: static string, prop: Property
 proc formatProperty[T](res: var seq[string], name: static string, prop: CustomProperty[T]) =
   if (
     prop.get != nil and
-    (prop[] != typeof(prop[]).default or prop.changed.hasExternalHandlers)
+    (prop[] != typeof(prop[]).default or prop.changed.hasHandlers)
   ):
     when v is Uiobj:
       result.add name & ": -> " & prop[].componentTypeName

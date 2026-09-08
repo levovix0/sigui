@@ -142,8 +142,8 @@ method init*(this: ScrollArea) =
     defaultSb.bindingProperty color: defaultSb.color[].withAlpha(scrollArea.sbOpacity[])
 
     defaultSb.bindingProperty visibility:
-      if defaultSb.h[] == scrollArea.sbArea.h[]: hiddenTree
-      elif scrollArea.sbOpacity[] == 0.0: hiddenTree
+      if defaultSb.h[] == scrollArea.sbArea.h[]: hidden
+      elif scrollArea.sbOpacity[] == 0.0: hidden
       else: visible
 
 

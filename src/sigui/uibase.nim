@@ -9,6 +9,9 @@ export events, properties, contexts, uiobj, uiobjMacros, window, windowCreation
 
 
 type
+  # todo: merge UiRect and UiRectBorder into a single Box with fill/stroke
+  # todo: move dashing settings of UiRectBorder into separate object
+
   UiRect* = ref object of Uiobj
     ## single-color rectangle
 

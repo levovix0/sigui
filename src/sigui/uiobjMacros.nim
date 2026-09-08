@@ -717,6 +717,24 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
                 
                 connectCall
 
+
+              # on event, varname: body
+              elif x.kind == nnkCommand and x.len == 4 and x[0].eqIdent("on"):
+                let event = x[1]
+                let varname = x[2]
+                let body = x[3]
+
+                let connectCall = nnkCall.newTree(
+                  bindSym("connectTo"),
+                  event,
+                  varname,
+                  ident "this",
+                  body
+                )
+                (connectCall[0].copyLineInfo(x[0]))
+                
+                connectCall
+
               
               # capture a, b=c, ...: body
               # capture(a, b=c, ...): body

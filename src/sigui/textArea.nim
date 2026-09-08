@@ -585,9 +585,9 @@ method init*(this: TextArea) =
                   if root.blinking.time[] <= root.blinking.period[]:
                     Visibility.visible
                   else:
-                    Visibility.hiddenTree
+                    Visibility.hidden
                 else: Visibility.visible
-              else: Visibility.hiddenTree
+              else: Visibility.hidden
 
             root.bindingProperty cursorX: positionOfCharacter(root.textObj.arrangement[], root.cursorPos[])
             

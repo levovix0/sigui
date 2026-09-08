@@ -123,7 +123,7 @@ method draw*(obj: Layout, ctx: DrawContext) =
   for x in obj.layering.beforeChilds:
     draw(x.obj, ctx)
   
-  if obj.visibility notin {hiddenTree, collapsed}:
+  if obj.visibility notin {hidden, collapsed}:
     for child in obj.potentially_visible_childs:
       if child.m_layer.obj == nil:
         draw(child, ctx)
