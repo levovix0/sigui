@@ -34,7 +34,7 @@ type
 
 #* ------------- Property ------------- *#
 
-proc property*[T](v: T): Property[T] =
+proc property*[T](v: T): Property[T] {.inline.} =
   Property[T](unsafeVal: v)
 
 

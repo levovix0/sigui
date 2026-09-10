@@ -1,5 +1,6 @@
 import unittest
-import sigui/[uibase, mouseArea], shady
+import sigui/[uibase, mouseArea, windowCreation], shady
+import sigui/rendering/current_backend
 import ./commonGeometry
 
 type Sandbox = ref object of Uiobj
@@ -51,6 +52,8 @@ method init*(this: Sandbox) =
 
 
 method drawInner*(this: Sandbox, ctx: DrawContext) =
+  let ctx = ctx.RiceDrawContext.raw
+
   let shader = ctx.makeShader:
     {.version: "300 es".}
     
@@ -92,7 +95,7 @@ method drawInner*(this: Sandbox, ctx: DrawContext) =
   glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
 
   use shader.shader
-  ctx.passTransform(shader, pos=(this.xy.posToGlobal(this.parent) + ctx.offset).round, size=this.wh.round, angle=0)
+  ctx.passTransform(shader, pos=this.xy.posToGlobal(this.parent).round, size=this.wh.round, angle=0)
   shader.p1.uniform = this.p1[]
   shader.p2.uniform = this.p2[]
   shader.r.uniform = this.r[]

@@ -1,7 +1,7 @@
-import std/[sequtils, importutils]
+import std/[sequtils]
 import pkg/[vmath]
-import ./[uiobj {.all.}, properties, events]
-import rice/[contexts]
+import ./[uiobj, properties, events, rendering]
+
 
 type
   LayoutOrientation* = enum
@@ -82,7 +82,7 @@ iterator potentially_visible_childs*(this: Layout): Uiobj =
   block notOptimized:
     block optimized:
       if this.lengthBeforeWrap[] == 0 and this.elementsBeforeWrap[] == 0 and this.assumeChildsClipped[]:
-        let win = this.parentUiRoot
+        let win = this.root
         if win != nil:
           let boundsXy = vec2(0, 0)
           let boundsWh = win.wh
@@ -113,11 +113,6 @@ iterator potentially_visible_childs*(this: Layout): Uiobj =
 
 
 method draw*(obj: Layout, ctx: DrawContext) =
-  privateAccess Uiobj
-  privateAccess Layering
-  privateAccess LayerPinned
-  privateAccess UiobjCursor
-
   for x in obj.layering.before:
     draw(x.obj, ctx)
   for x in obj.layering.beforeChilds:
@@ -134,11 +129,6 @@ method draw*(obj: Layout, ctx: DrawContext) =
 
 
 method recieve*(this: Layout, signal: Signal) =
-  privateAccess Uiobj
-  privateAccess Layering
-  privateAccess LayerPinned
-  privateAccess UiobjCursor
-
   if signal of Completed:
     if this.lockFromReposition:
       this.lockFromReposition = false
@@ -513,7 +503,7 @@ proc grid*(typ: typedesc[Layout], columns: int, gap: float32 = 0): Layout =
 
 
 when isMainModule:
-  import ./uibase
+  import ./[uibase, windowCreation]
 
   let win = newUiWindow(size = ivec2(600, 700))
 

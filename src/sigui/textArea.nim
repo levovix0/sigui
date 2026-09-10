@@ -1,7 +1,5 @@
 import std/[times, unicode, strutils]
-import pkg/[siwin]
-import ./[uibase, mouseArea, windowCreation]
-# todo: import ./window instead of pkg/siwin and ./windowCreation
+import ./[uibase, mouseArea, window]
 
 type
   Blinking* = object
@@ -265,9 +263,9 @@ method recieve*(this: TextArea, signal: Signal) =
             if window.keyboard.pressed.containsControl():  # when crl+c pressed and copyingUsingCtrlC enabled
               # copy selected text
               if this.selectionStart[] != this.selectionEnd[]:  # some text selected
-                this.parentWindow.clipboard.text = this.selectedText
+                this.root.clipboardText = this.selectedText
               else:  # no text selected (should behave like all text is selected)
-                this.parentWindow.clipboard.text = this.text[]
+                this.root.clipboardText = this.text[]
         
         of Key.v:
           if pastingUsingCtrlV in this.allowedInteractions and textInput in this.allowedInteractions:
@@ -277,7 +275,7 @@ method recieve*(this: TextArea, signal: Signal) =
                 this.pushState()
               this.eraseSelectedText()
 
-              let ct = this.parentWindow.clipboard.text
+              let ct = this.root.clipboardText
               let offset = this.text.runeOffset(this.cursorPos[])
               this.text{}.insert(ct, (if offset == -1: this.text.len else: offset))
               this.text.changed.emit()
@@ -293,7 +291,7 @@ method recieve*(this: TextArea, signal: Signal) =
               if this.selectionStart[] != this.selectionEnd[]:  # some text selected
                 if savingUndoStates in this.allowedInteractions and textInput in this.allowedInteractions:
                   this.pushState()
-                this.parentWindow.clipboard.text = this.selectedText
+                this.root.clipboardText = this.selectedText
                 if textInput in this.allowedInteractions:
                   this.eraseSelectedText()
                   this.textEdited.emit()
@@ -301,7 +299,7 @@ method recieve*(this: TextArea, signal: Signal) =
               elif this.text[] != "":  # no text selected (should behave like all text is selected)
                 if savingUndoStates in this.allowedInteractions and textInput in this.allowedInteractions:
                   this.pushState()
-                this.parentWindow.clipboard.text = this.text[]
+                this.root.clipboardText = this.text[]
                 if textInput in this.allowedInteractions:
                   this.text[] = ""
                   this.textEdited.emit()
@@ -436,15 +434,15 @@ method init*(this: TextArea) =
   )
 
   
-  proc positionOfCharacter(arrangement: Arrangement, pos: int): float =
+  proc positionOfCharacter(arrangement: TextArrangement, pos: int): float =
     if arrangement != nil:
       if pos > arrangement.positions.high:
-        arrangement.layoutBounds.x
+        arrangement.size.x
       else:
         arrangement.selectionRects[pos].x
     else: 0
   
-  proc characterAtPosition(arrangement: Arrangement, pos: float): int =
+  proc characterAtPosition(arrangement: TextArrangement, pos: float): int =
     if arrangement != nil:
       while true:
         if result > arrangement.selectionRects.high: break
@@ -464,7 +462,7 @@ method init*(this: TextArea) =
 
   
   this.makeLayout:
-    this.parentUiRoot.onTick.connectTo this:
+    this.root.onTick.connectTo this:
       this.blinking.time[] = (this.blinking.time + e.deltaTime) mod (this.blinking.period[] * 2)
 
     - MouseArea.new:
@@ -517,7 +515,7 @@ method init*(this: TextArea) =
           )
 
           if selectingUsingMouse in root.allowedInteractions:
-            if root.parentWindow.keyboard.pressed.containsShift():
+            if root.root.keyboardState.pressed.containsShift():
               root.selectionEnd[] = root.cursorPos[]
             else:
               root.selectionStart[] = root.cursorPos[]
@@ -550,7 +548,7 @@ method init*(this: TextArea) =
 
           root.selectionObj --- (let r = UiRect.new; r.color[] = "78A7FF".color; r.Uiobj):
             binding:
-              if root.textObj.h[] != 0 or root.textObj.font[] == nil:
+              if root.textObj.h{} != 0 or root.textObj.font{} == nil:
                 this.fillVertical root.textObj
               else:
                 this.fillVertical(root.textObj, -(root.textObj.font[].size / 2))
@@ -574,7 +572,7 @@ method init*(this: TextArea) =
           root.cursorObj --- (let r = UiRect.new; r.w[] = 1; r.Uiobj):
             x := root.cursorX[]
             binding:
-              if root.textObj.h[] != 0 or root.textObj.font[] == nil:
+              if root.textObj.h{} != 0 or root.textObj.font{} == nil:
                 this.fillVertical root.textObj
               else:
                 this.fillVertical(root.textObj, -(root.textObj.font[].size / 2))
@@ -603,10 +601,13 @@ method init*(this: TextArea) =
 
 
 when isMainModule:
+  import ./windowCreation
+
   const typefaceFile = staticRead "../../tests/Roboto-Regular.ttf"
-  let typeface = parseTtf(typefaceFile)
 
   preview:
+    let typeface = this.root.ctx.parseTtf(typefaceFile)
+    
     this.clearColor = color(1, 1, 1)
     - TextArea.new:
       text = "start text"

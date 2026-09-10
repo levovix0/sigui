@@ -1,5 +1,5 @@
 import sigui
-import opengl/private/prelude {.all.}
+import opengl/private/prelude
 
 
 let panel = newPluginUiRoot()

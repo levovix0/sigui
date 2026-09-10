@@ -111,7 +111,7 @@ proc addChild*[T](obj: Uiobj, a: Animation[T]) =
   a.easing.changed.connectTo a: act()
   a.duration.changed.connectTo a: act()
 
-  obj.parentUiRoot.onTick.connectTo a, e:
+  obj.root.onTick.connectTo a, e:
     tick(e.deltaTime)
 
 
@@ -160,7 +160,7 @@ proc addChild*[T](obj: Uiobj, a: InsertablePropertyTransition[T]) =
       a.prop[].unsafeVal = v
       emit(a.prop[].changed)
 
-  obj.parentUiRoot.onTick.connectTo a.transition.eventHandler, e:
+  obj.root.onTick.connectTo a.transition.eventHandler, e:
     tick(e.deltaTime)
 
 

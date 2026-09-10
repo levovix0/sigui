@@ -1,5 +1,5 @@
 import std/[sequtils, times]
-import ./[uibase, events {.all.}, animations, mouseArea]
+import ./[uibase, events, animations, mouseArea]
 
 type
   ScrollAreaSetting* = enum
@@ -151,7 +151,7 @@ method init*(this: ScrollArea) =
   makeScrollBar horizontalScrollBarArea, defaultHorizontalScrollBar, horizontalScrollbarOpacity, bottom, h, w
  
 
-  this.parentUiRoot.onTick.connectTo this: this.onTick.p.changed.emit()
+  this.root.onTick.connectTo this: this.onTick.p.changed.emit()
 
 
   scrollArea.onTick.p.changed.connectTo scrollArea:
@@ -251,7 +251,7 @@ method init*(this: ScrollArea) =
         this.fill parent
 
         this.scrolled.connectTo root, xy:
-          let xy = if this.parentWindow.keyboard.pressed.containsShift(): vec2(xy.y, xy.x) else: xy
+          let xy = if this.root.keyboardState.pressed.containsShift(): vec2(xy.y, xy.x) else: xy
           if enableHorizontalScroll in root.settings[]:
             let newX = (root.targetX[] + xy.x * root.horizontalScrollSpeed).clamp(
               0,
@@ -392,7 +392,7 @@ method init*(this: ScrollArea) =
 
 
 when isMainModule:
-  import ./[layouts, styles]
+  import ./[layouts, styles, windowCreation]
 
   preview:
     this.clearColor = color(1, 1, 1)

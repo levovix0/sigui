@@ -1,7 +1,7 @@
 import std/[times, macros, strutils, importutils, macrocache]
 import pkg/[vmath, bumpy, chroma]
-import pkg/rice/contexts
 import ./[events, properties, window]
+import ./rendering/[any]
 
 when defined(refactor):
   import refactoring/fileTemplates
@@ -112,14 +112,14 @@ type
     isInitialized*: bool
     isDeteached*: bool
     isCompleted*: bool
-    root* {.cursor.}: UiRoot  # parent UiRoot, guaranteed to be !=nil before init
+    parentRoot* {.cursor.}: UiRoot  # parent UiRoot, guaranteed to be !=nil before init
 
     deletionAnimation*: UiobjDeletionAnimation  # if !=nil, delete will hold up actual deletion for the duration of this animation
     
     anchors: Anchors
 
-    layering: Layering
-    m_layer: LayerPinned
+    layering*: Layering
+    m_layer*: LayerPinned
 
     childsCow: ptr seq[Uiobj]
     beforeCow: ptr seq[UiobjCursor]
@@ -127,12 +127,13 @@ type
     afterCow: ptr seq[UiobjCursor]
 
 
-  UiobjCursor = object
-    obj {.cursor.}: Uiobj
+  UiobjCursor* = object
+    obj* {.cursor.}: Uiobj
 
 
   UiRoot* = ref object of Uiobj
     onTick*: Event[TickEvent]
+    ctx*: DrawContext
 
 
   ChangableChild*[T] = object
@@ -367,17 +368,18 @@ method draw*(obj: Uiobj, ctx: DrawContext) {.base.} =
   obj.drawAfter(ctx)
 
 
-proc parentUiRoot*(obj: Uiobj, forceFind = false): UiRoot =
-  if forceFind:
-    var obj {.cursor.} = obj
-    while true:
-      if obj == nil: return nil
-      if obj of UiRoot: return obj.UiRoot
-      obj = obj.parent
+proc findUiRoot*(obj: Uiobj): UiRoot =
+  var obj {.cursor.} = obj
+  while true:
+    if obj == nil: return nil
+    if obj of UiRoot: return obj.UiRoot
+    obj = obj.parent
 
-  else:
-    if obj.root == nil and obj of UiRoot: return obj.UiRoot
-    return obj.root
+proc root*(obj: Uiobj): UiRoot {.inline.} =
+  assert obj.parentRoot != nil  # UiWindow always sets it's parentRoot
+  obj.parentRoot
+
+proc parentUiRoot*(obj: Uiobj, forceFind = false): UiRoot {.deprecated: "use .root instead".} = obj.root
 
 
 proc lastParent*(obj: Uiobj): Uiobj =
@@ -387,14 +389,11 @@ proc lastParent*(obj: Uiobj): Uiobj =
     result = result.parent
 
 
-method doRedraw*(obj: UiRoot) {.base.} = discard
+method doRedraw*(root: UiRoot) {.base.} = discard
 
-proc redraw*(obj: Uiobj, ifVisible = true) =
-  if ifVisible and obj.visibility[] != visible: return
-  
-  let root = obj.parentUiRoot
-  if root != nil:
-    doRedraw root
+proc redraw*(obj: Uiobj, ifVisible = true) {.inline.} =
+  if not(ifVisible) or obj.visibility[] == visible:
+    doRedraw obj.root
 
 
 proc posToLocal*(pos: Vec2, obj: Uiobj): Vec2 =
@@ -432,11 +431,18 @@ proc posToObject*(pos: Vec2, fromObj, toObj: Uiobj): Vec2 {.inline.} =
   posToObject(fromObj, toObj, pos)
 
 
-method mouseState*(root: UiRoot): Mouse {.base.} = discard
-method keyboardState*(root: UiRoot): Keyboard {.base.} = discard
-method touchscreenState*(root: UiRoot): TouchScreen {.base.} = discard
+var dummyMouseState: Mouse
+var dummyKeyboardState: Keyboard
+var dummyTouchscreenState: TouchScreen
 
-method `cursor=`(root: UiRoot, v: Cursor) {.base.} = discard
+method mouseState*(root: UiRoot): var Mouse {.base.} = dummyMouseState
+method keyboardState*(root: UiRoot): var Keyboard {.base.} = dummyKeyboardState
+method touchscreenState*(root: UiRoot): var TouchScreen {.base.} = dummyTouchscreenState
+
+method `cursor=`*(root: UiRoot, v: Cursor) {.base.} = discard
+
+method clipboardText*(root: UiRoot): string {.base.} = discard
+method `clipboardText=`*(root: UiRoot, v: string) {.base.} = discard
 
 
 proc `$`*(this: Uiobj): string
@@ -732,7 +738,7 @@ proc spreadGlobalYChange(obj: Uiobj, parentGlobalY: float32) =
 
 method recieve*(this: Uiobj, signal: Signal) {.base.}
 
-proc handleSubtreeSignals(this: Uiobj, signal: Signal) =
+proc handleSubtreeSignals*(this: Uiobj, signal: Signal) =
   if signal of SubtreeReverseSignal:
     for child in this.childs.iterateChangeAwareReversed(this.childsCow):
       if child.m_layer.obj == nil:
@@ -923,11 +929,11 @@ method connectFirstHandHandlers*(this: Uiobj) {.base.} =
 #----- Uiobj initialization -----
 
 method init*(obj: Uiobj) {.base.} =
-  if not (obj of UiRoot):
+  if obj of UiRoot:
+    obj.parentRoot = obj.UiRoot
+  else:
     assert obj.parent != nil, "ui object must be added to a parent before initializing"
-  
-  if not (obj of UiRoot):
-    obj.root = obj.parent.parentUiRoot
+    obj.parentRoot = obj.parent.root
   
   obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
   obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
@@ -1102,7 +1108,7 @@ proc delete*(this: Uiobj) =
     deleteWithoutAnimation(this)
   else:
     if this.deletionAnimation.eventHandler.hasHandlers: return  # (is animation already running)
-    this.parentUiRoot.onTick.connect this.deletionAnimation.eventHandler, proc(e: TickEvent) =
+    this.root.onTick.connect this.deletionAnimation.eventHandler, proc(e: TickEvent) =
       let anim = this.deletionAnimation
       anim.currentTime += e.deltaTime
       
@@ -1239,12 +1245,6 @@ proc markCompleted*(obj: Uiobj) =
 
 
 proc newUiobj*(): Uiobj = new result
-
-
-template withRoot*(obj: Uiobj, rootVar: untyped, body: untyped) {.deprecated: "Ui objects always have a parent before initializing".} =
-  proc bodyProc(rootVar {.inject.}: UiRoot) =
-    body
-  bodyProc(obj.root)
 
 
 #----- reflection -----

@@ -1,11 +1,12 @@
 # should be used instead of directly importing siwin
 # todo: add windy support
 
+import std/[macros, sequtils]
 import pkg/siwin/[windowOpengl, platforms]
-import pkg/siwin/platforms/any/window
+import pkg/siwin/platforms/any/[window, clipboards]
 import pkg/[chroma, vmath, opengl]
-import ./[uiobj, events, properties]
-import rice/[contexts, transform]
+import ./[uiobj, uiobjMacros, events, properties]
+import ./rendering/[any, current_backend]
 
 
 when defined(sigui_debug_useLogging):
@@ -16,7 +17,6 @@ type
   UiWindow* = ref object of UiRoot
     siwinWindow*: Window
     clearColor*: Color = color(0, 0, 0)
-    ctx*: DrawContext
 
 registerComponent UiWindow
 
@@ -70,23 +70,14 @@ proc setupEventsHandling*(win: UiWindow) =
     onRender: proc(e: RenderEvent) =
       win.recieve(BeforeDraw(sender: win, ctx: win.ctx))
       win.draw(win.ctx)
-      win.ctx.deleteUnusedFrameBuffers()
-      win.ctx.markAllFreeFrameBuffersAsUnused()
+      win.ctx.finishRendering()
     ,
     onTick: proc(e: TickEvent) =
       win.onTick.emit(e)
     ,
     onResize: proc(e: ResizeEvent) =
       win.wh = e.size.vec2
-      glViewport 0, 0, e.size.x.GLsizei, e.size.y.GLsizei
-      assert win.ctx.fbo == 0
-      win.ctx.fboSize = e.size
-      win.ctx.updateDrawingAreaSize(e.size)
-
-      win.ctx.projection = combine(
-        scale(vec3(2 / win.w[], -2 / win.h[], 1)),
-        translate(vec3(-1, 1, 0)),
-      )
+      win.ctx.resize(e.size)
 
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
@@ -127,7 +118,7 @@ proc newUiWindow*(siwinWindow: Window): UiWindow =
   result = UiWindow(siwinWindow: siwinWindow)
   loadExtensions()
   result.setupEventsHandling
-  result.ctx = newDrawContext()
+  result.ctx = newRiceDrawContext()
   result.wh = siwinWindow.size.vec2
 
 template newUiRoot*(siwinWindow: Window): UiWindow =
@@ -165,7 +156,7 @@ proc newUiWindow*(
     class,
   ).newUiWindow
 
-  result.root = result
+  result.parentRoot = result
 
 
 proc parentUiWindow*(obj: Uiobj): UiWindow =
@@ -181,28 +172,25 @@ proc parentWindow*(obj: Uiobj): Window =
   else: nil
 
 
-template withWindow*(obj: Uiobj, winVar: untyped, body: untyped) =
-  proc bodyProc(winVar {.inject.}: UiWindow) =
-    body
-  if obj.root != nil:
-    bodyProc(obj.parentUiWindow)
-  obj.gotSignal.connect obj.eventHandler, proc(e: Signal) =
-    if e of AttachedToRoot:
-      bodyProc(obj.parentUiWindow)
-
-
-method mouseState*(root: UiWindow): Mouse =
+method mouseState*(root: UiWindow): var Mouse =
   root.siwinWindow.mouse
 
-method keyboardState*(root: UiWindow): Keyboard =
+method keyboardState*(root: UiWindow): var Keyboard =
   root.siwinWindow.keyboard
 
-method touchscreenState*(root: UiWindow): TouchScreen =
+method touchscreenState*(root: UiWindow): var TouchScreen =
   root.siwinWindow.touchScreen
 
 
 method `cursor=`(root: UiWindow, v: Cursor) =
   root.siwinWindow.cursor = v
+
+
+method clipboardText*(root: UiWindow): string =
+  root.siwinWindow.clipboard.text
+
+method `clipboardText=`*(root: UiWindow, v: string) =
+  root.siwinWindow.clipboard.text = v
 
 
 
@@ -233,4 +221,55 @@ when defined(sigui_debug_redrawInitiatedBy):
 proc run*(win: UiWindow) =
   markCompleted(win)
   run win.siwinWindow
+
+
+
+#----- utils -----
+
+macro preview*(args: varargs[untyped]) =
+  let body = args[^1]
+  
+  let win = ident("win")
+  let obj = ident("obj")
+  let margin = ident("margin")
+  
+  let windowCreate = nnkCall.newTree(bindSym("newUiWindow") & args[0..^2])
+  let windowMkLayout = nnkCall.newTree(bindSym("makeLayout"), win, body)
+  
+  let setWindowSize =
+    if args.anyIt(it.kind == nnkExprEqExpr and it.len == 2 and it[0] == ident("size")):
+      newEmptyNode()
+    else:
+      quote do:
+        var objSize = `obj`.wh
+        if objSize.x == 0: objSize.x = 100
+        if objSize.y == 0: objSize.y = 100
+      
+        `win`.wh = objSize + vec2(`margin`.left + `margin`.right, `margin`.top + `margin`.bottom)
+        `win`.siwinWindow.size = `win`.wh.ivec2  # todo: siwin on Wayland ignores this resize
+  
+  let setClearColor =
+    if args.anyIt(it.kind == nnkExprEqExpr and it.len == 2 and it[0] == ident("transparent") and it[1] == ident("true")):
+      quote do:
+        `win`.clearColor = color(0, 0, 0, 0)
+    else:
+      newEmptyNode()
+  
+  result = quote do:
+    let `win` = `windowCreate`
+    `setClearColor`
+
+    `windowMkLayout`
+
+    if `win`.childs.len > 0:
+      let `obj` = `win`.childs[0]
+
+      let `margin` = `obj`.margin
+      
+      `setWindowSize`
+      
+      `win`.childs[0].fill(`win`)
+      `obj`.margin = `margin`
+    
+    run `win`
 

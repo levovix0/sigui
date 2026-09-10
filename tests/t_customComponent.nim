@@ -1,4 +1,4 @@
-import sigui/[uibase, mouseArea, animations]
+import sigui/[uibase, mouseArea, animations, windowCreation]
 
 type
   Switch* = ref object of Uiobj

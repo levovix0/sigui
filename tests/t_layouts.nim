@@ -1,5 +1,5 @@
 import std/[unittest]
-import sigui/[uibase, layouts]
+import sigui/[uibase, layouts, windowCreation]
 
 
 test "layouts":

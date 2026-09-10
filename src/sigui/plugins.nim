@@ -1,6 +1,5 @@
 import ./window
-import ./[uiobj, events, properties]
-import rice/contexts
+import ./[uiobj, events, properties, rendering]
 
 
 type
@@ -58,7 +57,7 @@ registerComponent PluginUiRoot
 
 method init(this: HostUiRoot) =
   procCall this.super.init()
-  this.parentUiRoot.onTick.connectTo this, e:
+  this.root.onTick.connectTo this, e:
     this.plugin.iface.onTick(this.plugin.env, e)
   
   template makeEvent(prop) =

@@ -1,5 +1,6 @@
 import unittest
 import sigui, shady
+import sigui/rendering/current_backend
 
 type Cat = ref object of Uiobj
 
@@ -20,6 +21,8 @@ proc overlapsTri*(tri_0, tri_1, tri_2: Vec2, p: Vec2): bool =
 
 
 method drawInner*(this: Cat, ctx: DrawContext) =
+  let ctx = ctx.RiceDrawContext.raw
+
   let shader = ctx.makeShader:
     {.version: "300 es".}
     
@@ -76,7 +79,7 @@ method drawInner*(this: Cat, ctx: DrawContext) =
   glBlendFuncSeparate(GlOne, GlOneMinusSrcAlpha, GlOne, GlOne)
 
   use shader.shader
-  ctx.passTransform(shader, pos=(this.xy.posToGlobal(this.parent) + ctx.offset).round, size=this.wh.round, angle=0)
+  ctx.passTransform(shader, pos=this.xy.posToGlobal(this.parent).round, size=this.wh.round, angle=0)
   
   draw ctx.rect
   

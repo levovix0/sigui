@@ -5,7 +5,7 @@ test "styles":
   let window = newUiWindow(size = ivec2(1280, 720), title = "styles")
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
-  let typeface = parseTtf(typefaceFile)
+  let typeface = window.ctx.parseTtf(typefaceFile)
 
   let darkTheme = makeStyle:
     UiText:

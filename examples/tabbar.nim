@@ -94,15 +94,14 @@ method init*(this: TabBar) =
 
 test "tab bar":
   const typefaceFile = staticRead "../tests/Roboto-Regular.ttf"
-  let typeface = parseTtf(typefaceFile)
+
+  let window = newUiWindow(size = ivec2(1280, 720), title = "tab bar")
+  let typeface = window.ctx.parseTtf(typefaceFile)
 
   let lightTheme = makeStyle:
     UiText:
       font = typeface.withSize(16)
       color = "000000"
-
-
-  let window = newUiWindow(size = ivec2(1280, 720), title = "tab bar")
 
   window.makeLayout:
     this.clearColor = color(1, 1, 1)

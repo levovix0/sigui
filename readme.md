@@ -584,7 +584,7 @@ Layers also affect the order, in which signals (like window events) are handled
 ![image](http://levovix.ru:8000/docs/sigui/example%20images/custom%20shader.png)
 
 ```nim
-import shady
+import sigui, shady, sigui/rendering/current_backend
 
 type ChessTiles = ref object of Uiobj
   tileSize: float
@@ -593,6 +593,7 @@ registerComponent ChessTiles
 
 
 method drawInner*(this: ChessTiles, ctx: DrawContext) =
+  let ctx = ctx.RiceDrawContext.raw
   let shader = ctx.makeShader:
     proc vert(
       gl_Position: var Vec4,
@@ -637,7 +638,7 @@ method drawInner*(this: ChessTiles, ctx: DrawContext) =
 ![image](http://levovix.ru:8000/docs/sigui/example%20images/styles.png)
 ```nim
 const typefaceFile = staticRead "Roboto-Regular.ttf"
-let typeface = parseTtf(typefaceFile)
+let typeface = win.ctx.parseTtf(typefaceFile)
 
 - Styler.new:
   this.fill parent

@@ -1,5 +1,5 @@
 import std/[unittest, times, strformat]
-import sigui/[uibase, layouts, mouseArea, scrollArea, styles]
+import sigui/[uibase, layouts, mouseArea, scrollArea, styles, windowCreation]
 
 const count {.intdefine.} = 1000
 
@@ -7,7 +7,7 @@ test "layout benchmark":
   let window = newUiWindow(size = ivec2(600, 720), title = "layouts benchmark")
 
   const typefaceFile = staticRead "../tests/Roboto-Regular.ttf"
-  let typeface = parseTtf(typefaceFile)
+  let typeface = window.ctx.parseTtf(typefaceFile)
 
   window.makeLayout:
     this.clearColor = "202020".color

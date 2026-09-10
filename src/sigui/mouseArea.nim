@@ -1,5 +1,5 @@
 import pkg/[vmath]
-import ./[events {.all.}, properties, uiobj {.all.}, window]
+import ./[events, properties, uiobj, window]
 export MouseButton, MouseMoveEvent
 
 type
@@ -79,12 +79,12 @@ disableAutoRedrawHook MouseArea
 addFirstHandHandler MouseArea, "globalX":
   superHook()
   if (not this.globalTransform) and (this.root != nil):
-    handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiRoot.mouseState.pos), nil)
+    handleMouseMoveEvent(this, MouseMoveEvent(pos: this.root.mouseState.pos), nil)
 
 addFirstHandHandler MouseArea, "globalY":
   superHook()
   if (not this.globalTransform) and (this.root != nil):
-    handleMouseMoveEvent(this, MouseMoveEvent(pos: this.parentUiRoot.mouseState.pos), nil)
+    handleMouseMoveEvent(this, MouseMoveEvent(pos: this.root.mouseState.pos), nil)
 
 proc onHoveredOrCursorChanged(this: MouseArea)
 
@@ -175,13 +175,13 @@ proc handleMouseButtonEvent(this: MouseArea, e: MouseButtonEvent, signal: Signal
 
 
 proc onHoveredOrCursorChanged(this: MouseArea) =
-  if (let win = this.parentUiRoot; win != nil):
+  if (let win = this.root; win != nil):
     var activeCursor = GetActiveCursor()
     win.recieve(activeCursor)
     if activeCursor.handled and activeCursor.cursor != nil:
-      win.parentUiRoot.cursor = activeCursor.cursor[]
+      win.root.cursor = activeCursor.cursor[]
     else:
-      win.parentUiRoot.cursor = Cursor()
+      win.root.cursor = Cursor()
 
 
 method recieve*(this: MouseArea, signal: Signal) =
