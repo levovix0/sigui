@@ -129,7 +129,7 @@ proc `image=`*(obj: UiImage, img: DrawContextImage) =
 method drawInner*(this: UiRect, ctx: DrawContext) =
   ctx.fillRect(
     this.xy.posToGlobal(this.parent), this.wh,
-    this.color[], this.radius, this.color[].a != 1 or this.radius != 0
+    this.color[], this.radius[], this.color[].a != 1 or this.radius[] != 0
   )
 
 
@@ -138,12 +138,12 @@ method drawInner*(this: UiImage, ctx: DrawContext) =
   if this.colorOverlay[]:
     ctx.drawIcon(
       this.xy.posToGlobal(this.parent), this.wh, this.tex,
-      this.color, this.radius, this.blend or this.radius != 0
+      this.color[], this.radius[], this.blend[] or this.radius[] != 0
     )
   else:
     ctx.drawImage(
       this.xy.posToGlobal(this.parent), this.wh, this.tex,
-      this.color, this.radius, this.blend or this.radius != 0
+      this.color[], this.radius[], this.blend[] or this.radius[] != 0
     )
 
 
@@ -159,7 +159,7 @@ method init*(this: UiSvgImage) =
     
     prevSize = size
     
-    if this.image{} != "":
+    if this.image[] != "":
       this.tex = this.root.ctx.parseSvg(sz, this.image[])
       this.imageWh[] = this.tex.size
       this.wh = this.tex.size.vec2
@@ -173,27 +173,27 @@ method drawInner*(ico: UiSvgImage, ctx: DrawContext) =
   if ico.tex == nil: return
   ctx.drawIcon(
     ico.xy.posToGlobal(ico.parent), ico.wh.ceil,
-    ico.tex, ico.color{},
-    ico.radius{}, ico.blend{} or ico.radius{} != 0,
+    ico.tex, ico.color[],
+    ico.radius[], ico.blend[] or ico.radius[] != 0,
   )
 
 
 proc `fontSize=`*(this: UiText, size: float32) =
-  this.font{}.size = size
+  this.font[].size = size
   this.font.changed.emit()
 
 method init*(this: UiText) =
   procCall this.super.init
 
   this.arrangement.changed.connectTo this:
-    if this.arrangement{} != nil:
-      this.wh = this.arrangement{}.size
+    if this.arrangement[] != nil:
+      this.wh = this.arrangement[].size
     else:
       this.wh = vec2()
 
   proc newArrangement(this: UiText): TextArrangement =
-    if this.text{} != "" and this.font{} != nil:
-      this.root.ctx.textArrangement(this.font{}, this.text{}, this.bounds{}, this.hAlign{}, this.vAlign{})
+    if this.text[] != "" and this.font[] != nil:
+      this.root.ctx.textArrangement(this.font[], this.text[], this.bounds[], this.hAlign[], this.vAlign[])
     else: nil
 
   this.text.changed.connectTo this: this.arrangement[] = newArrangement(this)
@@ -205,31 +205,31 @@ method init*(this: UiText) =
 
 method drawInner*(text: UiText, ctx: DrawContext) =
   ctx.drawRasterText(
-    text.xy.posToGlobal(text.parent), text.arrangement{}, text.color{}
+    text.xy.posToGlobal(text.parent), text.arrangement[], text.color[]
   )
 
 
 method drawInner*(rect: UiRectBorder, ctx: DrawContext) =
   ctx.drawRect(
-    rect.xy.posToGlobal(rect.parent), rect.wh, rect.color{},
-    thickness = rect.borderWidth{}, radius = rect.radius{}, blend = true,
-    dashingPattern = rect.dashingPattern{},
+    rect.xy.posToGlobal(rect.parent), rect.wh, rect.color[],
+    thickness = rect.borderWidth[], radius = rect.radius[], blend = true,
+    dashingPattern = rect.dashingPattern[],
   )
 
 
 method drawInner*(rect: RectShadow, ctx: DrawContext) =
   ctx.drawShadowRect(
     rect.xy.posToGlobal(rect.parent), rect.wh,
-    rect.color{},
-    rect.blurRadius{},
-    radius = rect.radius{},
+    rect.color[],
+    rect.blurRadius[],
+    radius = rect.radius[],
   )
 
 
 method draw*(this: ClipRect, ctx: DrawContext) =
   # todo: sometimes draws nothing if ClipRect was created without parent and added to a parent later (which should be an error, though)
   this.drawBefore(ctx)
-  if this.visibility == visible:
+  if this.visibility[] == visible:
     if this.w[] <= 0 or this.h[] <= 0: return
     ctx.pushClipRect(this.xy.posToGlobal(this.parent), this.wh, this.radius[])
     try:

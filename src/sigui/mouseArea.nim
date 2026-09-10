@@ -78,12 +78,12 @@ disableAutoRedrawHook MouseArea
 
 addFirstHandHandler MouseArea, "globalX":
   superHook()
-  if (not this.globalTransform) and (this.root != nil):
+  if (not this.globalTransform[]) and (this.root != nil):
     handleMouseMoveEvent(this, MouseMoveEvent(pos: this.root.mouseState.pos), nil)
 
 addFirstHandHandler MouseArea, "globalY":
   superHook()
-  if (not this.globalTransform) and (this.root != nil):
+  if (not this.globalTransform[]) and (this.root != nil):
     handleMouseMoveEvent(this, MouseMoveEvent(pos: this.root.mouseState.pos), nil)
 
 proc onHoveredOrCursorChanged(this: MouseArea)

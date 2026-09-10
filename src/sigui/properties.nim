@@ -38,11 +38,8 @@ proc property*[T](v: T): Property[T] {.inline.} =
   Property[T](unsafeVal: v)
 
 
-proc `{}`*[T](p: var Property[T]): var T {.inline.} = p.unsafeVal
-
-
-proc val*[T](p: Property[T]): T {.inline.} = p.unsafeVal
-proc `[]`*[T](p: Property[T]): T {.inline.} = p.unsafeVal
+template `{}`*[T](p: Property[T]): T = p.unsafeVal
+template `[]`*[T](p: Property[T]): T = p.unsafeVal
 
 
 proc `[]=`*[T](p: var Property[T], v: T) =
@@ -57,11 +54,9 @@ proc `[]=`*[T](p: var Property[T], v: T) =
     p.unsafeVal = v
     emit(p.changed)
 
-proc `val=`*[T](p: var Property[T], v: T) {.inline.} = p[] = v
-  ## same as `[]=`, but does not emit p.changed
 
-
-proc `{}=`*[T](p: var Property[T], v: T) {.inline.} =
+proc `{}=`*[T](p: var Property[T], v: T) =
+  ## same as []=, but does not check if values is equal and does not emit p.changed
   if p.transition != nil:
     p.transition.a = p.unsafeVal
     p.transition.b = v
@@ -70,8 +65,6 @@ proc `{}=`*[T](p: var Property[T], v: T) {.inline.} =
     p.unsafeVal = v
 
 
-converter toValue*[T](p: Property[T]): T = p[]
-  ##? should this converter be removed?
 
 proc `=copy`*[T](p: var Property[T], v: Property[T]) {.error.}
 
@@ -87,33 +80,21 @@ proc clearTransition*[T](p: var Property[T]) =
 
 #* ------------- CustomProperty ------------- *#
 
-proc unsafeVal*[T](p: CustomProperty[T]): T {.inline.} = p.get()
-  ## note: can't get var T due to nature of CustomProperty
-proc `{}`*[T](p: CustomProperty[T]): T {.inline.} = p.get()
+template `{}`*[T](p: CustomProperty[T]): T = p.get()
+template `[]`*[T](p: CustomProperty[T]): T = p.get()
 
 
-proc val*[T](p: CustomProperty[T]): T {.inline.} = p.get()
-proc `[]`*[T](p: CustomProperty[T]): T {.inline.} = p.get()
-
-
-proc `val=`*[T](p: CustomProperty[T], v: T) =
+proc `[]=`*[T](p: CustomProperty[T], v: T) =
   ## note: p.changed will not be emitted if new value is same as previous value
   let oldV = p.get()
   p.set(v)
   if oldV == p.get(): return
   emit(p.changed)
 
-proc `[]=`*[T](p: CustomProperty[T], v: T) {.inline.} = p.val = v
 
-
-proc `unsafeVal=`*[T](p: CustomProperty[T], v: T) {.inline.} =
-  ## same as val=, but always call setter and does not emit p.changed
+template `{}=`*[T](p: CustomProperty[T], v: T) =
+  ## same as []=, but always call setter and does not emit p.changed
   p.set(v)
 
-proc `{}=`*[T](p: var CustomProperty[T], v: T) {.inline.} = p.unsafeVal = v
-
-
-converter toValue*[T](p: CustomProperty[T]): T = p[]
-  ##? should this converter be removed?
 
 proc `=copy`*[T](p: var CustomProperty[T], v: CustomProperty[T]) {.error.}

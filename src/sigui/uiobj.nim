@@ -343,7 +343,7 @@ proc drawBefore*(obj: Uiobj, ctx: DrawContext) =
     draw(x.obj, ctx)
 
 proc drawChilds*(obj: Uiobj, ctx: DrawContext) =
-  if obj.visibility notin {hidden, collapsed}:
+  if obj.visibility[] notin {hidden, collapsed}:
     for x in obj.childs:
       if x.m_layer.obj == nil:
         draw(x, ctx)
@@ -935,8 +935,8 @@ method init*(obj: Uiobj) {.base.} =
     assert obj.parent != nil, "ui object must be added to a parent before initializing"
     obj.parentRoot = obj.parent.root
   
-  obj.globalX[] = obj.x + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
-  obj.globalY[] = obj.y + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
+  obj.globalX[] = obj.x[] + (if obj.parent == nil: 0'f32 else: obj.parent.globalX[])
+  obj.globalY[] = obj.y[] + (if obj.parent == nil: 0'f32 else: obj.parent.globalY[])
 
   connectFirstHandHandlers(obj)
 
@@ -1311,7 +1311,7 @@ proc formatValue[T](res: var seq[string], name: string, val: T) =
 proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
   # todo: this generates around 10% of binary size, used rarely for debugging. should be optimized
   {.push, warning[Deprecated]: off.}
-  result.add "box: " & $rect(this.x, this.y, this.w, this.h)
+  result.add "box: " & $rect(this.x[], this.y[], this.w[], this.h[])
   
   for k, v in this.fieldPairs:
     when k == "m_layer":

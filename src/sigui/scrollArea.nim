@@ -253,7 +253,7 @@ method init*(this: ScrollArea) =
         this.scrolled.connectTo root, xy:
           let xy = if this.root.keyboardState.pressed.containsShift(): vec2(xy.y, xy.x) else: xy
           if enableHorizontalScroll in root.settings[]:
-            let newX = (root.targetX[] + xy.x * root.horizontalScrollSpeed).clamp(
+            let newX = (root.targetX[] + xy.x * root.horizontalScrollSpeed[]).clamp(
               0,
               (root.scrollW[] - (root.w[] - root.padding[].left - root.padding[].right)).max(0)
             )
@@ -265,7 +265,7 @@ method init*(this: ScrollArea) =
               root.targetX[] = newX
 
           if enableVerticalScroll in root.settings[]:
-            let newY = (root.targetY[] + xy.y * root.verticalScrollSpeed).clamp(
+            let newY = (root.targetY[] + xy.y * root.verticalScrollSpeed[]).clamp(
               0,
               (root.scrollH[] - (root.h[] - root.padding[].top - root.padding[].bottom)).max(0)
             )

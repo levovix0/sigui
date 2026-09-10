@@ -276,8 +276,8 @@ method recieve*(this: TextArea, signal: Signal) =
               this.eraseSelectedText()
 
               let ct = this.root.clipboardText
-              let offset = this.text.runeOffset(this.cursorPos[])
-              this.text{}.insert(ct, (if offset == -1: this.text.len else: offset))
+              let offset = this.text[].runeOffset(this.cursorPos[])
+              this.text{}.insert(ct, (if offset == -1: this.text[].len else: offset))
               this.text.changed.emit()
               this.cursorPos[] = this.cursorPos[] + ct.runeLen
               this.selectionStart[] = this.cursorPos[]
@@ -463,7 +463,7 @@ method init*(this: TextArea) =
   
   this.makeLayout:
     this.root.onTick.connectTo this:
-      this.blinking.time[] = (this.blinking.time + e.deltaTime) mod (this.blinking.period[] * 2)
+      this.blinking.time[] = (this.blinking.time[] + e.deltaTime) mod (this.blinking.period[] * 2)
 
     - MouseArea.new:
       this.fill parent

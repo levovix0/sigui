@@ -99,7 +99,7 @@ method recieve(this: HostUiRoot, signal: Signal) =
 
 method draw(this: HostUiRoot, ctx: DrawContext) =
   this.drawBefore(ctx)
-  if this.visibility != Visibility.collapsed:
+  if this.visibility[] != Visibility.collapsed:
     this.plugin.iface.onDraw(this.plugin.env, ctx)
   this.drawAfter(ctx)
 

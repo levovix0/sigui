@@ -92,7 +92,7 @@ iterator potentially_visible_childs*(this: Layout): Uiobj =
             for child in this.childs:
               if child.globalX[] + child.w[] < boundsXy.x:
                 continue
-              if child.globalX > boundsXy.x + boundsWh.x:
+              if child.globalX[] > boundsXy.x + boundsWh.x:
                 break
               yield child
 
@@ -100,7 +100,7 @@ iterator potentially_visible_childs*(this: Layout): Uiobj =
             for child in this.childs:
               if child.globalY[] + child.h[] < boundsXy.y:
                 continue
-              if child.globalY > boundsXy.y + boundsWh.y:
+              if child.globalY[] > boundsXy.y + boundsWh.y:
                 break
               yield child
 
@@ -118,7 +118,7 @@ method draw*(obj: Layout, ctx: DrawContext) =
   for x in obj.layering.beforeChilds:
     draw(x.obj, ctx)
   
-  if obj.visibility notin {hidden, collapsed}:
+  if obj.visibility[] notin {hidden, collapsed}:
     for child in obj.potentially_visible_childs:
       if child.m_layer.obj == nil:
         draw(child, ctx)
@@ -180,7 +180,7 @@ proc doReposition(this: Layout) =
       shouldMakeGap = false
 
     for child in this.childs:
-      if child.visibility == collapsed: continue
+      if child.visibility[] == collapsed: continue
       if shouldMakeGap and not(child of LayoutGap):
         x += this.gap[]
         rows[^1].freeSpace -= this.gap[]
