@@ -193,6 +193,8 @@ type
     x.eventHandler is EventHandler
 
 
+template unprintable*() {.pragma.}
+
 
 # ------------- Utils ------------- #
 
@@ -1350,7 +1352,7 @@ proc declareFormatFields(t: NimNode): NimNode =
     let typ = identDefs[^2]
     if typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("Event"): continue
     let typKind =
-      if typ.kind == nnkSym and typ.strVal.eqIdent("Uiobj"): uiobjType
+      if typ.kind == nnkSym and typ.strVal.eqIdent("Uiobj"): uiobjType  # todo: also check if type is inherited from Uiobj
       elif typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("Property"): propertyType
       elif typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("CustomProperty"): customPropertyType
       else: otherType
@@ -1358,7 +1360,12 @@ proc declareFormatFields(t: NimNode): NimNode =
     
     for ident in identDefs[0..^3]:
       var name = ident
-      if name.kind == nnkPragmaExpr: name = name[0]
+      var unprintable = false
+      if name.kind == nnkPragmaExpr:
+        for p in name[1]:
+          if p.kind in {nnkSym, nnkIdent} and p.strVal == "unprintable": unprintable = true
+        name = name[0]
+      if unprintable: continue
       if name.kind != nnkPostfix: continue
       name = name[1]
       if name.kind != nnkIdent: continue

@@ -16,7 +16,7 @@ type
   ClipRectState = object
     ef: FrameBuffer
     psh: PushedFrameBuffer
-    prevViewportMatrix: Mat4
+    prevOffset: Vec2
     prevProjectionMatrix: Mat4
     pos: Vec2
     size: Vec2
@@ -102,6 +102,20 @@ proc readFontFamily_impl(filepath: string): any.FontFamily {.exportc: "sigui_pix
 proc parseTtf_impl(data: string): any.FontFamily {.exportc: "sigui_pixie_parseTtf".} =
   PixieFontFamily(raw: pixieFonts.parseTtf(data))
 
+
+method withSize*(family: PixieFontFamily, size: float32): FontFace =
+  let res = PixieFontFace(raw: newFont(family.raw), rawFamily: family)
+  res.raw.size = size
+  res
+
+method getGlyphPath*(family: PixieFontFamily, rune: Rune): any.Path =
+  PixiePath(raw: family.raw.getGlyphPath(rune))
+
+method ascent*(family: PixieFontFamily): float32 = family.raw.ascent
+method lineGap*(family: PixieFontFamily): float32 = family.raw.lineGap
+method scale*(family: PixieFontFamily): float32 = family.raw.scale
+
+
 method family*(font: PixieFontFace): FontFamily = font.rawFamily
 method size*(font: PixieFontFace): float32 = font.raw.size
 method lineHeight*(font: PixieFontFace): float32 = font.raw.lineHeight
@@ -122,14 +136,8 @@ method `noKerningAdjustments=`*(font: PixieFontFace, v: bool) = font.raw.noKerni
 method layoutBounds*(font: PixieFontFace, text: string): Vec2 =
   font.raw.layoutBounds(text)
 
-method withSize*(family: PixieFontFamily, size: float32): FontFace =
-  let res = PixieFontFace(raw: newFont(family.raw), rawFamily: family)
-  res.raw.size = size
-  res
-
-method textArrangement*(
-  ctx: RiceDrawContext,
-  font: FontFace,
+method typeset*(
+  font: PixieFontFace,
   text: sink string,
   bounds = vec2(0, 0),
   hAlign = any.LeftAlign,
@@ -139,7 +147,7 @@ method textArrangement*(
   if font == nil or font.family == nil: return nil
 
   let raw = pixieFonts.typeset(
-    [pixieFonts.newSpan(text, font.PixieFontFace.raw)], bounds,
+    [pixieFonts.newSpan(text, font.raw)], bounds,
     pixieFonts.HorizontalAlignment(ord(hAlign)),
     pixieFonts.VerticalAlignment(ord(vAlign)),
     wrap,
@@ -154,6 +162,7 @@ method textArrangement*(
   )
   for f in raw.fonts:
     result.fonts.add PixieFontFace(raw: f)
+
 
 method drawRasterText*(
   ctx: RiceDrawContext,
@@ -177,7 +186,7 @@ method drawRasterText*(
     pixarr.fonts.add f.PixieFontFace.raw
 
   ctx.raw.drawRasterText(
-    pos.vec3(0), pixarr, color.vec4,
+    (pos + ctx.raw.offset).round.vec3(0), pixarr, color.vec4,
     origin, exactBoundaries, transform,
   )
 
@@ -194,7 +203,7 @@ method startRasterTextDrawing*(
   origin: Vec2,
 ): any.TextDrawContext =
   let res = RiceTextDrawContext(raw: startRasterTextDrawing(ctx.raw, font.PixieFontFace.raw))
-  res.pos = (ctx.raw.viewportToGlMatrix * (origin + ctx.raw.offset).vec3(0)).xy
+  res.pos = (ctx.raw.viewportToGlMatrix * (origin + ctx.raw.offset).round.vec3(0)).xy
   res
 
 method endRasterTextDrawing*(ctx: RiceDrawContext) =
@@ -208,7 +217,7 @@ method fastRasterDrawRune*(
 ) =
   ctx.raw.fastRasterDrawRune(
     rune,
-    rect(context.RiceTextDrawContext.pos + rect.xy * ctx.raw.px, rect.wh),
+    rect(context.RiceTextDrawContext.pos + vec2(rect.x, -rect.y).round * ctx.raw.px, rect.wh),
     context.RiceTextDrawContext.raw,
   )
 
@@ -225,7 +234,7 @@ method fillRect*(
   radius: float32 = 0,
   blend: bool = true,
 ) =
-  ctx.raw.fillRect(rect.xy, rect.wh, color, radius, blend)
+  ctx.raw.fillRect((rect.xy + ctx.raw.offset).round, rect.wh, color, radius, blend)
 
 method drawRect*(
   ctx: RiceDrawContext,
@@ -255,7 +264,7 @@ method drawRect*(
       ctx.raw.fill2dMeshFlat(mesh, color, mat4())
 
   else:
-    ctx.raw.drawRect(rect.xy, rect.wh, color, thickness, radius, blend)
+    ctx.raw.drawRect((rect.xy + ctx.raw.offset).round, rect.wh, color, thickness, radius, blend)
 
 method drawImage*(
   ctx: RiceDrawContext,
@@ -269,7 +278,7 @@ method drawImage*(
   imageSize = vec2(),
 ) =
   ctx.raw.drawImage(
-    rect.xy, rect.wh, image.RiceDrawContextImage.tex.raw, color,
+    (rect.xy + ctx.raw.offset).round, rect.wh, image.RiceDrawContextImage.tex.raw, color,
     radius, blend, flipY = flipY, imagePos = imagePos, imageSize = imageSize,
   )
 
@@ -282,7 +291,7 @@ method drawIcon*(
   flipY = false,
 ) =
   # todo: rice drawIcon does not support flipY
-  ctx.raw.drawIcon(rect.xy, rect.wh, mask.RiceDrawContextImage.tex.raw, color, radius, true, 0'f32)
+  ctx.raw.drawIcon((rect.xy + ctx.raw.offset).round, rect.wh, mask.RiceDrawContextImage.tex.raw, color, radius, true, 0'f32)
 
 method drawShadowRect*(
   ctx: RiceDrawContext,
@@ -291,7 +300,7 @@ method drawShadowRect*(
   blurRadius: float32,
   radius: float32 = 0,
 ) =
-  ctx.raw.drawShadowRect(rect.xy, rect.wh, color, blurRadius, radius)
+  ctx.raw.drawShadowRect((rect.xy + ctx.raw.offset).round, rect.wh, color, blurRadius, radius)
 
 
 #* ------------- clip rects ------------- *#
@@ -306,21 +315,18 @@ method pushClipRect*(
   let ef = ctx.raw.requireFrameBuffer(sizeI)
   let psh = ctx.raw.push ef
 
-  # children of the clip rect are drawn in global coordinates,
-  # so translate them into the framebuffer
-  let prevViewportMatrix = ctx.raw.viewportMatrix
+  # children of the clip rect are drawn in global coordinates, so translate them into the framebuffer
+  let prevOffset = ctx.raw.offset
   let prevProjectionMatrix = ctx.raw.projectionMatrix
-  ctx.raw.viewport = translate(vec3(-rect.x, -rect.y, 0))
+  ctx.raw.offset = -rect.xy
   ctx.raw.projection = combine(
     scale(vec3(2 / rect.w, -2 / rect.h, 1)),
     translate(vec3(-1, 1, 0)),
   )
-  ctx.raw.wh = vec2(rect.x + rect.w / 2, -(rect.y + rect.h / 2))
-  # note: ctx.raw.px is already set by push, because it is the same for any offset
 
   ctx.clipStack.add ClipRectState(
     ef: ef, psh: psh,
-    prevViewportMatrix: prevViewportMatrix,
+    prevOffset: prevOffset,
     prevProjectionMatrix: prevProjectionMatrix,
     pos: rect.xy, size: rect.wh, radius: radius,
   )
@@ -332,11 +338,11 @@ method popClipRect*(ctx: RiceDrawContext) =
   let state = ctx.clipStack.pop()
   ctx.raw.pop state.psh
   ctx.raw.free state.ef
-  ctx.raw.viewport = state.prevViewportMatrix
+  ctx.raw.offset = state.prevOffset
   ctx.raw.projection = state.prevProjectionMatrix
 
   ctx.raw.drawImage(
-    state.pos, state.size, state.ef.tex.raw, color(1, 1, 1, 1),
+    (state.pos + ctx.raw.offset).round, state.size, state.ef.tex.raw, color(1, 1, 1, 1),
     state.radius, true, flipY = true, imageSize = state.ef.size.vec2,
   )
 

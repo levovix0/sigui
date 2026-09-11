@@ -80,6 +80,13 @@ method size*(image: DrawContextImage): IVec2 {.base.} = discard
 proc readFontFamily*(filepath: string): FontFamily {.importc: "sigui_pixie_readFontFamily".} = discard
 proc parseTtf*(data: string): FontFamily {.importc: "sigui_pixie_parseTtf".} = discard
 
+method withSize*(family: FontFamily, size: float32): FontFace {.base.} = discard
+method getGlyphPath*(family: FontFamily, rune: Rune): Path {.base.} = discard
+method ascent*(family: FontFamily): float32 {.base.} = discard
+method lineGap*(family: FontFamily): float32 {.base.} = discard
+method scale*(family: FontFamily): float32 {.base.} = discard
+
+
 method family*(a: FontFace): FontFamily {.base.} = discard
 method size*(a: FontFace): float32 {.base.} = discard
 method lineHeight*(a: FontFace): float32 {.base.} = discard
@@ -96,8 +103,6 @@ method `noKerningAdjustments=`*(a: FontFace, v: bool) {.base.} = discard
 
 method layoutBounds*(font: FontFace, text: string): Vec2 {.base.} = discard
 
-method withSize*(family: FontFamily, size: float32): FontFace {.base.} = discard
-
 
 method resize*(ctx: DrawContext, size: IVec2) {.base.} = discard
 
@@ -106,8 +111,7 @@ method finishRendering*(ctx: DrawContext) {.base.} = discard
 
 #* ------------- text ------------- *#
 
-method textArrangement*(
-  ctx: DrawContext,
+method typeset*(
   font: FontFace,
   text: sink string,
   bounds = vec2(0, 0),

@@ -128,7 +128,7 @@ proc `image=`*(obj: UiImage, img: DrawContextImage) =
 
 method drawInner*(this: UiRect, ctx: DrawContext) =
   ctx.fillRect(
-    rect(this.xy.posToGlobal(this.parent), this.wh),
+    rect(this.globalXy, this.wh),
     this.color[], this.radius[], this.color[].a != 1 or this.radius[] != 0
   )
 
@@ -137,12 +137,12 @@ method drawInner*(this: UiImage, ctx: DrawContext) =
   if this.tex == nil: return
   if this.colorOverlay[]:
     ctx.drawIcon(
-      rect(this.xy.posToGlobal(this.parent), this.wh), this.tex,
+      rect(this.globalXy, this.wh), this.tex,
       this.color[], this.radius[], this.blend[] or this.radius[] != 0
     )
   else:
     ctx.drawImage(
-      rect(this.xy.posToGlobal(this.parent), this.wh), this.tex,
+      rect(this.globalXy, this.wh), this.tex,
       this.color[], this.radius[], this.blend[] or this.radius[] != 0
     )
 
@@ -172,7 +172,7 @@ method init*(this: UiSvgImage) =
 method drawInner*(ico: UiSvgImage, ctx: DrawContext) =
   if ico.tex == nil: return
   ctx.drawIcon(
-    rect(ico.xy.posToGlobal(ico.parent), ico.wh.ceil),
+    rect(ico.globalXy, ico.wh.ceil),
     ico.tex, ico.color[],
     ico.radius[], ico.blend[] or ico.radius[] != 0,
   )
@@ -193,7 +193,7 @@ method init*(this: UiText) =
 
   proc newArrangement(this: UiText): TextArrangement =
     if this.text[] != "" and this.font[] != nil:
-      this.root.ctx.textArrangement(this.font[], this.text[], this.bounds[], this.hAlign[], this.vAlign[])
+      typeset(this.font[], this.text[], this.bounds[], this.hAlign[], this.vAlign[])
     else: nil
 
   this.text.changed.connectTo this: this.arrangement[] = newArrangement(this)
@@ -205,13 +205,13 @@ method init*(this: UiText) =
 
 method drawInner*(text: UiText, ctx: DrawContext) =
   ctx.drawRasterText(
-    text.xy.posToGlobal(text.parent), text.arrangement[], text.color[]
+    text.globalXy, text.arrangement[], text.color[]
   )
 
 
 method drawInner*(rect: UiRectBorder, ctx: DrawContext) =
   ctx.drawRect(
-    rect(rect.xy.posToGlobal(rect.parent), rect.wh),
+    rect(rect.globalXy, rect.wh),
     rect.color[], thickness = rect.borderWidth[], radius = rect.radius[], blend = true,
     dashingPattern = rect.dashingPattern[],
   )
@@ -219,7 +219,7 @@ method drawInner*(rect: UiRectBorder, ctx: DrawContext) =
 
 method drawInner*(rect: RectShadow, ctx: DrawContext) =
   ctx.drawShadowRect(
-    rect(rect.xy.posToGlobal(rect.parent), rect.wh),
+    rect(rect.globalXy, rect.wh),
     rect.color[], rect.blurRadius[], radius = rect.radius[],
   )
 
@@ -229,7 +229,7 @@ method draw*(this: ClipRect, ctx: DrawContext) =
   this.drawBefore(ctx)
   if this.visibility[] == visible:
     if this.w[] <= 0 or this.h[] <= 0: return
-    ctx.pushClipRect(rect(this.xy.posToGlobal(this.parent), this.wh), this.radius[])
+    ctx.pushClipRect(rect(this.globalXy, this.wh), this.radius[])
     try:
       this.drawBeforeChilds(ctx)
       this.drawChilds(ctx)
