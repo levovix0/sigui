@@ -434,7 +434,7 @@ method init*(this: TextArea) =
   )
 
   
-  proc positionOfCharacter(arrangement: TextArrangement, pos: int): float =
+  proc positionOfCharacter(arrangement: Arrangement, pos: int): float =
     if arrangement != nil:
       if pos > arrangement.positions.high:
         arrangement.layoutBounds.x
@@ -442,7 +442,7 @@ method init*(this: TextArea) =
         arrangement.selectionRects[pos].x
     else: 0
   
-  proc characterAtPosition(arrangement: TextArrangement, pos: float): int =
+  proc characterAtPosition(arrangement: Arrangement, pos: float): int =
     if arrangement != nil:
       while true:
         if result > arrangement.selectionRects.high: break
@@ -548,7 +548,7 @@ method init*(this: TextArea) =
 
           root.selectionObj --- (let r = UiRect.new; r.color[] = "78A7FF".color; r.Uiobj):
             binding:
-              if root.textObj.h{} != 0 or root.textObj.font{} == nil:
+              if root.textObj.h[] != 0 or root.textObj.font[] == nil:
                 this.fillVertical root.textObj
               else:
                 this.fillVertical(root.textObj, -(root.textObj.font[].size / 2))
@@ -572,7 +572,7 @@ method init*(this: TextArea) =
           root.cursorObj --- (let r = UiRect.new; r.w[] = 1; r.Uiobj):
             x := root.cursorX[]
             binding:
-              if root.textObj.h{} != 0 or root.textObj.font{} == nil:
+              if root.textObj.h[] != 0 or root.textObj.font[] == nil:
                 this.fillVertical root.textObj
               else:
                 this.fillVertical(root.textObj, -(root.textObj.font[].size / 2))
