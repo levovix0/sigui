@@ -15,8 +15,8 @@ type
 
   Event*[T] = object  # pointer is wrapped to an object to attach custom destructor
     p: ptr EventObj[T]
-    firstHandHandler: proc(env: pointer) {.nimcall.}
-    firstHandHandlerEnv: pointer
+    firstHandHandler*: proc(env: pointer) {.nimcall.}
+    firstHandHandlerEnv*: pointer
 
   EventObj[T] = object
     ## only EventHandler can be connected to event

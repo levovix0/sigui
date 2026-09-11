@@ -1,4 +1,4 @@
-import std/[times, macros, strutils, importutils, macrocache]
+import std/[times, strutils, macros, macrocache]
 import pkg/[vmath, bumpy, chroma]
 import ./[events, properties, window]
 import ./rendering/[any]
@@ -209,35 +209,35 @@ proc containsSystem*(keyboardPressed: set[Key]): bool =
   Key.lsystem in keyboardPressed or Key.rsystem in keyboardPressed
 
 
-proc toColor*(s: string): colortypes.Color =
+proc toColor*(s: string): Color =
   var i = 0
   if s[0] == '#':
     inc i
 
   case s.len - i
   of 3:
-    result = colortypes.Color(
+    result = Color(
       r: ($s[i+0]).parseHexInt.float32 / 15.0,
       g: ($s[i+1]).parseHexInt.float32 / 15.0,
       b: ($s[i+2]).parseHexInt.float32 / 15.0,
       a: 1,
     )
   of 4:
-    result = colortypes.Color(
+    result = Color(
       r: ($s[i+0]).parseHexInt.float32 / 15.0,
       g: ($s[i+1]).parseHexInt.float32 / 15.0,
       b: ($s[i+2]).parseHexInt.float32 / 15.0,
       a: ($s[i+3]).parseHexInt.float32 / 15.0,
     )
   of 6:
-    result = colortypes.Color(
+    result = Color(
       r: (s[i+0 .. i+1].parseHexInt.float32) / 255.0,
       g: (s[i+2 .. i+3].parseHexInt.float32) / 255.0,
       b: (s[i+4 .. i+5].parseHexInt.float32) / 255.0,
       a: 1,
     )
   of 8:
-    result = colortypes.Color(
+    result = Color(
       r: (s[i+0 .. i+1].parseHexInt.float32) / 255.0,
       g: (s[i+2 .. i+3].parseHexInt.float32) / 255.0,
       b: (s[i+4 .. i+5].parseHexInt.float32) / 255.0,
@@ -247,11 +247,11 @@ proc toColor*(s: string): colortypes.Color =
     raise ValueError.newException("invalid color: " & s)
 
 
-converter litToColor*(s: string{lit}): colortypes.Color =
+converter litToColor*(s: string{lit}): Color =
   s.toColor
 
 
-macro color*(s: static string): colortypes.Color =
+macro color*(s: static string): Color =
   s.toColor.newLit
 
 
@@ -280,20 +280,6 @@ proc globalXy*(obj: Uiobj): Vec2 =
 proc `globalXy=`*(obj: Uiobj, v: Vec2) =
   obj.globalX[] = v.x
   obj.globalY[] = v.y
-
-
-template initialized*(this: Uiobj): var bool {.deprecated: "renamed to isInitialized".} =
-  this.isInitialized
-
-template `initialized=`*(this: Uiobj, v: bool) {.deprecated: "renamed to isInitialized".} =
-  this.isInitialized = v
-
-
-template deteached*(this: Uiobj): var bool {.deprecated: "renamed to isDeteached".} =
-  this.isInitialized
-
-template `deteached=`*(this: Uiobj, v: bool) {.deprecated: "renamed to isDeteached".} =
-  this.isInitialized = v
 
 
 proc makeCopy[T](arr: var seq[T], cow: var ptr seq[T]) =
@@ -908,7 +894,6 @@ addFirstHandHandler Uiobj, "y":
 
 proc connectFirstHandHandlersStatic[T: Uiobj](this: T) =
   mixin firstHandHandler_hook
-  privateAccess Event
 
   # we are iterating over all fields of an object, some of which can be deprecated
   # we don't care.
@@ -1036,13 +1021,6 @@ proc `layer=`*(this: Uiobj, layer: Layer) =
   of after:
     layer.obj.layering.after.makeCopy(layer.obj.afterCow)
     layer.obj.layering.after.add UiobjCursor(obj: this)
-
-
-proc `drawLayer=`*(this: Uiobj, layer: typeof nil) {.deprecated: "use layer= instead".} =
-  this.layer = nil
-
-proc `drawLayer=`*(this: Uiobj, layer: Layer) {.deprecated: "use layer= instead".} =
-  this.layer = layer
 
 
 
@@ -1244,24 +1222,22 @@ proc markCompleted*(obj: Uiobj) =
   obj.completed.emit()
 
 
-proc newUiobj*(): Uiobj = new result
-
 
 #----- reflection -----
 
-macro generateDeteachMethod(t: typed) {.used.} =
+proc generateDeteachMethod(t: NimNode): NimNode =
   result = quote do:
     method deteach*(this: `t`) =
       deteachStatic(this)
 
 
-macro generateConnectFirstHandHandlersMethod(t: typed) {.used.} =
+proc generateConnectFirstHandHandlersMethod(t: NimNode): NimNode =
   result = quote do:
     method connectFirstHandHandlers*(this: `t`) =
       connectFirstHandHandlersStatic(this)
 
 
-macro generateShouldAutoredrawMethod(t: typed) {.used.} =
+proc generateShouldAutoredrawMethod(t: NimNode): NimNode =
   var redraw = true
   for x in CacheSeq("disableAutoRedrawHook"):
     if t.getTypeName == x.getTypeName: redraw = false
@@ -1284,11 +1260,12 @@ proc formatProperty[T](res: var seq[string], name: static string, prop: Property
     when v is Uiobj:
       result.add name & ": -> " & prop[].componentTypeName
     
-    elif compiles($prop[]):
+    else:
+      proc `$`[T](v: T): string {.used.} = "<unprintable>"
       res.add name & ": " & $prop[]
 
 
-proc formatProperty[T](res: var seq[string], name: static string, prop: CustomProperty[T]) =
+proc formatCustomProperty[T](res: var seq[string], name: static string, prop: CustomProperty[T]) =
   if (
     prop.get != nil and
     (prop[] != typeof(prop[]).default or prop.changed.hasHandlers)
@@ -1296,7 +1273,8 @@ proc formatProperty[T](res: var seq[string], name: static string, prop: CustomPr
     when v is Uiobj:
       result.add name & ": -> " & prop[].componentTypeName
     
-    elif compiles($prop[]):
+    else:
+      proc `$`[T](v: T): string {.used.} = "<unprintable>"
       res.add name & ": " & $prop[]
 
 
@@ -1304,57 +1282,20 @@ proc formatValue[T](res: var seq[string], name: string, val: T) =
   if (val is bool) or (val is enum) or (val != typeof(val).default):
     when val is Color:
       res.add name & ": " & val.toHtmlHex
-    elif compiles($val):
+    else:
+      proc `$`[T](v: T): string {.used.} = "<unprintable>"
       res.add name & ": " & $val
 
 
-proc formatFieldsStatic[T: UiobjObjType](this: T): seq[string] {.inline.} =
-  # todo: this generates around 10% of binary size, used rarely for debugging. should be optimized
-  {.push, warning[Deprecated]: off.}
-  result.add "box: " & $rect(this.x[], this.y[], this.w[], this.h[])
-  
-  for k, v in this.fieldPairs:
-    when k == "m_layer":
-      if v.obj != nil:
-        result.add "layer: " & $v.order & " " & v.obj.componentTypeName
-    
-    elif k in [
-      "eventHandler", "parent", "childs", "x", "y", "w", "h", "globalX", "globalY",
-      "isInitialized", "anchors", "layering", "isDeteached", "isCompleted"
-    ] or k.startsWith("m_"):
-      discard
-    
-    elif k == "root":
-      if v == nil:
-        result.add k & ": nil.UiRoot"
-    
-    elif v is Uiobj:
-      if v == nil:
-        when k != "newChildsObject":
-          result.add k & ": nil.Uiobj"
-      else:
-        result.add k & ": -> " & v.componentTypeName
-    
-    elif v is ChangableChild:
-      if v[] == nil:
-        result.add k & ": nil.Uiobj"
-      else:
-        result.add k & ": -> " & v[].componentTypeName
-    
-    elif v is Event:
-      ## todo
-    
-    elif v is Property or v is CustomProperty:
-      result.formatProperty(k, v)
-
-    else:
-      result.formatValue(k, v)
-
-  {.pop.}
-
-
 method formatFields*(this: Uiobj): seq[string] {.base.} =
-  formatFieldsStatic(this[])
+  result.add "box: " & $rect(this.x[], this.y[], this.w[], this.h[])
+  if this.parentRoot == nil:
+    result.add "parentRoot: nil.UiRoot"
+  result.formatProperty("visibility", this.visibility)
+  result.formatProperty("globalTransform", this.globalTransform)
+  result.formatProperty("globalTransform", this.globalTransform)
+  if this.newChildsObject != nil:
+    result.add "newChildsObj: -> " & this.newChildsObject.componentTypeName
 
 
 proc formatChilds(this: Uiobj): string =
@@ -1375,7 +1316,7 @@ proc `$`*(this: Uiobj): string =
     result.add this.formatChilds()
 
 
-macro declareComponentTypeName(t: typed) =
+proc declareComponentTypeName(t: NimNode): NimNode =
   let typename = newLit($t)
 
   result = quote do:
@@ -1383,10 +1324,66 @@ macro declareComponentTypeName(t: typed) =
       `typename`
 
 
-macro declareFormatFields(t: typed) =
+proc declareFormatFields(t: NimNode): NimNode =
+  var typDef = t.getImpl[2]
+  if typDef.kind == nnkRefTy: typDef = typDef[0]
+  if typDef.kind == nnkSym: typDef = typDef.getImpl[2]
+  typDef.expectKind nnkObjectTy
+
+  let parentTyp = typDef[1][0]
+  
+  type
+    FieldTypeKind = enum
+      propertyType
+      customPropertyType
+      uiobjType
+      otherType
+
+  let this = nskParam.genSym("this")
+  let res = ident("result")
+  var body = newStmtList(
+    nnkAsgn.newTree(res, newCall(bindSym("procCall"), newCall(ident("formatFields"), newCall(parentTyp, this))))
+  )
+
+  let recList = typDef[2]
+  for identDefs in recList:
+    let typ = identDefs[^2]
+    if typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("Event"): continue
+    let typKind =
+      if typ.kind == nnkSym and typ.strVal.eqIdent("Uiobj"): uiobjType
+      elif typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("Property"): propertyType
+      elif typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("CustomProperty"): customPropertyType
+      else: otherType
+
+    
+    for ident in identDefs[0..^3]:
+      var name = ident
+      if name.kind == nnkPragmaExpr: name = name[0]
+      if name.kind != nnkPostfix: continue
+      name = name[1]
+      if name.kind != nnkIdent: continue
+      
+      case typKind
+      of uiobjType:
+        let nilStr = name.strVal & ": nil.Uiobj"
+        let notnilStr = name.strVal & ": -> "
+        body.add quote do:
+          if `this`.`name` == nil:
+            `res`.add `nilStr`
+          else:
+            `res`.add `notnilStr` & `this`.`name`.componentTypeName
+      
+      of propertyType:
+        body.add newCall(bindSym("formatProperty"), res, newLit(name.strVal), nnkDotExpr.newTree(this, name))
+      
+      of customPropertyType:
+        body.add newCall(bindSym("formatCustomProperty"), res, newLit(name.strVal), nnkDotExpr.newTree(this, name))
+      
+      of otherType:
+        body.add newCall(bindSym("formatValue"), res, newLit(name.strVal), nnkDotExpr.newTree(this, name))
+  
   result = quote do:
-    method formatFields(this: `t`): seq[string] =
-      formatFieldsStatic(this[])
+    method formatFields(`this`: `t`): seq[string] = `body`
 
 
 
@@ -1394,11 +1391,11 @@ macro declareFormatFields(t: typed) =
 
 macro registerComponent*(t: typed) =
   result = newStmtList()
-  result.add nnkCall.newTree(bindSym("generateDeteachMethod"), t)
-  result.add nnkCall.newTree(bindSym("generateConnectFirstHandHandlersMethod"), t)
-  result.add nnkCall.newTree(bindSym("generateShouldAutoredrawMethod"), t)
-  result.add nnkCall.newTree(bindSym("declareComponentTypeName"), t)
-  result.add nnkCall.newTree(bindSym("declareFormatFields"), t)
+  result.add generateDeteachMethod(t)
+  result.add generateConnectFirstHandHandlersMethod(t)
+  result.add generateShouldAutoredrawMethod(t)
+  result.add declareComponentTypeName(t)
+  result.add declareFormatFields(t)
 
 template registerWidget*(t: typed) =
   registerComponent(t)

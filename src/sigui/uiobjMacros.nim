@@ -152,9 +152,6 @@ proc bindingImpl*(
 
 
 
-macro binding*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped {.deprecated: "use bindingProperty instead".} =
-  bindingImpl(obj, target, body, init, bindProperty)
-
 macro bindingProperty*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
   bindingImpl(obj, target, body, init, bindProperty)
 
@@ -164,9 +161,6 @@ macro bindingValue*(obj: EventHandler, target: untyped, body: typed, init: stati
 macro bindingProc*(obj: EventHandler, target: untyped, body: typed, init: static bool = true): untyped =
   bindingImpl(obj, target, body, init, bindProc)
 
-
-macro binding*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped {.deprecated: "use bindingProperty instead".} =
-  bindingImpl(obj, target, body, init, bindProperty)
 
 macro bindingProperty*[T: HasEventHandler](obj: T, target: untyped, body: typed, init: static bool = true): untyped =
   bindingImpl(obj, target, body, init, bindProperty)
