@@ -8,7 +8,7 @@ when defined(refactor):
 
 
 type
-  Col* = chroma.Color
+  Col* {.deprecated: "use Color instead".} = chroma.Color
 
   AnchorOffsetFrom = enum
     start

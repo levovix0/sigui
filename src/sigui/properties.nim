@@ -39,7 +39,7 @@ proc property*[T](v: T): Property[T] {.inline.} =
 
 
 template `{}`*[T](p: Property[T]): T = p.unsafeVal
-template `[]`*[T](p: Property[T]): T = p.unsafeVal
+proc `[]`*[T](p: Property[T]): T {.inline.} = p.unsafeVal
 
 
 proc `[]=`*[T](p: var Property[T], v: T) =
@@ -80,8 +80,8 @@ proc clearTransition*[T](p: var Property[T]) =
 
 #* ------------- CustomProperty ------------- *#
 
-template `{}`*[T](p: CustomProperty[T]): T = p.get()
-template `[]`*[T](p: CustomProperty[T]): T = p.get()
+proc `{}`*[T](p: CustomProperty[T]): T {.inline.} = p.get()
+proc `[]`*[T](p: CustomProperty[T]): T {.inline.} = p.get()
 
 
 proc `[]=`*[T](p: CustomProperty[T], v: T) =
@@ -92,7 +92,7 @@ proc `[]=`*[T](p: CustomProperty[T], v: T) =
   emit(p.changed)
 
 
-template `{}=`*[T](p: CustomProperty[T], v: T) =
+proc `{}=`*[T](p: CustomProperty[T], v: T) {.inline.} =
   ## same as []=, but always call setter and does not emit p.changed
   p.set(v)
 

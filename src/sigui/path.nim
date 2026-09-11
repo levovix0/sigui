@@ -9,7 +9,7 @@ type
     kind*: Property[PathKind]
 
     transform*: Property[Mat3] = mat3().property
-    color*: Property[Col] = color(0, 0, 0, 1).property
+    color*: Property[Color] = color(0, 0, 0, 1).property
     strokeWidth*: Property[float32] = 1'f32.property
 
     lineCap*: Property[LineCap]

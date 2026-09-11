@@ -1,10 +1,10 @@
-import sigui/[uibase, mouseArea, animations, windowCreation]
+import sigui/[uibase, mouseArea, animations]
 
 type
   Switch* = ref object of Uiobj
     enabled*: Property[bool] = true.property
     isOn*: Property[bool]
-    color*: Property[Col] = color(0, 0, 0).property
+    color*: Property[Color] = color(0, 0, 0).property
 
 registerComponent Switch
 
@@ -51,6 +51,8 @@ method init*(this: Switch) =
 
 
 when isMainModule:
+  import sigui/[windowCreation]
+  
   preview:
     this.clearColor = color(1, 1, 1)
     - Switch.new:
