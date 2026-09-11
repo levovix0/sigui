@@ -17,6 +17,7 @@ type
   DrawContextImage* = ref object of RootObj
     ## (Texture from rice). An image, uploaded onto DrawContext (on GPU)
 
+
   FontFamily* = ref object of RootObj
     ## (Typeface from pixie)
 
@@ -40,6 +41,8 @@ type
     runes*: seq[Rune]          ## The runes of the text.
     positions*: seq[Vec2]      ## The positions of the glyphs for each rune.
     selectionRects*: seq[Rect] ## The selection rects for each glyph.
+  
+  TextDrawContext* = ref object of RootObj
 
 
   LineCap* = enum
@@ -61,7 +64,11 @@ type
     ## update() it when the path (or its stroke parameters) changes, draw() it on every frame
 
 
-method loadImage*(ctx: DrawContext, filepath: string): DrawContextImage {.base.} = discard
+# todo: wrap all pixie functions into importc/exportc instead of methods
+#       or fork pixie and make it compile faster
+
+
+# method loadImage*(ctx: DrawContext, filepath: string): DrawContextImage {.base.} = discard
 method newImage*(ctx: DrawContext, size: IVec2): DrawContextImage {.base.} = discard
 method imageFromBuffer*(ctx: DrawContext, size: IVec2, data: pointer): DrawContextImage {.base.} = discard
   ## data is pointer to uint8 rgba pixels
@@ -70,8 +77,8 @@ method parseSvg*(ctx: DrawContext, size: IVec2, data: string): DrawContextImage 
 method size*(image: DrawContextImage): IVec2 {.base.} = discard
 
 
-method loadFont*(ctx: DrawContext, filepath: string): FontFamily {.base.} = discard
-method parseTtf*(ctx: DrawContext, data: string): FontFamily {.base.} = discard
+proc readFontFamily*(filepath: string): FontFamily {.importc: "sigui_pixie_readFontFamily".} = discard
+proc parseTtf*(data: string): FontFamily {.importc: "sigui_pixie_parseTtf".} = discard
 
 method family*(a: FontFace): FontFamily {.base.} = discard
 method size*(a: FontFace): float32 {.base.} = discard
@@ -87,8 +94,17 @@ method `underline=`*(a: FontFace, v: bool) {.base.} = discard
 method `strikethrough=`*(a: FontFace, v: bool) {.base.} = discard
 method `noKerningAdjustments=`*(a: FontFace, v: bool) {.base.} = discard
 
+method layoutBounds*(font: FontFace, text: string): Vec2 {.base.} = discard
+
 method withSize*(family: FontFamily, size: float32): FontFace {.base.} = discard
 
+
+method resize*(ctx: DrawContext, size: IVec2) {.base.} = discard
+
+method finishRendering*(ctx: DrawContext) {.base.} = discard
+
+
+#* ------------- text ------------- *#
 
 method textArrangement*(
   ctx: DrawContext,
@@ -100,7 +116,7 @@ method textArrangement*(
   wrap = true,
 ): TextArrangement {.base.} = discard
 
-proc size*(arrangement: TextArrangement): Vec2 =
+proc layoutBounds*(arrangement: TextArrangement): Vec2 =
   if arrangement.runes.len > 0:
     for i in 0 ..< arrangement.runes.len:
       if arrangement.runes[i] != Rune(10):
@@ -111,9 +127,115 @@ proc size*(arrangement: TextArrangement): Vec2 =
     if arrangement.runes[^1] == Rune(10):
       result.y += finalRect.h
 
+proc computeBounds*(arrangement: TextArrangement): Rect =
+  result.x = high(float32)
+  result.y = high(float32)
+  result.w = low(float32)
+  result.h = low(float32)
+  for rect in arrangement.selectionRects:
+    result.x = min(rect.x, result.x)
+    result.y = min(rect.y, result.y)
+    result.w = max(rect.x + rect.w, result.w)
+    result.h = max(rect.y + rect.h, result.h)
+
+
+method startRasterTextDrawing*(
+  ctx: DrawContext,
+  font: FontFace,
+  origin: Vec2,
+): TextDrawContext {.base.} = discard
+
+method endRasterTextDrawing*(ctx: DrawContext) {.base.} = discard
+
+method fastRasterDrawRune*(
+  ctx: DrawContext,
+  rune: Rune,
+  rect: Rect,
+  context: TextDrawContext,
+) {.base.} = discard
+
+method `color=`*(context: TextDrawContext, v: Color) {.base.} = discard
+
+method drawRasterText*(
+  ctx: DrawContext,
+  pos: Vec2,
+  arrangement: TextArrangement,
+  color: Color,
+  origin: Vec2 = vec2(0, 0),
+  exactBoundaries = false,
+  transform = mat4(),
+) {.base.} = discard
+
+
+#* ------------- drawing ------------- *#
+
+method clear*(
+  ctx: DrawContext,
+  color: Color,
+) {.base.} = discard
+
+
+method fillRect*(
+  ctx: DrawContext,
+  rect: Rect,
+  color: Color,
+  radius: float32 = 0,
+  blend: bool = true,
+) {.base.} = discard
+
+
+method drawRect*(
+  ctx: DrawContext,
+  rect: Rect,
+  color: Color,
+  thickness: float32 = 0,
+  radius: float32 = 0,
+  blend: bool = true,
+  dashingPattern: array[2, float32] = [1, 0],
+) {.base.} = discard
+
+
+method drawImage*(
+  ctx: DrawContext,
+  rect: Rect,
+  image: DrawContextImage,
+  color: Color,
+  radius: float32 = 0,
+  blend: bool = true,
+  flipY = false,
+  imagePos = vec2(),
+  imageSize = vec2(),
+) {.base.} = discard
+
+method drawIcon*(
+  ctx: DrawContext,
+  rect: Rect,
+  mask: DrawContextImage,
+  color: Color,
+  radius: float32 = 0,
+  flipY = false,
+) {.base.} = discard
+
+
+method drawShadowRect*(
+  ctx: DrawContext,
+  rect: Rect,
+  color: Color,
+  blurRadius: float32,
+  radius: float32 = 0,
+) {.base.} = discard
+
+
+method pushClipRect*(
+  ctx: DrawContext,
+  rect: Rect,
+  radius: float32 = 0,
+) {.base.} = discard
+
+method popClipRect*(ctx: DrawContext) {.base.} = discard
+
 
 #* ------------- paths ------------- *#
-
 
 method newPath*(ctx: DrawContext): Path {.base.} = discard
 method parsePath*(ctx: DrawContext, s: string): Path {.base.} = discard
@@ -125,6 +247,7 @@ method moveTo*(path: Path, v: Vec2) {.base.} = discard
 method lineTo*(path: Path, v: Vec2) {.base.} = discard
 method bezierCurveTo*(path: Path, ctrl1, ctrl2, to: Vec2) {.base.} = discard
 method quadraticCurveTo*(path: Path, ctrl, to: Vec2) {.base.} = discard
+
 method ellipticalArcTo*(
   path: Path,
   rx, ry: float32,
@@ -132,16 +255,13 @@ method ellipticalArcTo*(
   largeArcFlag, sweepFlag: bool,
   to: Vec2,
 ) {.base.} = discard
-method arc*(
-  path: Path, pos: Vec2, r: float32, a: Vec2, ccw = false
-) {.base.} = discard
+
+method arc*(path: Path, pos: Vec2, r: float32, a: Vec2, ccw = false) {.base.} = discard
 method arcTo*(path: Path, a, b: Vec2, r: float32) {.base.} = discard
 method closePath*(path: Path) {.base.} = discard
 
 method rect*(path: Path, rect: Rect, clockwise = true) {.base.} = discard
-method roundedRect*(
-  path: Path, rect: Rect, nw, ne, se, sw: float32, clockwise = true
-) {.base.} = discard
+method roundedRect*(path: Path, rect: Rect, nw, ne, se, sw: float32, clockwise = true) {.base.} = discard
 method ellipse*(path: Path, center: Vec2, rx, ry: float32) {.base.} = discard
 method circle*(path: Path, center: Vec2, r: float32) {.base.} = discard
 method polygon*(path: Path, pos: Vec2, r: float32, n: int) {.base.} = discard
@@ -174,92 +294,4 @@ method draw*(
   color: Color,
   antialiasing = true,
 ) {.base.} = discard
-
-
-method clear*(
-  ctx: DrawContext,
-  color: Color,
-) {.base.} = discard
-
-
-method fillRect*(
-  ctx: DrawContext,
-  pos: Vec2,
-  size: Vec2,
-  color: Color,
-  radius: float32 = 0,
-  blend: bool = true,
-) {.base.} = discard
-
-
-method drawRect*(
-  ctx: DrawContext,
-  pos: Vec2,
-  size: Vec2,
-  color: Color,
-  thickness: float32 = 0,
-  radius: float32 = 0,
-  blend: bool = true,
-  dashingPattern: array[2, float32] = [1, 0],
-) {.base.} = discard
-
-
-method drawImage*(
-  ctx: DrawContext,
-  pos: Vec2,
-  size: Vec2,
-  image: DrawContextImage,
-  color: Color,
-  radius: float32 = 0,
-  blend: bool = true,
-  flipY = false,
-  imagePos = vec2(),
-  imageSize = vec2(),
-) {.base.} = discard
-
-method drawIcon*(
-  ctx: DrawContext,
-  pos: Vec2,
-  size: Vec2,
-  mask: DrawContextImage,
-  color: Color,
-  radius: float32 = 0,
-  flipY = false,
-) {.base.} = discard
-
-
-method drawRasterText*(
-  ctx: DrawContext,
-  pos: Vec2,
-  arrangement: TextArrangement,
-  color: Color,
-  origin: Vec2 = vec2(0, 0),
-  exactBoundaries = false,
-  transform = mat4(),
-) {.base.} = discard
-
-
-method drawShadowRect*(
-  ctx: DrawContext,
-  pos: Vec2,
-  size: Vec2,
-  color: Color,
-  blurRadius: float32,
-  radius: float32 = 0,
-) {.base.} = discard
-
-
-method pushClipRect*(
-  ctx: DrawContext,
-  pos: Vec2,
-  size: Vec2,
-  radius: float32 = 0,
-) {.base.} = discard
-
-method popClipRect*(ctx: DrawContext) {.base.} = discard
-
-
-method resize*(ctx: DrawContext, size: IVec2) {.base.} = discard
-
-method finishRendering*(ctx: DrawContext) {.base.} = discard
 

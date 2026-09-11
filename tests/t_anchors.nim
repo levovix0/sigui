@@ -5,7 +5,7 @@ test "anchors":
   let window = newUiWindow(size = ivec2(1280, 720), title = "anchors")
   
   const typefaceFile = staticRead "Roboto-Regular.ttf"
-  let typeface = window.ctx.parseTtf(typefaceFile)
+  let typeface = parseTtf(typefaceFile)
 
   window.makeLayout:
     this.clearColor = "fff"

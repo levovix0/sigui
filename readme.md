@@ -638,7 +638,7 @@ method drawInner*(this: ChessTiles, ctx: DrawContext) =
 ![image](http://levovix.ru:8000/docs/sigui/example%20images/styles.png)
 ```nim
 const typefaceFile = staticRead "Roboto-Regular.ttf"
-let typeface = win.ctx.parseTtf(typefaceFile)
+let typeface = parseTtf(typefaceFile)
 
 - Styler.new:
   this.fill parent

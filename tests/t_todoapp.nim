@@ -19,7 +19,7 @@ test "todo app":
   let window = newUiWindow(size = ivec2(500, 800), title = "todos")
 
   const typefaceFile = staticRead "Roboto-Regular.ttf"
-  let typeface = window.ctx.parseTtf(typefaceFile)
+  let typeface = parseTtf(typefaceFile)
 
   window.makeLayout:
     this.clearColor = color(1, 1, 1)

@@ -437,7 +437,7 @@ method init*(this: TextArea) =
   proc positionOfCharacter(arrangement: TextArrangement, pos: int): float =
     if arrangement != nil:
       if pos > arrangement.positions.high:
-        arrangement.size.x
+        arrangement.layoutBounds.x
       else:
         arrangement.selectionRects[pos].x
     else: 0
@@ -606,7 +606,7 @@ when isMainModule:
   const typefaceFile = staticRead "../../tests/Roboto-Regular.ttf"
 
   preview:
-    let typeface = this.root.ctx.parseTtf(typefaceFile)
+    let typeface = parseTtf(typefaceFile)
     
     this.clearColor = color(1, 1, 1)
     - TextArea.new:

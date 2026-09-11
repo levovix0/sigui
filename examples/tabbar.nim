@@ -96,7 +96,7 @@ test "tab bar":
   const typefaceFile = staticRead "../tests/Roboto-Regular.ttf"
 
   let window = newUiWindow(size = ivec2(1280, 720), title = "tab bar")
-  let typeface = window.ctx.parseTtf(typefaceFile)
+  let typeface = parseTtf(typefaceFile)
 
   let lightTheme = makeStyle:
     UiText:

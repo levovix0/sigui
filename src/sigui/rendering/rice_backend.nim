@@ -1,6 +1,6 @@
-import rice/[gl, primitivesAA, paths, contextutils, antialiasing, transform, rasterTexts]
-import rice/contexts as riceContexts
-import pkg/pixie as pixie  # readImage, decodeImage
+import std/[unicode]
+import pkg/[chroma, bumpy]
+import pkg/rice/[contexts as riceContexts, gl, primitivesAA, paths, contextutils, antialiasing, transform, rasterTexts]
 import pkg/pixie/[fonts as pixieFonts, paths as pixiePaths]
 import pkg/pixie/fileformats/[svg]
 import ./any
@@ -26,14 +26,21 @@ type
     tex*: Texture
     imageSize*: IVec2
 
+
   PixieFontFamily* = ref object of any.FontFamily
     raw*: pixieFonts.Typeface
 
   PixieFontFace* = ref object of any.FontFace
     raw*: pixieFonts.Font
     rawFamily*: PixieFontFamily
+  
 
-  RicePath* = ref object of any.Path
+  RiceTextDrawContext* = ref object of any.TextDrawContext
+    raw*: rasterTexts.TextDrawContext
+    pos: Vec2
+
+
+  PixiePath* = ref object of any.Path
     raw*: pixiePaths.Path
 
   RicePathCache* = ref object of any.PathCache
@@ -67,13 +74,6 @@ method clear*(ctx: RiceDrawContext, color: Color) =
 
 #* ------------- images ------------- *#
 
-method loadImage*(ctx: RiceDrawContext, filepath: string): any.DrawContextImage =
-  let img = pixie.readImage(filepath)
-  RiceDrawContextImage(
-    tex: newTexture(img),
-    imageSize: ivec2(img.width.int32, img.height.int32),
-  )
-
 method newImage*(ctx: RiceDrawContext, size: IVec2): any.DrawContextImage =
   result = RiceDrawContextImage(tex: newTexture(), imageSize: size)
   loadTexture(result.RiceDrawContextImage.tex.raw, size, nil)
@@ -96,10 +96,10 @@ method size*(image: RiceDrawContextImage): IVec2 = image.imageSize
 
 #* ------------- fonts and text ------------- *#
 
-method loadFont*(ctx: RiceDrawContext, filepath: string): any.FontFamily =
+proc readFontFamily_impl(filepath: string): any.FontFamily {.exportc: "sigui_pixie_readFontFamily".} =
   PixieFontFamily(raw: pixieFonts.readTypeface(filepath))
 
-method parseTtf*(ctx: RiceDrawContext, data: string): any.FontFamily =
+proc parseTtf_impl(data: string): any.FontFamily {.exportc: "sigui_pixie_parseTtf".} =
   PixieFontFamily(raw: pixieFonts.parseTtf(data))
 
 method family*(font: PixieFontFace): FontFamily = font.rawFamily
@@ -118,6 +118,9 @@ method `lineHeight=`*(font: PixieFontFace, v: float32) = font.raw.lineHeight = v
 method `underline=`*(font: PixieFontFace, v: bool) = font.raw.underline = v
 method `strikethrough=`*(font: PixieFontFace, v: bool) = font.raw.strikethrough = v
 method `noKerningAdjustments=`*(font: PixieFontFace, v: bool) = font.raw.noKerningAdjustments = v
+
+method layoutBounds*(font: PixieFontFace, text: string): Vec2 =
+  font.raw.layoutBounds(text)
 
 method withSize*(family: PixieFontFamily, size: float32): FontFace =
   let res = PixieFontFace(raw: newFont(family.raw), rawFamily: family)
@@ -185,22 +188,48 @@ method drawRasterText*(
   arrangement.selectionRects = move pixarr.selectionRects
 
 
+method startRasterTextDrawing*(
+  ctx: RiceDrawContext,
+  font: FontFace,
+  origin: Vec2,
+): any.TextDrawContext =
+  let res = RiceTextDrawContext(raw: startRasterTextDrawing(ctx.raw, font.PixieFontFace.raw))
+  res.pos = (ctx.raw.viewportToGlMatrix * (origin + ctx.raw.offset).vec3(0)).xy
+  res
+
+method endRasterTextDrawing*(ctx: RiceDrawContext) =
+  ctx.raw.endRasterTextDrawing()
+
+method fastRasterDrawRune*(
+  ctx: RiceDrawContext,
+  rune: Rune,
+  rect: Rect,
+  context: any.TextDrawContext,
+) =
+  ctx.raw.fastRasterDrawRune(
+    rune,
+    rect(context.RiceTextDrawContext.pos + rect.xy * ctx.raw.px, rect.wh),
+    context.RiceTextDrawContext.raw,
+  )
+
+method `color=`(context: RiceTextDrawContext, v: Color) =
+  context.raw.color.uniform = v.vec4
+
+
 #* ------------- drawing ------------- *#
 
 method fillRect*(
   ctx: RiceDrawContext,
-  pos: Vec2,
-  size: Vec2,
+  rect: Rect,
   color: Color,
   radius: float32 = 0,
   blend: bool = true,
 ) =
-  ctx.raw.fillRect(pos, size, color, radius, blend)
+  ctx.raw.fillRect(rect.xy, rect.wh, color, radius, blend)
 
 method drawRect*(
   ctx: RiceDrawContext,
-  pos: Vec2,
-  size: Vec2,
+  rect: Rect,
   color: Color,
   thickness: float32 = 0,
   radius: float32 = 0,
@@ -213,7 +242,7 @@ method drawRect*(
     let t = thickness / 2
     var path = pixiePaths.newPath()
     path.roundedRect(
-      rect(pos + t, size - t * 2),
+      rect(rect.xy + t, rect.wh - t * 2),
       max(0'f32, radius - t), max(0'f32, radius - t),
       max(0'f32, radius - t), max(0'f32, radius - t),
     )
@@ -226,12 +255,11 @@ method drawRect*(
       ctx.raw.fill2dMeshFlat(mesh, color, mat4())
 
   else:
-    ctx.raw.drawRect(pos, size, color, thickness, radius, blend)
+    ctx.raw.drawRect(rect.xy, rect.wh, color, thickness, radius, blend)
 
 method drawImage*(
   ctx: RiceDrawContext,
-  pos: Vec2,
-  size: Vec2,
+  rect: Rect,
   image: any.DrawContextImage,
   color: Color,
   radius: float32 = 0,
@@ -241,43 +269,40 @@ method drawImage*(
   imageSize = vec2(),
 ) =
   ctx.raw.drawImage(
-    pos, size, image.RiceDrawContextImage.tex.raw, color,
+    rect.xy, rect.wh, image.RiceDrawContextImage.tex.raw, color,
     radius, blend, flipY = flipY, imagePos = imagePos, imageSize = imageSize,
   )
 
 method drawIcon*(
   ctx: RiceDrawContext,
-  pos: Vec2,
-  size: Vec2,
+  rect: Rect,
   mask: any.DrawContextImage,
   color: Color,
   radius: float32 = 0,
   flipY = false,
 ) =
   # todo: rice drawIcon does not support flipY
-  ctx.raw.drawIcon(pos, size, mask.RiceDrawContextImage.tex.raw, color, radius, true, 0'f32)
+  ctx.raw.drawIcon(rect.xy, rect.wh, mask.RiceDrawContextImage.tex.raw, color, radius, true, 0'f32)
 
 method drawShadowRect*(
   ctx: RiceDrawContext,
-  pos: Vec2,
-  size: Vec2,
+  rect: Rect,
   color: Color,
   blurRadius: float32,
   radius: float32 = 0,
 ) =
-  ctx.raw.drawShadowRect(pos, size, color, blurRadius, radius)
+  ctx.raw.drawShadowRect(rect.xy, rect.wh, color, blurRadius, radius)
 
 
 #* ------------- clip rects ------------- *#
 
 method pushClipRect*(
   ctx: RiceDrawContext,
-  pos: Vec2,
-  size: Vec2,
+  rect: Rect,
   radius: float32 = 0,
 ) =
   # todo: if radius = 0, use glViewport for clipping
-  let sizeI = ivec2(size.x.round.int32, size.y.round.int32)
+  let sizeI = ivec2(rect.w.round.int32, rect.h.round.int32)
   let ef = ctx.raw.requireFrameBuffer(sizeI)
   let psh = ctx.raw.push ef
 
@@ -285,19 +310,19 @@ method pushClipRect*(
   # so translate them into the framebuffer
   let prevViewportMatrix = ctx.raw.viewportMatrix
   let prevProjectionMatrix = ctx.raw.projectionMatrix
-  ctx.raw.viewport = translate(vec3(-pos.x, -pos.y, 0))
+  ctx.raw.viewport = translate(vec3(-rect.x, -rect.y, 0))
   ctx.raw.projection = combine(
-    scale(vec3(2 / size.x, -2 / size.y, 1)),
+    scale(vec3(2 / rect.w, -2 / rect.h, 1)),
     translate(vec3(-1, 1, 0)),
   )
-  ctx.raw.wh = vec2(pos.x + size.x / 2, -(pos.y + size.y / 2))
+  ctx.raw.wh = vec2(rect.x + rect.w / 2, -(rect.y + rect.h / 2))
   # note: ctx.raw.px is already set by push, because it is the same for any offset
 
   ctx.clipStack.add ClipRectState(
     ef: ef, psh: psh,
     prevViewportMatrix: prevViewportMatrix,
     prevProjectionMatrix: prevProjectionMatrix,
-    pos: pos, size: size, radius: radius,
+    pos: rect.xy, size: rect.wh, radius: radius,
   )
 
   glClearColor(0, 0, 0, 0)
@@ -319,42 +344,42 @@ method popClipRect*(ctx: RiceDrawContext) =
 #* ------------- paths ------------- *#
 
 method newPath*(ctx: RiceDrawContext): any.Path =
-  RicePath(raw: pixiePaths.newPath())
+  PixiePath(raw: pixiePaths.newPath())
 
 method parsePath*(ctx: RiceDrawContext, s: string): any.Path =
-  RicePath(raw: pixiePaths.parsePath(s))
+  PixiePath(raw: pixiePaths.parsePath(s))
 
 method newPathCache*(ctx: RiceDrawContext): any.PathCache =
   RicePathCache()
 
 
-method moveTo*(path: RicePath, v: Vec2) = path.raw.moveTo(v)
-method lineTo*(path: RicePath, v: Vec2) = path.raw.lineTo(v)
-method bezierCurveTo*(path: RicePath, ctrl1, ctrl2, to: Vec2) = path.raw.bezierCurveTo(ctrl1, ctrl2, to)
-method quadraticCurveTo*(path: RicePath, ctrl, to: Vec2) = path.raw.quadraticCurveTo(ctrl, to)
+method moveTo*(path: PixiePath, v: Vec2) = path.raw.moveTo(v)
+method lineTo*(path: PixiePath, v: Vec2) = path.raw.lineTo(v)
+method bezierCurveTo*(path: PixiePath, ctrl1, ctrl2, to: Vec2) = path.raw.bezierCurveTo(ctrl1, ctrl2, to)
+method quadraticCurveTo*(path: PixiePath, ctrl, to: Vec2) = path.raw.quadraticCurveTo(ctrl, to)
 method ellipticalArcTo*(
-  path: RicePath,
+  path: PixiePath,
   rx, ry: float32,
   xAxisRotation: float32,
   largeArcFlag, sweepFlag: bool,
   to: Vec2,
 ) = path.raw.ellipticalArcTo(rx, ry, xAxisRotation, largeArcFlag, sweepFlag, to.x, to.y)
-method arc*(path: RicePath, pos: Vec2, r: float32, a: Vec2, ccw = false) = path.raw.arc(pos, r, a, ccw)
-method arcTo*(path: RicePath, a, b: Vec2, r: float32) = path.raw.arcTo(a, b, r)
-method closePath*(path: RicePath) = path.raw.closePath()
+method arc*(path: PixiePath, pos: Vec2, r: float32, a: Vec2, ccw = false) = path.raw.arc(pos, r, a, ccw)
+method arcTo*(path: PixiePath, a, b: Vec2, r: float32) = path.raw.arcTo(a, b, r)
+method closePath*(path: PixiePath) = path.raw.closePath()
 
-method rect*(path: RicePath, rect: Rect, clockwise = true) = path.raw.rect(rect, clockwise)
-method roundedRect*(path: RicePath, rect: Rect, nw, ne, se, sw: float32, clockwise = true) =
+method rect*(path: PixiePath, rect: Rect, clockwise = true) = path.raw.rect(rect, clockwise)
+method roundedRect*(path: PixiePath, rect: Rect, nw, ne, se, sw: float32, clockwise = true) =
   path.raw.roundedRect(rect, nw, ne, se, sw, clockwise)
-method ellipse*(path: RicePath, center: Vec2, rx, ry: float32) = path.raw.ellipse(center, rx, ry)
-method circle*(path: RicePath, center: Vec2, r: float32) = path.raw.ellipse(center, r, r)
-method polygon*(path: RicePath, pos: Vec2, r: float32, n: int) = path.raw.polygon(pos, r, n)
+method ellipse*(path: PixiePath, center: Vec2, rx, ry: float32) = path.raw.ellipse(center, rx, ry)
+method circle*(path: PixiePath, center: Vec2, r: float32) = path.raw.ellipse(center, r, r)
+method polygon*(path: PixiePath, pos: Vec2, r: float32, n: int) = path.raw.polygon(pos, r, n)
 
-method addPath*(path: RicePath, other: any.Path) = path.raw.addPath(other.RicePath.raw)
-method transform*(path: RicePath, mat: Mat3) = path.raw.transform(mat)
-method copy*(path: RicePath): any.Path = RicePath(raw: path.raw.copy())
+method addPath*(path: PixiePath, other: any.Path) = path.raw.addPath(other.PixiePath.raw)
+method transform*(path: PixiePath, mat: Mat3) = path.raw.transform(mat)
+method copy*(path: PixiePath): any.Path = PixiePath(raw: path.raw.copy())
 
-method computeBounds*(path: RicePath, transform = mat3()): Rect =
+method computeBounds*(path: PixiePath, transform = mat3()): Rect =
   path.raw.computeBounds(transform)
 
 
@@ -372,7 +397,7 @@ method update*(
   if path == nil: return
   let raw = ctx.RiceDrawContext.raw
 
-  let bounds = path.RicePath.raw.computeBounds(transform)
+  let bounds = path.PixiePath.raw.computeBounds(transform)
   var boundsI = (x: bounds.x.floor.int32, y: bounds.y.floor.int32, w: bounds.w.ceil.int32, h: bounds.h.ceil.int32)
 
   let grow =
@@ -392,13 +417,13 @@ method update*(
 
   case kind
   of StrokePath:
-    cache.mesh = path.RicePath.raw.toStrokeMesh(
+    cache.mesh = path.PixiePath.raw.toStrokeMesh(
       strokeWidth,
       pixiePaths.LineCap(ord(lineCap)),
       pixiePaths.LineJoin(ord(lineJoin)),
     )
   of FillPath:
-    cache.mesh = path.RicePath.raw.toMesh()
+    cache.mesh = path.PixiePath.raw.toMesh()
 
 method draw*(
   cache: RicePathCache,

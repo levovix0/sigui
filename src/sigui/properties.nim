@@ -39,7 +39,7 @@ proc property*[T](v: T): Property[T] {.inline.} =
 
 
 template `{}`*[T](p: Property[T]): T = p.unsafeVal
-proc `[]`*[T](p: Property[T]): T {.inline.} = p.unsafeVal
+proc `[]`*[T](p: Property[T]): lent T {.inline.} = p.unsafeVal
 
 
 proc `[]=`*[T](p: var Property[T], v: T) =
@@ -63,6 +63,10 @@ proc `{}=`*[T](p: var Property[T], v: T) =
     p.transition.currentTime = DurationZero
   else:
     p.unsafeVal = v
+
+
+proc val*[T](p: var Property[T]): T {.inline.} = p[]
+proc `val=`*[T](p: var Property[T], v: T) {.inline.} = p[] = v
 
 
 
@@ -95,6 +99,10 @@ proc `[]=`*[T](p: CustomProperty[T], v: T) =
 proc `{}=`*[T](p: CustomProperty[T], v: T) {.inline.} =
   ## same as []=, but always call setter and does not emit p.changed
   p.set(v)
+
+
+proc val*[T](p: var CustomProperty[T]): T {.inline.} = p[]
+proc `val=`*[T](p: var CustomProperty[T], v: T) {.inline.} = p[] = v
 
 
 proc `=copy`*[T](p: var CustomProperty[T], v: CustomProperty[T]) {.error.}

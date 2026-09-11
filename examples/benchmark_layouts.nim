@@ -7,7 +7,7 @@ test "layout benchmark":
   let window = newUiWindow(size = ivec2(600, 720), title = "layouts benchmark")
 
   const typefaceFile = staticRead "../tests/Roboto-Regular.ttf"
-  let typeface = window.ctx.parseTtf(typefaceFile)
+  let typeface = parseTtf(typefaceFile)
 
   window.makeLayout:
     this.clearColor = "202020".color
