@@ -657,9 +657,6 @@ proc vertical*(offset: float32): SideOffsets =
 proc allSides*(offset: float32): SideOffsets =
   SideOffsets(left: offset, right: offset, top: offset, bottom: offset)
 
-converter toSideOffsets*(offset: SomeNumber): SideOffsets =
-  allSides(offset.float32)
-
 
 proc `+`*(a, b: SideOffsets): SideOffsets =
   SideOffsets(

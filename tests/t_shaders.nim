@@ -57,5 +57,5 @@ test "Custom shaders":
   preview:
     this.clearColor = color(0.5, 0.5, 0.5)
     - ChessTiles.new:
-      this.margin = 20
+      this.margin = 20.allSides
       this.tileSize = binding: min(this.w[] / 10, this.h[] / 10)

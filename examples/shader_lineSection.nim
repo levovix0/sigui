@@ -108,4 +108,4 @@ method drawInner*(this: Sandbox, ctx: DrawContext) =
 test "Antialiased line section":
   preview(transparent = true, title = "Antialiased line section", size = ivec2(600, 600)):
     - Sandbox.new:
-      this.margin = 20
+      this.margin = 20.allSides

@@ -89,4 +89,4 @@ method drawInner*(this: Cat, ctx: DrawContext) =
 test "Cat shader":
   preview(transparent = true, title = "The Cat", size = ivec2(600, 600)):
     - Cat.new:
-      this.margin = 20
+      this.margin = 20.allSides

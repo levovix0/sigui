@@ -398,7 +398,7 @@ when isMainModule:
     this.clearColor = color(1, 1, 1)
     - ScrollArea.new:
       w = 200; h = 200
-      this.margin = 10; padding = 10
+      this.margin = 10.allSides; padding = 10.allSides
 
       - Styler.new:
         style = makeStyle:

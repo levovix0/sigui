@@ -57,7 +57,7 @@ test "anchors":
         # hAlign = CenterAlign
         left = parent.left
         right = parent.right
-        this.margin = 10
+        this.margin = 10.allSides
     
     - UiRectBorder.new as rect_mm:
       left = rect_ml.right + margin

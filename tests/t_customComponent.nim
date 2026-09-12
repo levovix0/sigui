@@ -56,4 +56,4 @@ when isMainModule:
   preview:
     this.clearColor = color(1, 1, 1)
     - Switch.new:
-      this.margin = 20
+      this.margin = 20.allSides

@@ -613,7 +613,7 @@ when isMainModule:
       text = "start text"
       w = 400
       h = 30
-      this.margin = 20
+      this.margin = 20.allSides
       
       + this.textObj:
         font = typeface.withSize(24)
