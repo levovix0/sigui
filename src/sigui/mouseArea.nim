@@ -203,6 +203,8 @@ method recieve*(this: MouseArea, signal: Signal) =
           let e = (ref ScrollEvent)signal.WindowEvent.event
           if this.hovered[]:
             this.scrolled.emit(vec2(e.deltaX, e.delta))
+            if this.scrolled.hasHandlers:
+              signal.WindowEvent.handled = true
     
 
     elif signal of GetActiveCursor:
