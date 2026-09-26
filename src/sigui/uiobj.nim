@@ -1254,14 +1254,21 @@ proc generateShouldAutoredrawMethod(t: NimNode): NimNode =
 method componentTypeName*(this: Uiobj): string {.base.} = "Uiobj"
 
 
+proc formatValueStr[T](v: T): string =
+  ## `$` with special formatting for some types, so dumps look the same everywhere.
+  ## types without a `$` proc are printed as "<unprintable>" instead of failing to compile
+  when T is Uiobj:
+    "-> " & v.componentTypeName
+  elif T is Color:
+    v.toHtmlHex
+  else:
+    proc `$`[T](v: T): string {.used.} = "<unprintable>"
+    $v
+
+
 proc formatProperty[T](res: var seq[string], name: static string, prop: Property[T]) =
   if (prop[] != typeof(prop[]).default or prop.changed.hasHandlers):
-    when v is Uiobj:
-      result.add name & ": -> " & prop[].componentTypeName
-    
-    else:
-      proc `$`[T](v: T): string {.used.} = "<unprintable>"
-      res.add name & ": " & $prop[]
+    res.add name & ": " & formatValueStr(prop[])
 
 
 proc formatCustomProperty[T](res: var seq[string], name: static string, prop: CustomProperty[T]) =
@@ -1269,12 +1276,7 @@ proc formatCustomProperty[T](res: var seq[string], name: static string, prop: Cu
     prop.get != nil and
     (prop[] != typeof(prop[]).default or prop.changed.hasHandlers)
   ):
-    when v is Uiobj:
-      result.add name & ": -> " & prop[].componentTypeName
-    
-    else:
-      proc `$`[T](v: T): string {.used.} = "<unprintable>"
-      res.add name & ": " & $prop[]
+    res.add name & ": " & formatValueStr(prop[])
 
 
 proc formatValue[T](res: var seq[string], name: string, val: T) =

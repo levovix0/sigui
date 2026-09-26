@@ -37,7 +37,8 @@ Related documentation:
     * [Layers](#Layers)
 3. [Builtin components](#Builtin-components)
     * [Text Area](#Text-Area)
-4. [Interaction with other libraries](#Interaction-with-other-libraries)
+4. [Testing without a window](#Testing-without-a-window)
+5. [Interaction with other libraries](#Interaction-with-other-libraries)
     * [localize](#localize)
 
 # Examples
@@ -685,6 +686,67 @@ let typeface = parseTtf(typefaceFile)
 # Builtin components
 see [documentation/components.md](documentation/components.md)
 
+
+# Testing without a window
+see also: [src/sigui/testutils.nim](src/sigui/testutils.nim), [tests/t_headless.nim](tests/t_headless.nim) and [tests/gallery.nim](tests/gallery.nim)
+
+sigui/testutils provides functions for automated testing (by tests or by AI agents) without opening visible window.
+
+```nim
+import unittest, sigui, sigui/testutils
+
+let win = newHeadlessUiWindow(size = ivec2(300, 200))
+
+var clicks = 0
+win.makeLayout:
+  this.clearColor = "#202020".color
+
+  - UiRect.new as rect:
+    w = 50; h = 50
+    color = "#ff0000".color
+
+    - MouseArea.new as mouse:
+      this.fill parent
+      on this.clicked:
+        inc clicks
+        rect.color[] = "#00ff00".color
+
+win.saveScreenshot "rect.png"
+check win.pixelColor(vec2(25, 25)) ~== "#ff0000".color
+check win.childs[^1].childs[^1].id = mouse.id
+
+win.clickAt(vec2(25, 25))                  # move + press + release + click event
+win.clickAt(mouse)                         # click in the center of a component
+win.mouseDrag(vec2(10, 10), vec2(60, 30))  # press, move in steps, release
+win.mouseScroll(1, pos = vec2(50, 50))
+win.typeInto(field.textArea, "hello")      # click + type text
+win.hotkey(Key.lcontrol, Key.a)            # press keys one by one, release in reverse order
+win.keyTap(Key.escape)
+
+check clicks == 1
+check rect.color[] == "#00ff00".color
+
+win.tick(16'ms)         # advance time by one frame
+win.settleAnimations()  # skip all running animations
+win.frame()             # tick + render, like a real window frame
+```
+
+Component trees can be formated in a brace-based form (`$` fromats components in a indent-based treeRepr-like style):
+```nim
+echo win.uiRepr
+```
+```
+UiRect(globalBox = [0, 0, 50x50], visibility = visible, color = #00FF00)
+  MouseArea(globalBox = [0, 0, 50x50], acceptedButtons = {left}, hovered = true, ...)
+```
+```nim
+echo win.uiJson  # the same data as a json tree, including "childs" arrays
+```
+
+Also useful for tests:
+- `win.componentAt(pos)` - the topmost component at a position (hit testing)
+- `win.findComponents(Button)` - all components of a type in the subtree
+- `win.tickUntil(cond)` - tick frames until `cond` is true (with virtual timeout)
 
 # Interaction with other libraries
 ## localize

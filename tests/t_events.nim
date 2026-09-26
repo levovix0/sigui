@@ -38,48 +38,48 @@ test "events":
 
 
 test "properties":
-  var e = 0.property
+  var p = 0.property
   var eh = EventHandler()
   var capture = 0
 
-  check e[] == 0
-  e[] = 1
-  check e[] == 1
+  check p[] == 0
+  p[] = 1
+  check p[] == 1
   check capture == 0
 
-  e.changed.connectTo eh:
-    capture = e
+  p.changed.connectTo eh:
+    capture = p[]
   
   check capture == 0
 
-  e[] = 2
-  check e[] == 2
+  p[] = 2
+  check p[] == 2
   check capture == 2
 
-  e{} = 3
-  check e[] == 3
+  p{} = 3
+  check p[] == 3
   check capture == 2
 
 
 test "custom properties":
   var capture1 = 0
-  var e = CustomProperty[int](
+  var prop = CustomProperty[int](
     get: proc(): int = capture1 + 1,
     set: proc(v: int) = capture1 = v - 1
   )
   var eh = EventHandler()
   var capture2 = 0
 
-  e.changed.connectTo eh:
-    capture2 = e
+  prop.changed.connectTo eh:
+    capture2 = prop[]
 
-  check e[] == 1
-  e[] = 2
-  check e[] == 2
+  check prop[] == 1
+  prop[] = 2
+  check prop[] == 2
   check capture1 == 1
   check capture2 == 2
 
-  e{} = 5
-  check e[] == 5
+  prop{} = 5
+  check prop[] == 5
   check capture1 == 4
   check capture2 == 2
