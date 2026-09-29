@@ -57,6 +57,13 @@ method draw*(win: UiWindow, ctx: DrawContext) =
   win.drawBefore(ctx)
   win.drawAfter(ctx)
 
+proc render*(this: UiWindow) =
+  ## draws one frame, same as a real window does on each RenderEvent
+  this.siwinWindow.makeCurrent()
+  this.recieve(BeforeDraw(sender: this, ctx: this.ctx))
+  this.draw(this.ctx)
+  this.ctx.finishRendering()
+
 
 proc setupEventsHandling*(win: UiWindow) =
   proc toRef[T](e: T): ref AnyWindowEvent =
@@ -68,9 +75,7 @@ proc setupEventsHandling*(win: UiWindow) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
     onRender: proc(e: RenderEvent) =
-      win.recieve(BeforeDraw(sender: win, ctx: win.ctx))
-      win.draw(win.ctx)
-      win.ctx.finishRendering()
+      win.render()
     ,
     onTick: proc(e: TickEvent) =
       win.onTick.emit(e)
