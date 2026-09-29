@@ -125,6 +125,10 @@ proc pixelColor*(this: HeadlessUiWindow, pos: Vec2): Color =
   ## draws one frame and returns the color of the pixel at `pos` (in component coordinates)
   this.root.HeadlessUiWindow.windowPixelColor(pos.posToGlobal(this))
 
+proc pixelColor*(this: Uiobj, pos: Vec2): Color =
+  ## draws one frame and returns the color of the pixel at `pos` (in component coordinates)
+  this.root.HeadlessUiWindow.windowPixelColor(pos.posToGlobal(this))
+
 proc pixelColor*(this: Uiobj, x, y: SomeInteger|SomeFloat): Color =
   ## draws one frame and returns the color of the pixel at `pos` (in component coordinates)
   this.pixelColor(vec2(x.float32, y.float32))

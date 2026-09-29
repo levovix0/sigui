@@ -2,7 +2,7 @@
 
 import unittest
 import sigui
-import t_customComponent
+import v_customComponent
 
 type
   App = ref object of Uiobj

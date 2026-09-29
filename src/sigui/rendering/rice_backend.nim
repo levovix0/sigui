@@ -70,19 +70,19 @@ method loadImage*(ctx: RiceDrawContext, filepath: string): DrawContextImage =
   ## todo
 
 method newImage*(ctx: RiceDrawContext, size: IVec2): any.DrawContextImage =
-  result = RiceDrawContextImage(tex: newTexture(), imageSize: size)
-  loadTexture(result.RiceDrawContextImage.tex.raw, size, nil)
+  result = RiceDrawContextImage(tex: ctx.raw.newTexture(), imageSize: size)
+  ctx.raw.loadTexture(result.RiceDrawContextImage.tex, size, nil)
 
 method imageFromBuffer*(ctx: RiceDrawContext, size: IVec2, data: pointer): any.DrawContextImage =
   ## data is pointer to uint8 rgba pixels
-  result = RiceDrawContextImage(tex: newTexture(), imageSize: size)
-  loadTexture(result.RiceDrawContextImage.tex.raw, size, data)
+  result = RiceDrawContextImage(tex: ctx.raw.newTexture(), imageSize: size)
+  ctx.raw.loadTexture(result.RiceDrawContextImage.tex, size, data)
 
 method parseSvg*(ctx: RiceDrawContext, size: IVec2, data: string): any.DrawContextImage =
   if data == "": return nil
   let img = data.parseSvg(size.x, size.y).newImage
   RiceDrawContextImage(
-    tex: newTexture(img),
+    tex: ctx.raw.newTexture(img),
     imageSize: ivec2(img.width.int32, img.height.int32),
   )
 
