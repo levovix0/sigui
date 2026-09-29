@@ -303,6 +303,7 @@ Undocumented yet.
 - UiWindow
 - HostUiRoot
 - PluginUiRoot
+- [Inspector](../src/sigui/inspector.nim)
 
 
 # Components in toscel (component library for sigui)

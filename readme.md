@@ -37,6 +37,7 @@ Related documentation:
     * [Layers](#Layers)
 3. [Builtin components](#Builtin-components)
     * [Text Area](#Text-Area)
+    * [Inspector](#Inspector)
 4. [Testing without a window](#Testing-without-a-window)
 5. [Interaction with other libraries](#Interaction-with-other-libraries)
     * [localize](#localize)
@@ -104,7 +105,7 @@ type
 registerComponent MyComponent
 
 method init*(this: MyComponent) =
-  procCall this.super.init()
+  ##
 ```
 
 https://github.com/levovix0/sigui/assets/53170138/409cb2a3-5299-48a6-b01e-d8b7bb951fbb
@@ -121,8 +122,6 @@ registerComponent Switch
 
 
 method init*(this: Switch) =
-  procCall this.super.init()
-  
   this.isOn.changed.connectTo this:
     echo this
 
@@ -282,8 +281,6 @@ registerComponent MyComponent
 
 
 method init*(this: MyComponent) =
-  procCall this.super.init()
-
   this.myState.changed.connectTo this:
     this.myInternalState = this.myState[]
 
@@ -685,6 +682,44 @@ let typeface = parseTtf(typefaceFile)
 
 # Builtin components
 see [documentation/components.md](documentation/components.md)
+
+
+## Inspector
+see also: [src/sigui/inspector.nim](src/sigui/inspector.nim), [examples/inspector.nim](examples/inspector.nim) and [tests/t_inspector.nim](tests/t_inspector.nim)
+
+`sigui/inspector` provides an "inspect element" tool, like the one in web browsers: a component tree of the inspected window on the left, the properties of the selected component on the right, a pick mode (crosshair button) that highlights the component under the cursor, and a highlight of the selected component drawn over the inspected window.
+
+It can be opened in a separate window:
+
+```nim
+import sigui, sigui/inspector
+
+let win = newUiWindow(title = "app")
+win.makeLayout:
+  # ... your ui ...
+
+openInspector win
+run win
+```
+
+or added into the main window as a regular component:
+
+```nim
+import sigui, sigui/inspector
+
+let win = newUiWindow(title = "app")
+win.makeLayout:
+  - MyUi.new:
+    w = 400; h = 300
+
+  - Inspector.new:
+    x = 400; w = 400; h = 300
+    target = win
+```
+
+The inspected window is set with the `target` property. While the pick mode is active (`picking` property or the crosshair button), mouse interaction with the application is blocked, the component under the cursor is highlighted, and a click selects it in the inspector. `showHighlight` toggles the highlight of the selected component in the inspected window, `autoRefresh` watches the component tree for changes.
+
+note: the inspector embeds the Roboto font, see [src/sigui/assets/Roboto-Regular.ttf-LICENSE.txt](src/sigui/assets/Roboto-Regular.ttf-LICENSE.txt)
 
 
 # Testing without a window

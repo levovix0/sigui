@@ -13,8 +13,6 @@ type
 
 
 method init*(this: Tab) =
-  procCall this.super.init()
-
   this.makeLayout:
     - MouseArea.new as mouse:
       this.fill(parent)
@@ -67,8 +65,6 @@ method init*(this: Tab) =
 
 
 method init*(this: TabBar) =
-  procCall this.super.init()
-
   this.makeLayout:
     var tabWidth: Property[float32]
     this.bindingValue tabWidth[]: this.w[] / this.tabs[].len.float32

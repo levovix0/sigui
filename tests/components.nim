@@ -47,8 +47,6 @@ registerComponent Button
 
 
 method init*(this: Button) =
-  procCall this.super.init()
-
   this.makeLayout:
     w = 120
     h = 34
@@ -95,8 +93,6 @@ registerComponent Switch
 
 
 method init*(this: Switch) =
-  procCall this.super.init()
-
   this.makeLayout:
     w = 51
     h = 31
@@ -145,8 +141,6 @@ registerComponent Slider
 
 
 method init*(this: Slider) =
-  procCall this.super.init()
-
   this.makeLayout:
     w = 200
     h = 31
@@ -209,8 +203,6 @@ registerComponent ProgressView
 
 
 method init*(this: ProgressView) =
-  procCall this.super.init()
-
   this.makeLayout:
     h = 4
 
@@ -244,8 +236,6 @@ registerComponent ActivityIndicatorView
 
 
 method init*(this: ActivityIndicatorView) =
-  procCall this.super.init()
-
   this.makeLayout:
     w = 32
     h = 32
@@ -285,8 +275,6 @@ registerComponent TextField
 
 
 method init*(this: TextField) =
-  procCall this.super.init()
-
   this.makeLayout:
     w = 200
     h = 28
@@ -350,8 +338,6 @@ registerComponent SegmentedControl
 
 
 method init*(this: SegmentedControl) =
-  procCall this.super.init()
-
   this.makeLayout:
     w = 220
     h = 28
@@ -412,8 +398,6 @@ registerComponent Stepper
 
 
 method init*(this: Stepper) =
-  procCall this.super.init()
-
   proc updateValue(delta: float32) =
     let newValue = clamp(this.value[] + delta, this.minimum[], this.maximum[])
     if newValue != this.value[]:
@@ -491,8 +475,6 @@ registerComponent PageControl
 
 
 method init*(this: PageControl) =
-  procCall this.super.init()
-
   this.makeLayout:
     w = 100
     h = 12
@@ -543,8 +525,6 @@ const checkboxSvg* = """<svg width="12" height="12" viewBox="0 0 12 12">
 
 
 method init*(this: CheckBox) =
-  procCall this.super.init()
-
   this.makeLayout:
     h = 22
     w = binding: 28 + titleText.w[]
@@ -607,8 +587,6 @@ registerComponent TableView
 
 
 method init*(this: TableView) =
-  procCall this.super.init()
-
   this.makeLayout:
     this.rows --- Layout.new:
       <--- {update}: root.items[]
@@ -672,8 +650,6 @@ registerComponent NavigationBar
 
 
 method init*(this: NavigationBar) =
-  procCall this.super.init()
-
   this.makeLayout:
     h = 44
 
@@ -732,8 +708,6 @@ registerComponent TabBar
 
 
 method init*(this: TabBar) =
-  procCall this.super.init()
-
   this.makeLayout:
     h = 49
 
@@ -799,8 +773,6 @@ registerComponent SearchBar
 
 
 method init*(this: SearchBar) =
-  procCall this.super.init()
-
   this.makeLayout:
     h = 36
 
@@ -851,8 +823,6 @@ registerComponent Label
 
 
 method init*(this: Label) =
-  procCall this.super.init()
-
   this.makeLayout:
     - UiText.new as textObj:
       text = binding: root.text[]

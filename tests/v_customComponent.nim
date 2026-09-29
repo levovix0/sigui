@@ -10,8 +10,6 @@ registerComponent Switch
 
 
 method init*(this: Switch) =
-  procCall this.super.init()
-  
   when isMainModule:
     this.isOn.changed.connectTo this, val:
       echo this

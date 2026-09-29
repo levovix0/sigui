@@ -294,7 +294,7 @@ iterator iterateChangeAware[T](arr: var seq[T], cow: var ptr seq[T]): T =
   let shouldReset = cow == nil
   if cow == nil: cow = arr.addr
   var i = 0
-  while i < cow[].high:
+  while i <= cow[].high:
     if (when T is UiobjCursor: not cow[][i].obj.isDeteached else: not cow[][i].isDeteached):
       yield cow[][i]
     inc i
@@ -582,44 +582,42 @@ proc `-`*(a: Anchor, offset: float32): Anchor =
 
 
 proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
-  proc applyThisAnchors(env: pointer) {.nimcall.} =
-    # closure creation is expensive, but we can pass (proc(evn: pointer) {.nimcall.}, pointer) as a closure, that is cheaper
-    # don't know about possible side effects of it
-    cast[Uiobj](env).applyAnchors()
-  let env = cast[pointer](this)
-
   if anchor.obj == nil: return
-  # for globalTransform objects, x/y are global, so we must track parent's globalX/Y too
+
+  proc applyThisAnchors() =
+    this.applyAnchors()
+
+  # for globalTransform objects, x/y are in global, so we must track parent's globalX/Y too
   let connectToParentGlobal = this.globalTransform[] or anchor.obj != this.parent
-  
+
   if not isY:
     case anchor.offsetFrom:
     of start:
       if connectToParentGlobal:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
     of `end`:
       if connectToParentGlobal:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env)
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors)
     of center:
       if connectToParentGlobal:
-        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors, env)
-      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors, env)
-  
+        anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors)
+
   else:
     case anchor.offsetFrom:
     of start:
       if connectToParentGlobal:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
     of `end`:
       if connectToParentGlobal:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env)
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors)
     of center:
       if connectToParentGlobal:
-        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors, env)
-      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors, env)
-  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors, env)
+        anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
+      anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors)
+  anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors)
 
 template anchorAssign(anchor: untyped, isY: bool): untyped {.dirty.} =
   proc `anchor=`*(obj: Uiobj, v: Anchor) =
@@ -723,34 +721,45 @@ proc spreadGlobalYChange(obj: Uiobj, parentGlobalY: float32) =
 
 method recieve*(this: Uiobj, signal: Signal) {.base.}
 
+
+template recieveBefore_subtreeReverse(this: Uiobj, signal: Signal) =
+  for after in this.layering.after.iterateChangeAwareReversed(this.afterCow):
+    after.obj.recieve(signal)
+
+  for beforeChilds in this.layering.beforeChilds.iterateChangeAwareReversed(this.beforeChildsCow):
+    beforeChilds.obj.recieve(signal)
+
+template recieveBefore_subtree(this: Uiobj, signal: Signal) =
+  for before in this.layering.before.iterateChangeAware(this.beforeCow):
+    before.obj.recieve(signal)
+
+
+template recieveAfter_subtreeReverse(this: Uiobj, signal: Signal) =
+  for before in this.layering.before.iterateChangeAwareReversed(this.beforeCow):
+    before.obj.recieve(signal)
+
+template recieveAfter_subtree(this: Uiobj, signal: Signal) =
+  for beforeChilds in this.layering.beforeChilds.iterateChangeAware(this.beforeChildsCow):
+    beforeChilds.obj.recieve(signal)
+
+  for after in this.layering.after.iterateChangeAware(this.afterCow):
+    after.obj.recieve(signal)
+
+
 proc handleSubtreeSignals*(this: Uiobj, signal: Signal) =
   if signal of SubtreeReverseSignal:
     for child in this.childs.iterateChangeAwareReversed(this.childsCow):
       if child.m_layer.obj == nil:
-        for after in child.layering.after.iterateChangeAwareReversed(child.afterCow):
-          after.obj.recieve(signal)
-
-        for beforeChilds in child.layering.beforeChilds.iterateChangeAwareReversed(child.beforeChildsCow):
-          beforeChilds.obj.recieve(signal)
-        
+        child.recieveBefore_subtreeReverse(signal)
         child.recieve(signal)
-        
-        for before in child.layering.before.iterateChangeAwareReversed(child.beforeCow):
-          before.obj.recieve(signal)
+        child.recieveAfter_subtreeReverse(signal)
 
   elif signal of SubtreeSignal:
     for child in this.childs.iterateChangeAware(this.childsCow):
       if child.m_layer.obj == nil:
-        for before in child.layering.before.iterateChangeAware(child.beforeCow):
-          before.obj.recieve(signal)
-
+        child.recieveBefore_subtree(signal)
         child.recieve(signal)
-
-        for beforeChilds in child.layering.beforeChilds.iterateChangeAware(child.beforeChildsCow):
-          beforeChilds.obj.recieve(signal)
-
-        for after in child.layering.after.iterateChangeAware(child.afterCow):
-          after.obj.recieve(signal)
+        child.recieveAfter_subtree(signal)
   
   elif signal of UptreeSignal:
     if this.parent != nil:
@@ -761,6 +770,20 @@ method recieve*(this: Uiobj, signal: Signal) {.base.} =
   this.gotSignal.emit signal
 
   handleSubtreeSignals(this, signal)
+
+
+method recieve*(this: UiRoot, signal: Signal) =
+  if signal of SubtreeReverseSignal:
+    this.recieveBefore_subtreeReverse(signal)
+  elif signal of SubtreeSignal:
+    this.recieveBefore_subtree(signal)
+  
+  procCall this.Uiobj.recieve(signal)
+
+  if signal of SubtreeReverseSignal:
+    this.recieveAfter_subtreeReverse(signal)
+  elif signal of SubtreeSignal:
+    this.recieveAfter_subtree(signal)
 
 
 template match*[T: Signal](signalObj: Signal, targetType: typedesc[T], body: untyped) =
@@ -912,7 +935,7 @@ method connectFirstHandHandlers*(this: Uiobj) {.base.} =
 
 #----- Uiobj initialization -----
 
-method init*(obj: Uiobj) {.base.} =
+proc preInit*(obj: Uiobj) =
   if obj of UiRoot:
     obj.parentRoot = obj.UiRoot
   else:
@@ -927,8 +950,12 @@ method init*(obj: Uiobj) {.base.} =
   obj.isInitialized = true
 
 
+method init*(obj: Uiobj) {.base.} = discard
+
+
 proc initIfNeeded*(obj: Uiobj) =
   if obj.isInitialized: return
+  preInit(obj)
   init(obj)
   if obj.parent != nil:
     obj.recieve(ParentChanged(newParentInTree: obj.parent))

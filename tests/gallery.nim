@@ -41,8 +41,6 @@ type
 
 
 method init*(this: Gallery) =
-  procCall this.super.init()
-  
   let typeface = parseTtf(typefaceFile)
   let
     fontTitle = typeface.withSize(20)

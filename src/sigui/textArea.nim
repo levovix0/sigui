@@ -416,8 +416,6 @@ method recieve*(this: TextArea, signal: Signal) =
 
 
 method init*(this: TextArea) =
-  procCall this.super.init()
-
   this.cursorPos = CustomProperty[int](
     get: proc(): int = this.m_cursorPos,
     set: proc(x: int) = this.m_cursorPos = x.max(0).min(this.text[].runeLen),
