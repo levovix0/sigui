@@ -741,13 +741,12 @@ method init*(this: Inspector) =
             else: color_textDim
 
     - ScrollArea.new as root.treeScroll:
-      top = toolbar.bottom; bottom = parent.bottom
-      x = 0; w := parent.w[] * 0.45
+      top = toolbar.bottom
+      bottom = parent.bottom
+      x = 0
+      w := parent.w[] * 0.45
 
-      + this.verticalScrollbar[].UiRect:
-        color = color_scrollbar
-      + this.horizontalScrollbar[].UiRect:
-        color = color_scrollbar
+      color = color_scrollbar
 
       # note: here will be the root.treeContainer
 
@@ -762,10 +761,7 @@ method init*(this: Inspector) =
       left = root.treeScroll.right + 1
       right = parent.right
 
-      + this.verticalScrollbar[].UiRect:
-        color = color_scrollbar
-      + this.horizontalScrollbar[].UiRect:
-        color = color_scrollbar
+      color = color_scrollbar
 
       root.details --- ComponentDetails(target: root.selected[], font: root.font[]):
         <--- {update}: root.selected[]; root.font[]; root.updateDetails[]

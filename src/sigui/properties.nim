@@ -34,7 +34,16 @@ type
 
 #* ------------- Property ------------- *#
 
+template `/`*[T](t: typedesc[T]): untyped =
+  ## alias for Property[T]
+  Property[t]
+
+
 proc property*[T](v: T): Property[T] {.inline.} =
+  Property[T](unsafeVal: v)
+
+template `/`*[T](v: T): untyped =
+  ## alias for property(v)
   Property[T](unsafeVal: v)
 
 
@@ -63,6 +72,19 @@ proc `{}=`*[T](p: var Property[T], v: T) =
     p.transition.currentTime = DurationZero
   else:
     p.unsafeVal = v
+
+
+proc setWithoutTransition*[T](p: var Property[T], v: T) =
+  ## note: p.changed will not be emitted if new value is same as previous value
+  if p.transition != nil:
+    if p.transition.currentTime >= p.transition.duration and p.unsafeVal == p.transition.b: return
+    p.transition.a = p.unsafeVal
+    p.transition.b = v
+    p.transition.currentTime = p.transition.duration
+  else:
+    if v == p.unsafeVal: return
+  p.unsafeVal = v
+  emit(p.changed)
 
 
 proc val*[T](p: var Property[T]): T {.inline.} = p[]

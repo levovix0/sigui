@@ -5,7 +5,7 @@ proc toSecs*(v: float): Duration =
   initDuration(seconds = v.int64, nanoseconds = ((v - v.int64.float) * 1_000_000_000).int64)
 
 proc toMs*(v: float): Duration =
-  initDuration(seconds = v.int64, nanoseconds = ((v - v.int64.float) * 1_000_000).int64)
+  initDuration(seconds = v.int64 div 1000, nanoseconds = ((v - v.int64.float) * 1_000_000).int64)
 
 
 proc `'s`*(lit: cstring): Duration =

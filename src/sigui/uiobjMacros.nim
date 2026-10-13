@@ -584,30 +584,43 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
     # for x in y: body
     elif x.kind == nnkForStmt:
       forStmt:
-        for y in x[0..^2]: y
-        call:
-          par:
-            lambda:
-              empty()
-              empty(); empty()
-              formalParams:
-                empty()
-                for param in x[0..^3]:
-                  identDefs:
-                    param
-                    call:
-                      ident("typeof")
-                      param
-                    empty()
-              empty(); empty()
-              stmtList:
-                var fwd: seq[NimNode]
-                (trFwd(x[^1], fwd))
-                for x in fwd: x
-                makeLayoutTr(ident "parent", ident "this", x[^1], c)
-          
+        for y in x[0..^2]:
+          if y.kind == nnkPar and y.len == 1:
+            y[0]
+          else:
+            y
+        
+        let fparams = buildAst formalParams:
+          empty()
           for param in x[0..^3]:
-            param
+            if param.kind in IdentLike:
+              identDefs:
+                param
+                call:
+                  ident("typeof")
+                  param
+                empty()
+        
+        let body = buildAst stmtList:
+          var fwd: seq[NimNode]
+          (trFwd(x[^1], fwd))
+          for x in fwd: x
+          makeLayoutTr(ident "parent", ident "this", x[^1], c)
+        
+        if fparams.len > 1:
+          call:
+            par:
+              lambda:
+                empty(); empty(); empty()
+                fparams
+                empty(); empty()
+                body
+            
+            for param in x[0..^3]:
+              if param.kind in IdentLike:
+                param
+        else:
+          body
 
 
     # if x: body

@@ -295,7 +295,7 @@ suite "keyboard input":
     var activated = 0
 
     win.makeLayout:
-      - globalKeybinding({Key.lcontrol, Key.k}):
+      - (globalKeybinding({Key.lcontrol, Key.k})):
         on this.activated:
           inc activated
 

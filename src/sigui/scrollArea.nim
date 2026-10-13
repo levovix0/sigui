@@ -18,69 +18,42 @@ type
 
   UiScrollArea* {.deprecated: "use ScrollArea instead".} = ScrollArea
   ScrollArea* = ref object of Uiobj
-    scrollY*: Property[float]
-      ## has default transition, use clearTransition() to get rid if it
-      ## use targetY for programmable scroll, instead of this property
-    scrollX*: Property[float]
-      ## has default transition, use clearTransition() to get rid if it
-      ## use targetX for programmable scroll, instead of this property
+    scrollY*, scrollX*: /float  # current visual offset
+    targetX*, targetY*: /float  # for programmable scroll
+    scrollW*, scrollH*: /float  # size of the content
 
-    targetX*: Property[float]
-    targetY*: Property[float]
+    scrollSpeed*: /float = /100.0
+    fitContent*: /bool = /true
+    scrollOverFit*: /float
+    barMinSize*: /float = /20.0
+    barShrinkedSize*: /float = /3.0
+    barHideDelay*: /Duration = /1's
 
-    scrollH*: Property[float]
-    scrollW*: Property[float]
-
-    scrollYAnimation*: InsertablePropertyTransition[float]
-    scrollXAnimation*: InsertablePropertyTransition[float]
-
-    verticalScrollSpeed*: Property[float] = 100.0.property
-    horizontalScrollSpeed*: Property[float] = 100.0.property
-
-    verticalScrollFitContent*: Property[bool] = true.property
-    verticalScrollOverFit*: Property[float]
+    padding*: /SideOffsets
+    color*: /Color = /color(0.5, 0.5, 0.5)
+    radius*: /float
   
-    horizontalScrollFitContent*: Property[bool] = true.property
-    horizontalScrollOverFit*: Property[float]
+    settings*: /set[ScrollAreaSetting] = /{ScrollAreaSetting.low..ScrollAreaSetting.high}
 
-    settings*: Property[set[ScrollAreaSetting]] = (
-      {ScrollAreaSetting.low..ScrollAreaSetting.high}
-    ).property
-
-    verticalScrollbar*: ChangableChild[Uiobj]
-      ## if changed, properties below can be attached by you to new object
-    verticalScrollbarOpacity*: Property[float]
+    verticalBar* {.cursor.}: UiRect
+    verticalBarArea* {.cursor.}: MouseArea
+    verticalBarOpacity*: /float
       ## has default animation
-    verticalScrollBarArea*: MouseArea
-    verticalScrollBarMinHeight*: Property[float] = 20.0.property
-    verticalScrollBarShrinkedWidth*: Property[float] = 3.0.property
-    verticalScrollBarLastShown*: Property[Time]
-    verticalScrollBarHideDelay*: Property[Duration] = initDuration(milliseconds = 1000).property
+    verticalBarLastShown: /Time
+    verticalBarShouldBeVisible: /bool
 
-    horizontalScrollbar*: ChangableChild[Uiobj]
-      ## if changed, properties below can be attached by you to new object
-    horizontalScrollbarOpacity*: Property[float]
+    horizontalBar* {.cursor.}: UiRect
+    horizontalBarArea*: MouseArea
+    horizontalBarOpacity*: /float
       ## has default animation
-    horizontalScrollBarArea*: MouseArea
-    horizontalScrollBarMinWidth*: Property[float] = 20.0.property
-    horizontalScrollBarShrinkedHeight*: Property[float] = 3.0.property
-    horizontalScrollBarLastShown*: Property[Time]
-    horizontalScrollBarHideDelay*: Property[Duration] = initDuration(milliseconds = 1000).property
-
-    padding*: Property[SideOffsets]
-    
-    radius*: Property[float]
-
-    verticalScrollBarShouldBeVisible: Property[bool]
-    horizontalScrollBarShouldBeVisible: Property[bool]
-    onTick: tuple[p: Property[bool]]
+    horizontalBarLastShown: /Time
+    horizontalBarShouldBeVisible: /bool
 
 
 registerComponent ScrollArea
 
 
-template verticalScrollbarObj*(this: ScrollArea): var ChangableChild[Uiobj] {.deprecated: "use verticalScrollbar (without -Obj) instead".} = this.verticalScrollbar
-template horizontalScrollbarObj*(this: ScrollArea): var ChangableChild[Uiobj] {.deprecated: "use horizontalScrollbar (without -Obj) instead".} = this.horizontalScrollbar
+proc withAlpha(c: Color, a: float): Color = color(c.r, c.g, c.b, a)
 
 
 proc `padding=`*(this: ScrollArea, v: float32) =
@@ -88,14 +61,14 @@ proc `padding=`*(this: ScrollArea, v: float32) =
 
 
 proc updateScrollH(this: ScrollArea) =
-  if this.verticalScrollFitContent[]:
+  if this.fitContent[]:
     let h = this.newChildsObject.childs.mapIt(it.y[] + it.h[]).max
-    this.scrollH[] = h + this.verticalScrollOverFit[]
+    this.scrollH[] = h + this.scrollOverFit[]
 
 proc updateScrollW(this: ScrollArea) =
-  if this.horizontalScrollFitContent[]:
+  if this.fitContent[]:
     let w = this.newChildsObject.childs.mapIt(it.x[] + it.w[]).max
-    this.scrollW[] = w + this.horizontalScrollOverFit[]
+    this.scrollW[] = w + this.scrollOverFit[]
 
 
 method recieve*(this: ScrollArea, signal: Signal) =
@@ -116,73 +89,40 @@ method recieve*(this: ScrollArea, signal: Signal) =
 
 method init*(this: ScrollArea) =
   procCall this.super.init
-  
-  this.verticalScrollFitContent.changed.connectTo this: this.updateScrollH()
-  this.verticalScrollOverFit.changed.connectTo this: this.updateScrollH()
-
-  this.horizontalScrollFitContent.changed.connectTo this: this.updateScrollW()
-  this.horizontalScrollOverFit.changed.connectTo this: this.updateScrollW()
-
-
   let scrollArea = this
+  
+  this.fitContent.changed.connectTo this: this.updateScrollH()
+  this.scrollOverFit.changed.connectTo this: this.updateScrollH()
 
+  this.fitContent.changed.connectTo this: this.updateScrollW()
+  this.scrollOverFit.changed.connectTo this: this.updateScrollW()
 
-  proc withAlpha(c: Color, a: float): Color = color(c.r, c.g, c.b, a)
-
-  template makeScrollBar(
-    sbArea, defaultSb, sbOpacity, right, w, h
-  ) =
-    scrollArea.sbArea = MouseArea.new
-
-    let defaultSb {.inject.} = UiRect.new
-    defaultSb.right = scrollArea.sbArea.right
-    
-    defaultSb.bindingProperty radius: defaultSb.w[] / 2
-
-    defaultSb.bindingProperty color: defaultSb.color[].withAlpha(scrollArea.sbOpacity[])
-
-    defaultSb.bindingProperty visibility:
-      if defaultSb.h[] == scrollArea.sbArea.h[]: hidden
-      elif scrollArea.sbOpacity[] == 0.0: hidden
-      else: visible
-
-
-  makeScrollBar verticalScrollBarArea, defaultVerticalScrollBar, verticalScrollbarOpacity, right, w, h
-  makeScrollBar horizontalScrollBarArea, defaultHorizontalScrollBar, horizontalScrollbarOpacity, bottom, h, w
- 
-
-  this.root.onTick.connectTo this: this.onTick.p.changed.emit()
-
-
-  scrollArea.onTick.p.changed.connectTo scrollArea:
+  this.root.onTick.connectTo this:
     if hideScrollBarWhenNotHoveredOrScrolled in scrollArea.settings[]:
       if (
-        getTime() - scrollArea.verticalScrollBarLastShown[] > scrollArea.verticalScrollBarHideDelay[] and
-        not(scrollArea.verticalScrollBarArea.hovered[] or scrollArea.verticalScrollBarArea.pressed[])
+        getTime() - scrollArea.verticalBarLastShown[] > scrollArea.barHideDelay[] and
+        not(scrollArea.verticalBarArea.hovered[] or scrollArea.verticalBarArea.pressed[])
       ):
-        scrollArea.verticalScrollBarShouldBeVisible[] = false
+        scrollArea.verticalBarShouldBeVisible[] = false
 
       if (
-        getTime() - scrollArea.horizontalScrollBarLastShown[] > scrollArea.horizontalScrollBarHideDelay[] and
-        not(scrollArea.horizontalScrollBarArea.hovered[] or scrollArea.horizontalScrollBarArea.pressed[])
+        getTime() - scrollArea.horizontalBarLastShown[] > scrollArea.barHideDelay[] and
+        not(scrollArea.horizontalBarArea.hovered[] or scrollArea.horizontalBarArea.pressed[])
       ):
-        scrollArea.horizontalScrollBarShouldBeVisible[] = false
+        scrollArea.horizontalBarShouldBeVisible[] = false
   
 
-  template makeScrollBar3(
-    this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbarObj, verticalScrollSpeed
+  template setupBar(
+    this, mouseY, scrollY, targetY, scrollH, y, h, verticalBarObj
   ) =
     var isDraggingScrollbar: bool
     var prevMouseY: float
 
-    proc moveVerticalScrollbarToMouse(mouseY: float) =
+    proc moveVerticalBarToMouse(mouseY: float) =
       proc setScrollY(scrollArea: ScrollArea, newScrollY: float) =
         if disableAnimationsWhenScrollingUsingBar in scrollArea.settings[]:
-          scrollArea.scrollY{} = newScrollY
-          scrollArea.scrollY.changed.emit()
-          scrollArea.targetY[] = newScrollY
-        else:
-          scrollArea.targetY[] = newScrollY
+          scrollArea.scrollY.setWithoutTransition newScrollY
+        scrollArea.targetY[] = newScrollY
 
       if isDraggingScrollbar:
         let d = mouseY - prevMouseY
@@ -194,31 +134,31 @@ method init*(this: ScrollArea) =
       else:
         if instantScrollWhenClickedOnScrollBarArea in scrollArea.settings[]:
           scrollArea.setScrollY (
-            (this.mouseY[] - scrollArea.verticalScrollbarObj[].h[] / 2) / (this.h[] - scrollArea.verticalScrollbarObj[].h[]) *
+            (this.mouseY[] - scrollArea.verticalBarObj[].h[] / 2) / (this.h[] - scrollArea.verticalBarObj[].h[]) *
             (scrollArea.scrollH[] - scrollArea.h[])
           ).min(scrollArea.scrollH[] - scrollArea.h[]).max(0)
         
         else:
           if this.mouseY[] notin (
-            scrollArea.verticalScrollbarObj[].y[] ..
-            (scrollArea.verticalScrollbarObj[].y[] + scrollArea.verticalScrollbarObj[].h[])
+            scrollArea.verticalBarObj[].y[] ..
+            (scrollArea.verticalBarObj[].y[] + scrollArea.verticalBarObj[].h[])
           ):
             scrollArea.setScrollY (
               scrollArea.targetY[] +
-              scrollArea.verticalScrollSpeed[] * (if this.mouseY[] < scrollArea.verticalScrollbarObj[].y[]: -1 else: 1)
+              scrollArea.scrollSpeed[] * (if this.mouseY[] < scrollArea.verticalBarObj[].y[]: -1 else: 1)
             ).min(scrollArea.scrollH[] - scrollArea.h[]).max(0)
 
     
     this.pressed.changed.connectTo scrollArea:
       isDraggingScrollbar = this.mouseY[] in (
-        scrollArea.verticalScrollbarObj[].y[] ..
-        (scrollArea.verticalScrollbarObj[].y[] + scrollArea.verticalScrollbarObj[].h[])
+        scrollArea.verticalBarObj[].y[] ..
+        (scrollArea.verticalBarObj[].y[] + scrollArea.verticalBarObj[].h[])
       )
       prevMouseY = this.mouseY[]
-      if (hasScrollBar in scrollArea.settings[]) and this.pressed[]: moveVerticalScrollbarToMouse(this.mouseY[])
+      if (hasScrollBar in scrollArea.settings[]) and this.pressed[]: moveVerticalBarToMouse(this.mouseY[])
     
     this.mouseY.changed.connectTo scrollArea:
-      if (hasScrollBar in scrollArea.settings[]) and this.pressed[]: moveVerticalScrollbarToMouse(this.mouseY[])
+      if (hasScrollBar in scrollArea.settings[]) and this.pressed[]: moveVerticalBarToMouse(this.mouseY[])
 
 
 
@@ -227,21 +167,10 @@ method init*(this: ScrollArea) =
     scrollX := this.targetX[]
     scrollY := this.targetY[]
 
-
-    this.scrollYAnimation = this.scrollY.transition(0.2's)
-    this.scrollYAnimation.easing[] = outSquareEasing
-    addChild(this, this.scrollYAnimation)
-
-    this.scrollXAnimation = this.scrollX.transition(0.2's)
-    this.scrollXAnimation.easing[] = outSquareEasing
-    addChild(this, this.scrollXAnimation)
-    
-    - scrollArea.verticalScrollbarOpacity.transition(0.2's):
-      easing = outSquareEasing
-
-    - scrollArea.horizontalScrollbarOpacity.transition(0.2's):
-      easing = outSquareEasing
-
+    - this.scrollY.transition(0.2's, outSquareEasing)
+    - this.scrollX.transition(0.2's, outSquareEasing)
+    - root.verticalBarOpacity.transition(0.2's, outSquareEasing)
+    - root.horizontalBarOpacity.transition(0.2's, outSquareEasing)
 
     - ClipRect.new:
       this.fill parent
@@ -253,26 +182,24 @@ method init*(this: ScrollArea) =
         this.scrolled.connectTo root, xy:
           let xy = if this.root.keyboardState.pressed.containsShift(): vec2(xy.y, xy.x) else: xy
           if enableHorizontalScroll in root.settings[]:
-            let newX = (root.targetX[] + xy.x * root.horizontalScrollSpeed[]).clamp(
-              0,
-              (root.scrollW[] - (root.w[] - root.padding[].left - root.padding[].right)).max(0)
-            )
+            let newX =
+              (root.targetX[] + xy.x * root.scrollSpeed[])
+              .clamp(0, (root.scrollW[] - (root.w[] - root.padding[].left - root.padding[].right)).max(0))
+            
             if abs(xy.x) < 0.5:
-              root.scrollXAnimation.transition.currentTime = root.scrollXAnimation.duration - initDuration(milliseconds = 1)
+              root.scrollX.setWithoutTransition newX
               root.targetX[] = newX
-              root.scrollXAnimation.transition.currentTime = root.scrollXAnimation.duration - initDuration(milliseconds = 1)
             else:
               root.targetX[] = newX
 
           if enableVerticalScroll in root.settings[]:
-            let newY = (root.targetY[] + xy.y * root.verticalScrollSpeed[]).clamp(
-              0,
-              (root.scrollH[] - (root.h[] - root.padding[].top - root.padding[].bottom)).max(0)
-            )
+            let newY =
+              (root.targetY[] + xy.y * root.scrollSpeed[])
+              .clamp(0, (root.scrollH[] - (root.h[] - root.padding[].top - root.padding[].bottom)).max(0))
+            
             if abs(xy.y) < 0.5:
-              root.scrollYAnimation.transition.currentTime = root.scrollYAnimation.duration - initDuration(milliseconds = 1)
+              root.scrollY.setWithoutTransition newY
               root.targetY[] = newY
-              root.scrollYAnimation.transition.currentTime = root.scrollYAnimation.duration - initDuration(milliseconds = 1)
             else:
               root.targetY[] = newY
 
@@ -281,68 +208,84 @@ method init*(this: ScrollArea) =
           y := -root.scrollY[] + root.padding[].top
     
 
-    - scrollArea.verticalScrollBarArea:
+    - MouseArea() as root.verticalBarArea:
       this.fillVertical(parent, 2)
       this.right = parent.right - 1
-      visibility = if hasScrollBar in scrollArea.settings[]: visible else: collapsed
+      visibility = if hasScrollBar in root.settings[]: visible else: collapsed
 
       w = 5
 
-      scrollArea.verticalScrollbar --- defaultVerticalScrollBar.Uiobj:
+      - UiRect() as root.verticalBar:
         w = binding:
           if (
-            shrinkScrollBarWhenNotHovered in scrollArea.settings[] and
-            not (scrollArea.verticalScrollBarArea.hovered[] or scrollArea.verticalScrollBarArea.pressed[])
+            shrinkScrollBarWhenNotHovered in root.settings[] and
+            not (root.verticalBarArea.hovered[] or root.verticalBarArea.pressed[])
           ):
-            scrollArea.verticalScrollBarShrinkedWidth[]
+            root.barShrinkedSize[]
           else:
-            scrollArea.verticalScrollBarArea.w[]
+            root.verticalBarArea.w[]
+        right = parent.right
         
-        h := ((scrollArea.h[] / (scrollArea.scrollH[])).min(1).max(0) * parent.h[]).max(scrollArea.verticalScrollBarMinHeight[])
+        h := ((root.h[] / (root.scrollH[])).min(1).max(0) * parent.h[]).max(root.barMinSize[])
         
         y := (
-          scrollArea.scrollY[] / (scrollArea.scrollH[] - scrollArea.h[])
+          root.scrollY[] / (root.scrollH[] - root.h[])
         ).min(1).max(0) * (parent.h[] - this.h[])
 
-        - this.w.transition(0.2's):
-          easing = outSquareEasing
+        - this.w.transition(0.2's, outSquareEasing)
+        
+        radius := this.w[] / 2
+        color := root.color[].withAlpha(root.verticalBarOpacity[])
+
+        visibility = binding:
+          if this.h[] > root.verticalBarArea.h[] - 1e-6: hidden
+          elif root.verticalBarOpacity[] == 0: hidden
+          else: visible
       
-      makeScrollBar3(this, mouseY, scrollY, targetY, scrollH, y, h, verticalScrollbar, verticalScrollSpeed)
+      setupBar(this, mouseY, scrollY, targetY, scrollH, y, h, verticalBar)
     
 
-    - scrollArea.horizontalScrollBarArea:
+    - MouseArea() as root.horizontalBarArea:
       this.fillHorizontal(parent, 2)
       this.bottom = parent.bottom - 1
-      visibility = if hasScrollBar in scrollArea.settings[]: visible else: collapsed
+      visibility = if hasScrollBar in root.settings[]: visible else: collapsed
 
       h = 5
 
-      scrollArea.horizontalScrollbar --- defaultHorizontalScrollBar.Uiobj:
+      - UiRect() as root.horizontalBar:
         h = binding:
           if (
-            shrinkScrollBarWhenNotHovered in scrollArea.settings[] and
-            (not scrollArea.horizontalScrollBarArea.hovered[] or scrollArea.horizontalScrollBarArea.pressed[])
+            shrinkScrollBarWhenNotHovered in root.settings[] and
+            (not root.horizontalBarArea.hovered[] or root.horizontalBarArea.pressed[])
           ):
-            scrollArea.horizontalScrollBarShrinkedHeight[]
+            root.barShrinkedSize[]
           else:
-            scrollArea.horizontalScrollBarArea.h[]
+            root.horizontalBarArea.h[]
+        bottom = parent.bottom
         
-        w := ((scrollArea.w[] / scrollArea.scrollW[]).min(1).max(0) * parent.w[]).max(scrollArea.horizontalScrollBarMinWidth[])
+        w = binding: ((root.w[] / root.scrollW[]).min(1).max(0) * parent.w[]).max(root.barMinSize[])
         
-        x := (
-          scrollArea.scrollX[] / (scrollArea.scrollW[] - scrollArea.w[])
+        x = binding: (
+          root.scrollX[] / (root.scrollW[] - root.w[])
         ).min(1).max(0) * (parent.w[] - this.w[])
 
-        - this.h.transition(0.2's):
-          easing = outSquareEasing
+        - this.h.transition(0.2's, outSquareEasing)
+        
+        radius := this.h[] / 2
+        color := root.color[].withAlpha(root.horizontalBarOpacity[])
+
+        visibility = binding:
+          if this.w[] > root.verticalBarArea.w[] - 1e-6: hidden
+          elif root.horizontalBarOpacity[] == 0: hidden
+          else: visible
       
-      makeScrollBar3(this, mouseX, scrollX, targetX, scrollW, x, w, horizontalScrollbar, horizontalScrollSpeed)
+      setupBar(this, mouseX, scrollX, targetX, scrollW, x, w, horizontalBar)
 
 
     this.newChildsObject = container
 
 
-  template makeScrollBar2(
+  template prepareBar(
     makeSbVisibleIfNeeded, sbShouldBeVisible, sbLastShown, sbArea, sbOpacity, scrollY, scrollEnabled
   ) =
     proc makeSbVisibleIfNeeded =
@@ -377,15 +320,15 @@ method init*(this: ScrollArea) =
         0.0
   
 
-  makeScrollBar2(
-    makeVerticalScrollBarVisibleIfNeeded, verticalScrollBarShouldBeVisible,
-    verticalScrollBarLastShown, verticalScrollBarArea, verticalScrollbarOpacity, scrollY,
+  prepareBar(
+    makeVerticalBarVisibleIfNeeded, verticalBarShouldBeVisible,
+    verticalBarLastShown, verticalBarArea, verticalBarOpacity, scrollY,
     enableVerticalScroll in scrollArea.settings[]
   )
 
-  makeScrollBar2(
-    makeHorizontalScrollBarVisibleIfNeeded, horizontalScrollBarShouldBeVisible,
-    horizontalScrollBarLastShown, horizontalScrollBarArea, horizontalScrollbarOpacity, scrollX,
+  prepareBar(
+    makeHorizontalBarVisibleIfNeeded, horizontalBarShouldBeVisible,
+    horizontalBarLastShown, horizontalBarArea, horizontalBarOpacity, scrollX,
     enableHorizontalScroll in scrollArea.settings[]
   )
 
