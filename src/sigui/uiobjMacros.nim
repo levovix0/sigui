@@ -194,18 +194,60 @@ macro bindingChangableChild[T](obj: T, target: untyped, body: untyped, ctor: typ
 proc makeLayoutTr(parent: NimNode, obj: NimNode, body: NimNode, c: MkLayoutContext): NimNode
 
 
-proc checkCtor(ctor: NimNode) =
-  if ctor.eqName "root": warning("adding root to itself causes recursion", ctor)
-  if ctor.eqName "this": warning("adding this to itself causes recursion", ctor)
-  if ctor.eqName "parent": warning("adding parent to itself causes recursion", ctor)
-  if ctor.kind == nnkCall and ctor[0].kind in IdentLike and ctor[0].strVal[0].isUpperAscii and ctor.len == 1:
-    warning("default nim constructor cannot be overloaded, please prefer using " & ctor[0].strVal & ".new, new " & ctor[0].strVal & " or new" & ctor[0].strVal & "()", ctor)
+proc trCtor(ctor: NimNode, body: NimNode): NimNode =
+  result = ctor
+
+  # - root
+  if ctor.eqName "root":
+    warning("adding root to itself causes recursion", ctor)
+  
+  # - this
+  elif ctor.eqName "this":
+    warning("adding this to itself causes recursion", ctor)
+  
+  # - parent
+  elif ctor.eqName "parent":
+    warning("adding parent to itself causes recursion", ctor)
+  
+  # - Component(w = 100, h := this.w[], centerIn parent)
+  elif ctor.kind == nnkCall and ctor.len >= 1 and ctor[0].kind in IdentLike and (ctor.len == 1 or ctor[1].kind != nnkExprColonExpr):
+    for x in ctor[1..^1]:
+      # prop = val
+      if x.kind == nnkExprEqExpr:
+        body.add buildAst do:
+          asgn(x[0], x[1])
+      
+      # centerIn parent
+      elif x.kind in {nnkCall, nnkCommand}:
+        body.add x.kind.newTree(@[x[0], ident("this")] & x[1..^1])
+      
+      # a := b
+      elif x.kind in nnkCallKinds:
+        body.add x.kind.newTree(x[0..^1])
+      
+      else:
+        error("unexpected syntax", x)
+    result = newCall(ident("new"), ctor[0])
+  
+  else:
+    discard
 
 
+proc isEmptyBody(n: NImNode): bool =
+  n == nil or n.kind == nnkEmpty or (n.kind == nnkStmtList and n.len == 0)
 
-proc makeLayoutTrChangableChild(prop, ctor, body: NimNode, c: MkLayoutContext): NimNode =
-  checkCtor ctor
 
+proc trBody(res: var NimNode, body: NimNode) =
+  res.expectKind nnkStmtList
+  if body.isEmptyBody:
+    discard
+  elif body.kind == nnkStmtList:
+    res.add body[0..^1]
+  else:
+    res.add body
+
+
+proc trChangableChild(prop, ctor, body: NimNode, c: MkLayoutContext): NimNode =
   var updateBody = newStmtList()
   var updaters = newStmtList()
 
@@ -216,7 +258,7 @@ proc makeLayoutTrChangableChild(prop, ctor, body: NimNode, c: MkLayoutContext): 
   updateBody.add quote do:
     initIfNeeded(`this`)
 
-  if body != nil:
+  if not body.isEmptyBody:
     var c = c
     c.changableChild = prop
     c.changableChildCtor = ctor
@@ -249,11 +291,13 @@ proc makeLayoutTrChangableChild(prop, ctor, body: NimNode, c: MkLayoutContext): 
       `updaters`
 
 
-proc makeLayoutTrFwd(body: NimNode, res: var seq[NimNode]) =
+proc trFwd(body: NimNode, res: var seq[NimNode]) =
   for x in body:
+    var unusedBody = newStmtList()
+
     # - ctor: body
     if x.kind == nnkPrefix and x.len == 3 and x[0].eqName("-"):
-      makeLayoutTrFwd(x[2] #[ body ]#, res)
+      trFwd(x[2] #[ body ]#, res)
 
 
     # - ctor as path.to.alias: body
@@ -264,11 +308,11 @@ proc makeLayoutTrFwd(body: NimNode, res: var seq[NimNode]) =
     ):
       res.add nnkAsgn.newTree(
         x[2] #[ alias ]#,
-        x[1][1] #[ ctor ]#
+        trCtor(x[1][1], unusedBody) #[ ctor ]#
       )
 
       if x.len == 4:
-        makeLayoutTrFwd(x[3] #[ body ]#, res)
+        trFwd(x[3] #[ body ]#, res)
 
 
     # - ctor as alias: body
@@ -280,12 +324,12 @@ proc makeLayoutTrFwd(body: NimNode, res: var seq[NimNode]) =
         nnkIdentDefs.newTree(
           x[2] #[ alias ]#,
           newEmptyNode(),
-          x[1][1] #[ ctor ]#
+          trCtor(x[1][1], unusedBody) #[ ctor ]#
         )
       )
 
       if x.len == 4:
-        makeLayoutTrFwd(x[3] #[ body ]#, res)
+        trFwd(x[3] #[ body ]#, res)
 
 
 
@@ -295,18 +339,19 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
     if (
       x.kind == nnkPrefix and x.len in 2..3 and x[0].eqName("-")
     ):
-      let ctor = x[1]
-      (checkCtor ctor)
+      var body = newStmtList()
+      var ctor = trCtor(x[1], body)
       let alias = genSym(nskLet, "unnamedObj")
+      (trBody(body, if x.len == 2: nil else: x[2]))
+
       letSection:
         identDefs(alias, empty(), ctor)
       call(ident"addChild", ident "this", alias)
       
-      if x.len == 2:
+      if body.isEmptyBody:
         call(ident"initIfNeeded", alias)
         call(ident("markCompleted"), alias)
       else:
-        let body = x[2]
         makeLayoutTr(ident "this", alias, body, c)
         call(ident("markCompleted"), alias)
 
@@ -316,16 +361,17 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
       x.kind == nnkInfix and x.len in 3..4 and x[0].eqName("as") and
       x[1].kind == nnkPrefix and x[1][0].eqName("-")
     ):
-      let ctor = x[1][1]
+      var body = newStmtList()
+      discard trCtor(x[1][1], body)
       let alias = x[2]
-      (checkCtor ctor)
+      (trBody(body, if x.len == 3: nil else: x[3]))
+
       call(ident"addChild", ident "this", alias)
       
-      if x.len == 3:
+      if body.isEmptyBody:
         call(ident"initIfNeeded", alias)
         call(ident("markCompleted"), alias)
       else:
-        let body = x[3]
         makeLayoutTr(ident "this", alias, body, c)
         call(ident("markCompleted"), alias)
 
@@ -334,19 +380,21 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
     elif (
       x.kind == nnkInfix and x.len in 3..4 and x[0].eqName("---")
     ):
+      var body = newStmtList()
       let to = x[1]
-      let ctor = x[2]
-      (checkCtor ctor)
-      makeLayoutTrChangableChild(to, ctor, (if x.len == 3: nil else: x[3]), c)
+      var ctor = trCtor(x[2], body)
+      (trBody(body, if x.len == 3: nil else: x[3]))
+      trChangableChild(to, ctor, body, c)
     
 
     # --- ctor: body
     elif (
       x.kind == nnkPrefix and x.len == 3 and x[0].eqName("---")
     ):
-      let ctor = x[1]
+      var body = newStmtList()
+      var ctor = trCtor(x[1], body)
       let anonimusChangableChild = nskVar.genSym("anonimusChangableChild")
-      (checkCtor ctor)
+      (trBody(body, x[2]))
 
       # var `anonimusChangableChild`: ChangableChild[typeof(`ctor`)]
       varSection:
@@ -357,11 +405,18 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
             call(ident("typeof"), ctor)
           empty()
 
-      makeLayoutTrChangableChild(anonimusChangableChild, ctor, x[2], c)
+      trChangableChild(anonimusChangableChild, ctor, body, c)
     
 
     # todo: to --- {inline}: body
     # todo: --- {inline}: body
+
+    # todo: > func(args)
+    #       (as an alias for - this.func(args))
+
+    # todo: explicit caputres with (a, b: someVal): body
+    # todo:                        prop = binding (a, b: someVal): body
+    # todo:                        (a, b: someVal) - ctor: body
 
     
     # <--- ctor: triggers
@@ -396,7 +451,7 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
       # connect to accessor.changed, then immediatly and each time accessor changed,
       # operate on object, accessed by `accessor`, with this/parent logic, without actually adding it to parent
       let accessor = x[1][0]
-      makeLayoutTrChangableChild(accessor, nil, (if x.len == 2: nil else: x[2]), c)
+      trChangableChild(accessor, nil, (if x.len == 2: nil else: x[2]), c)
 
 
     # + accessor: body
@@ -547,7 +602,7 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
               empty(); empty()
               stmtList:
                 var fwd: seq[NimNode]
-                (makeLayoutTrFwd(x[^1], fwd))
+                (trFwd(x[^1], fwd))
                 for x in fwd: x
                 makeLayoutTr(ident "parent", ident "this", x[^1], c)
           
@@ -563,7 +618,7 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
         branch[^1] = buildAst:
           stmtList:
             var fwd: seq[NimNode]
-            (makeLayoutTrFwd(branch[^1], fwd))
+            (trFwd(branch[^1], fwd))
             for x in fwd: x
             makeLayoutTr(ident "parent", ident "this", branch[^1], c)
         branches.add branch
@@ -581,7 +636,7 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
           x[^1] = buildAst:
             stmtList:
               var fwd: seq[NimNode]
-              (makeLayoutTrFwd(x[^1], fwd))
+              (trFwd(x[^1], fwd))
               for x in fwd: x
               makeLayoutTr(ident "parent", ident "this", x[^1], c)
           x
@@ -671,7 +726,7 @@ proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
     # capture(a, b=c, ...): body
     elif x.kind in CallNodes and x.len >= 3 and x[0].eqIdent("capture"):
       var fwd: seq[NimNode]
-      (makeLayoutTrFwd(x[^1], fwd))
+      (trFwd(x[^1], fwd))
       x.kind.newTree(
         @[
           x[0],
@@ -692,29 +747,26 @@ proc makeLayoutTr(parent: NimNode, obj: NimNode, body: NimNode, c: MkLayoutConte
   let makeLayoutCaptureSym = genSym(nskProc, "makeLayoutCapture")
   makeLayoutCaptureSym.copyLineInfo(obj)
 
-  result = buildAst blockStmt:
-    genSym(nskLabel, "initializationBlock")
-    stmtList:
-      procDef:
-        makeLayoutCaptureSym
-        newEmptyNode(); newEmptyNode()
-        nnkFormalParams.newTree(
-          newEmptyNode(),
-          nnkIdentDefs.newTree(ident "parent", nnkCall.newTree(bindSym"typeof", parent), newEmptyNode()),
-          nnkIdentDefs.newTree(ident "this", nnkCall.newTree(bindSym"typeof", obj), newEmptyNode()),
-        )
-        newEmptyNode(); newEmptyNode()
-        
-        stmtList:
-          nnkCall.newTree(ident"initIfNeeded", ident "this")
+  result = buildAst stmtList:
+    procDef:
+      makeLayoutCaptureSym
+      empty(); empty()
+      formalParams:
+        empty()
+        identDefs(ident "parent", call(bindSym"typeof", parent), empty())
+        identDefs(ident "this", call(bindSym"typeof", obj), empty())
+      empty(); empty()
+      
+      stmtList:
+        call ident("initIfNeeded"): ident "this"
 
-          for x in body:
-            makeLayoutTrStmt(x, c)
+        for x in body:
+          makeLayoutTrStmt(x, c)
 
-      call:
-        makeLayoutCaptureSym
-        parent
-        obj
+    call:
+      makeLayoutCaptureSym
+      parent
+      obj
 
 
 
@@ -759,7 +811,7 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
       letSection:
         identDefs(pragmaExpr(ident "root", pragma ident "used"), empty(), obj)
       var fwd: seq[NimNode]
-      (makeLayoutTrFwd(body, fwd))
+      (trFwd(body, fwd))
       for x in fwd: x
       
       makeLayoutTr(
