@@ -17,6 +17,16 @@ type
     changableChildUpdaters: NimNode
 
 
+const
+  IdentLike = {nnkIdent, nnkAccQuoted, nnkSym, nnkOpenSymChoice, nnkClosedSymChoice, nnkOpenSym}
+  IdentExtractable = {nnkIdent, nnkAccQuoted, nnkSym, nnkOpenSymChoice, nnkClosedSymChoice, nnkOpenSym, nnkPostfix}
+
+
+proc eqName(a: NimNode, b: string): bool =
+  if a.kind notin IdentExtractable: false
+  else: a.eqIdent(b)
+
+
 
 proc bindingImpl*(
   obj: NimNode,
@@ -180,6 +190,534 @@ macro bindingChangableChild[T](obj: T, target: untyped, body: untyped, ctor: typ
   bindingImpl(obj, target, body, true, bindValue, ctor)
 
 
+
+proc makeLayoutTr(parent: NimNode, obj: NimNode, body: NimNode, c: MkLayoutContext): NimNode
+
+
+proc checkCtor(ctor: NimNode) =
+  if ctor.eqName "root": warning("adding root to itself causes recursion", ctor)
+  if ctor.eqName "this": warning("adding this to itself causes recursion", ctor)
+  if ctor.eqName "parent": warning("adding parent to itself causes recursion", ctor)
+  if ctor.kind == nnkCall and ctor[0].kind in IdentLike and ctor[0].strVal[0].isUpperAscii and ctor.len == 1:
+    warning("default nim constructor cannot be overloaded, please prefer using " & ctor[0].strVal & ".new, new " & ctor[0].strVal & " or new" & ctor[0].strVal & "()", ctor)
+
+
+
+proc makeLayoutTrChangableChild(prop, ctor, body: NimNode, c: MkLayoutContext): NimNode =
+  checkCtor ctor
+
+  var updateBody = newStmtList()
+  var updaters = newStmtList()
+
+  let this = ident("this")
+  let parent = ident("parent")
+  let updateProc = genSym(nskProc, "updateProc")
+
+  updateBody.add quote do:
+    initIfNeeded(`this`)
+
+  if body != nil:
+    var c = c
+    c.changableChild = prop
+    c.changableChildCtor = ctor
+    c.changableChildUpdaters = updaters
+    updateBody.add makeLayoutTr(ident("parent"), ident("this"), body, c)
+  
+  updateBody.add quote do:
+    markCompleted(`this`)
+
+  let addingToParent =
+    if ctor == nil:  # called by `+ accessor[]: body`, adding to parent is not needed
+      newEmptyNode()
+    else:
+      quote do: `prop` = addChangableChild(`this`, `ctor`)
+
+  result = quote do:
+    block changableChildInit:
+      `addingToParent`
+
+      proc `updateProc`(`parent`: typeof(`this`), `this`: typeof(`prop`[])) =
+        `updateBody`
+
+      connect(
+        `prop`.changed, `this`.eventHandler,
+        proc() = `updateProc`(`this`, `prop`[])
+      )
+
+      emit(`prop`.changed)
+
+      `updaters`
+
+
+proc makeLayoutTrFwd(body: NimNode, res: var seq[NimNode]) =
+  for x in body:
+    # - ctor: body
+    if x.kind == nnkPrefix and x.len == 3 and x[0].eqName("-"):
+      makeLayoutTrFwd(x[2] #[ body ]#, res)
+
+
+    # - ctor as path.to.alias: body
+    elif (
+      x.kind == nnkInfix and x.len in 3..4 and x[0].eqName("as") and
+      x[1].kind == nnkPrefix and x[1][0].eqName("-") and
+      x[2].kind notin {nnkIdent, nnkAccQuoted, nnkSym}
+    ):
+      res.add nnkAsgn.newTree(
+        x[2] #[ alias ]#,
+        x[1][1] #[ ctor ]#
+      )
+
+      if x.len == 4:
+        makeLayoutTrFwd(x[3] #[ body ]#, res)
+
+
+    # - ctor as alias: body
+    elif (
+      x.kind == nnkInfix and x.len in 3..4 and x[0].eqName("as") and
+      x[1].kind == nnkPrefix and x[1][0].eqName("-")
+    ):
+      res.add nnkLetSection.newTree(
+        nnkIdentDefs.newTree(
+          x[2] #[ alias ]#,
+          newEmptyNode(),
+          x[1][1] #[ ctor ]#
+        )
+      )
+
+      if x.len == 4:
+        makeLayoutTrFwd(x[3] #[ body ]#, res)
+
+
+
+proc makeLayoutTrStmt(x: NimNode, c: MkLayoutContext): NimNode =
+  result = buildAst stmtList:
+    # - ctor: body
+    if (
+      x.kind == nnkPrefix and x.len in 2..3 and x[0].eqName("-")
+    ):
+      let ctor = x[1]
+      (checkCtor ctor)
+      let alias = genSym(nskLet, "unnamedObj")
+      letSection:
+        identDefs(alias, empty(), ctor)
+      call(ident"addChild", ident "this", alias)
+      
+      if x.len == 2:
+        call(ident"initIfNeeded", alias)
+        call(ident("markCompleted"), alias)
+      else:
+        let body = x[2]
+        makeLayoutTr(ident "this", alias, body, c)
+        call(ident("markCompleted"), alias)
+
+
+    # - ctor as alias: body
+    elif (
+      x.kind == nnkInfix and x.len in 3..4 and x[0].eqName("as") and
+      x[1].kind == nnkPrefix and x[1][0].eqName("-")
+    ):
+      let ctor = x[1][1]
+      let alias = x[2]
+      (checkCtor ctor)
+      call(ident"addChild", ident "this", alias)
+      
+      if x.len == 3:
+        call(ident"initIfNeeded", alias)
+        call(ident("markCompleted"), alias)
+      else:
+        let body = x[3]
+        makeLayoutTr(ident "this", alias, body, c)
+        call(ident("markCompleted"), alias)
+
+
+    # to --- ctor: body
+    elif (
+      x.kind == nnkInfix and x.len in 3..4 and x[0].eqName("---")
+    ):
+      let to = x[1]
+      let ctor = x[2]
+      (checkCtor ctor)
+      makeLayoutTrChangableChild(to, ctor, (if x.len == 3: nil else: x[3]), c)
+    
+
+    # --- ctor: body
+    elif (
+      x.kind == nnkPrefix and x.len == 3 and x[0].eqName("---")
+    ):
+      let ctor = x[1]
+      let anonimusChangableChild = nskVar.genSym("anonimusChangableChild")
+      (checkCtor ctor)
+
+      # var `anonimusChangableChild`: ChangableChild[typeof(`ctor`)]
+      varSection:
+        identDefs:
+          anonimusChangableChild
+          bracketExpr:
+            ident("ChangableChild")
+            call(ident("typeof"), ctor)
+          empty()
+
+      makeLayoutTrChangableChild(anonimusChangableChild, ctor, x[2], c)
+    
+
+    # todo: to --- {inline}: body
+    # todo: --- {inline}: body
+
+    
+    # <--- ctor: triggers
+    elif (
+      x.kind == nnkPrefix and x.len == 3 and x[0].eqName("<---")
+    ):
+      let ctor =
+        if x[1].kind == nnkCurly and x[1].len == 1 and x[1][0].eqName("update"):
+          # <--- {update}: triggers
+          c.changableChildCtor
+        else:
+          x[1] #[ ctor ]#
+      
+      let triggers = x[2]
+      
+      if c.changableChild.kind == nnkEmpty:
+        (error("Must be inside changable child", x))
+
+      c.changableChildUpdaters.add buildAst do:
+        call bindSym("bindingChangableChild"):
+          ident "this"
+          bracketExpr:
+            c.changableChild
+          triggers
+          ctor
+
+    
+    # + accessor[]: body
+    elif (
+      x.kind == nnkPrefix and x.len in 2..3 and x[0].eqName("+") and x[1].kind == nnkBracketExpr and x[1].len == 1
+    ):
+      # connect to accessor.changed, then immediatly and each time accessor changed,
+      # operate on object, accessed by `accessor`, with this/parent logic, without actually adding it to parent
+      let accessor = x[1][0]
+      makeLayoutTrChangableChild(accessor, nil, (if x.len == 2: nil else: x[2]), c)
+
+
+    # + accessor: body
+    elif (
+      x.kind == nnkPrefix and x.len in 2..3 and x[0].eqName("+")
+    ):
+      # operate on object, accessed by `accessor`, with this/parent logic, without actually adding it to parent
+      let accessor = x[1]
+      let alias = genSym(nskLet)
+      letSection:
+        identDefs(alias, empty(), accessor)
+      
+      if x.len == 2:
+        call(ident"initIfNeeded", alias)
+      else:
+        let body = x[2]
+        makeLayoutTr(ident "this", alias, body, c)
+    
+
+    # binding: body
+    elif x.kind in {nnkCommand, nnkCall} and x.len == 2 and x[0].eqName("binding"):
+      let body = x[1]
+      nnkCall.newTree(bindSym("binding"), ident("this"), body)
+
+
+    # prop := val
+    # prop = binding: val
+    elif (
+      var name, val, eh: NimNode
+      
+      # prop := val
+      if x.kind == nnkInfix and x.len == 3 and x[0].eqName(":="):
+        name = x[1]
+        val = x[2]
+        eh = ident("this")
+        true
+      
+      # prop = binding: val
+      elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1].len == 2 and x[1][0].eqName("binding"):
+        name = x[0]
+        val = x[1][1]
+        eh = ident("this")
+        true
+      
+      # prop = binding(eh): val
+      elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1].len == 3 and x[1][0].eqName("binding"):
+        name = x[0]
+        val = x[1][2]
+        eh = x[1][1]
+        true
+      
+      else: false
+    ):
+      if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:  # name should be resolved to this.name[]
+        call bindSym("bindingValue"):
+          eh
+          bracketExpr:
+            dotExpr(ident("this"), name)
+          val
+      else:  # name should be as is
+        call bindSym("bindingValue"):
+          eh
+          name
+          val
+    
+
+    # name = val
+    elif (
+      x.kind == nnkAsgn and x[0].kind in IdentLike
+    ):
+      # todo: add setters (`prop=`) for each property and unify syntax for procs, field and properties on this
+      let name = x[0]
+      let val = x[1]
+
+      let asgnProperty = nnkAsgn.newTree(
+        nnkBracketExpr.newTree(
+          nnkDotExpr.newTree(ident("this"), name),
+        ),
+        val
+      )
+
+      var asgnField = nnkAsgn.newTree(
+        nnkDotExpr.newTree(ident("this"), name),
+        val
+      )
+
+      var asgnSimple = nnkAsgn.newTree(
+        name,
+        val
+      )
+
+      if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:
+        if $name notin ["drawLayer", "layer", "top", "left", "bottom", "right", "centerX", "centerY"]:
+          asgnField = buildAst stmtList:
+            asgnField
+            pragma:
+              exprColonExpr:
+                ident("warning")
+                newLit("ambiguous assignment, use `this.field_name = ...` instead. The `property_name = ...` syntax is for properties on this")
+
+        asgnSimple = buildAst stmtList:
+          asgnSimple
+          pragma:
+            exprColonExpr:
+              ident("warning")
+              newLit("ambiguous assignment, use (var_name) = ... instead. The `property_name = ...` syntax is for properties on this")
+
+      let selector = buildAst whenStmt:
+        elifBranch call(bindSym("compiles"), asgnProperty.copy):
+          asgnProperty
+        elifBranch call(bindSym("compiles"), asgnField.copy):
+          asgnField
+        elifBranch call(bindSym("compiles"), asgnSimple.copy):
+          asgnSimple
+        Else:
+          asgnProperty
+      
+      (asgnProperty.copyLineInfo(x))
+      (asgnProperty[0].copyLineInfo(x))
+      (asgnField.copyLineInfo(x))
+      (asgnSimple.copyLineInfo(x))
+
+      (selector[0][0].copyLineInfo(selector[0][0][0]))
+      (selector[1][0].copyLineInfo(selector[1][0][0]))
+      (selector[2][0].copyLineInfo(selector[2][0][0]))
+
+      selector
+  
+
+    # for x in y: body
+    elif x.kind == nnkForStmt:
+      forStmt:
+        for y in x[0..^2]: y
+        call:
+          par:
+            lambda:
+              empty()
+              empty(); empty()
+              formalParams:
+                empty()
+                for param in x[0..^3]:
+                  identDefs:
+                    param
+                    call:
+                      ident("typeof")
+                      param
+                    empty()
+              empty(); empty()
+              stmtList:
+                var fwd: seq[NimNode]
+                (makeLayoutTrFwd(x[^1], fwd))
+                for x in fwd: x
+                makeLayoutTr(ident "parent", ident "this", x[^1], c)
+          
+          for param in x[0..^3]:
+            param
+
+
+    # if x: body
+    # when x: body
+    elif x.kind in {nnkIfStmt, nnkWhenStmt}:
+      var branches: seq[NimNode]
+      for branch in x.children:
+        branch[^1] = buildAst:
+          stmtList:
+            var fwd: seq[NimNode]
+            (makeLayoutTrFwd(branch[^1], fwd))
+            for x in fwd: x
+            makeLayoutTr(ident "parent", ident "this", branch[^1], c)
+        branches.add branch
+      
+      x.kind.newTree(branches)
+
+
+    # case x:
+    # of y: body
+    elif x.kind == nnkCaseStmt:
+      caseStmt:
+        x[0]
+
+        for x in x[1..^1]:
+          x[^1] = buildAst:
+            stmtList:
+              var fwd: seq[NimNode]
+              (makeLayoutTrFwd(x[^1], fwd))
+              for x in fwd: x
+              makeLayoutTr(ident "parent", ident "this", x[^1], c)
+          x
+
+
+    # on SignalType: body
+    elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on") and x[1].kind in IdentLike and x[1].strVal[0].isUpperAscii:
+      let signalType = x[1]
+      let signalUntypedIdent = ident("signalUntyped")
+      
+      let body = nnkCall.newTree(
+        bindSym("match", brOpen),
+        signalUntypedIdent,
+        signalType,
+        x[2],
+      )
+
+      let connectCall = nnkCall.newTree(
+        bindSym("connectTo"),
+        nnkDotExpr.newTree(ident("this"), ident("gotSignal")),
+        ident("this"),
+        signalUntypedIdent,
+        body,
+      )
+      (connectCall[0].copyLineInfo(x[0]))
+      
+      connectCall
+    
+
+    # on property[] == value: body
+    elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on") and x[1].kind == nnkInfix and x[1][1].kind == nnkBracketExpr:
+      let cond = x[1]
+      let property = x[1][1]
+      let body = x[2]
+
+      let connectCall = nnkCall.newTree(
+        bindSym("connectTo"),
+        nnkDotExpr.newTree(property[0], ident("changed")),
+        ident "this",
+        nnkIfStmt.newTree(
+          nnkElifBranch.newTree(
+            cond,
+            body,
+          )
+        )
+      )
+      (connectCall[0].copyLineInfo(x[0]))
+      
+      connectCall
+
+
+    # on event: body
+    elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on"):
+      let event = x[1]
+      let body = x[2]
+
+      let connectCall = nnkCall.newTree(
+        bindSym("connectTo"),
+        event,
+        ident "this",
+        body
+      )
+      (connectCall[0].copyLineInfo(x[0]))
+      
+      connectCall
+
+
+    # on event, varname: body
+    elif x.kind == nnkCommand and x.len == 4 and x[0].eqIdent("on"):
+      let event = x[1]
+      let varname = x[2]
+      let body = x[3]
+
+      let connectCall = nnkCall.newTree(
+        bindSym("connectTo"),
+        event,
+        varname,
+        ident "this",
+        body
+      )
+      (connectCall[0].copyLineInfo(x[0]))
+      
+      connectCall
+
+    
+    # capture a, b=c, ...: body
+    # capture(a, b=c, ...): body
+    elif x.kind in CallNodes and x.len >= 3 and x[0].eqIdent("capture"):
+      var fwd: seq[NimNode]
+      (makeLayoutTrFwd(x[^1], fwd))
+      x.kind.newTree(
+        @[
+          x[0],
+          ident("parent"),
+          ident("this"),
+        ] &
+        x[1..^2] &
+        makeLayoutTr(ident("parent"), ident("this"), x[^1], c)
+      )
+    
+
+    else:
+      x
+
+
+
+proc makeLayoutTr(parent: NimNode, obj: NimNode, body: NimNode, c: MkLayoutContext): NimNode =
+  let makeLayoutCaptureSym = genSym(nskProc, "makeLayoutCapture")
+  makeLayoutCaptureSym.copyLineInfo(obj)
+
+  result = buildAst blockStmt:
+    genSym(nskLabel, "initializationBlock")
+    stmtList:
+      procDef:
+        makeLayoutCaptureSym
+        newEmptyNode(); newEmptyNode()
+        nnkFormalParams.newTree(
+          newEmptyNode(),
+          nnkIdentDefs.newTree(ident "parent", nnkCall.newTree(bindSym"typeof", parent), newEmptyNode()),
+          nnkIdentDefs.newTree(ident "this", nnkCall.newTree(bindSym"typeof", obj), newEmptyNode()),
+        )
+        newEmptyNode(); newEmptyNode()
+        
+        stmtList:
+          nnkCall.newTree(ident"initIfNeeded", ident "this")
+
+          for x in body:
+            makeLayoutTrStmt(x, c)
+
+      call:
+        makeLayoutCaptureSym
+        parent
+        obj
+
+
+
 macro makeLayout*(obj: Uiobj, body: untyped) =
   ## tip: use a.makeLauyout(-soMeFuN()) instead of (let b = soMeFuN(); a.addChild(b); init b)
   ## 
@@ -215,556 +753,16 @@ macro makeLayout*(obj: Uiobj, body: untyped) =
   ##   
   ##     - c:
   ##       this.fill(parent)
-
-
-  proc implFwd(body: NimNode, res: var seq[NimNode]) =
-    for x in body:
-      # - ctor: body
-      if x.kind == nnkPrefix and x.len == 3 and x[0] == ident("-"):
-        implFwd(x[2] #[ body ]#, res)
-
-
-      # - ctor as path.to.alias: body
-      elif (
-        x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("as") and
-        x[1].kind == nnkPrefix and x[1][0] == ident("-") and
-        x[2].kind notin {nnkIdent, nnkAccQuoted, nnkSym}
-      ):
-        res.add nnkAsgn.newTree(
-          x[2] #[ alias ]#,
-          x[1][1] #[ ctor ]#
-        )
-
-        if x.len == 4:
-          implFwd(x[3] #[ body ]#, res)
-
-
-      # - ctor as alias: body
-      elif (
-        x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("as") and
-        x[1].kind == nnkPrefix and x[1][0] == ident("-")
-      ):
-        res.add nnkLetSection.newTree(
-          nnkIdentDefs.newTree(
-            x[2] #[ alias ]#,
-            newEmptyNode(),
-            x[1][1] #[ ctor ]#
-          )
-        )
-
-        if x.len == 4:
-          implFwd(x[3] #[ body ]#, res)
-
-
-  proc impl(parent: NimNode, obj: NimNode, body: NimNode, c: MkLayoutContext): NimNode =
-    proc checkCtor(ctor: NimNode): bool =
-      if ctor == ident "root": warning("adding root to itself causes recursion", ctor)
-      if ctor == ident "this": warning("adding this to itself causes recursion", ctor)
-      if ctor == ident "parent": warning("adding parent to itself causes recursion", ctor)
-      if ctor.kind == nnkCall and ctor[0].kind == nnkIdent and ctor[0].strVal[0].isUpperAscii and ctor.len == 1:
-        warning("default nim constructor cannot be overloaded, please prefer using " & ctor[0].strVal & ".new, new " & ctor[0].strVal & " or new" & ctor[0].strVal & "()", ctor)
-
-    proc changableImpl(prop, ctor, body: NimNode): NimNode =
-      discard checkCtor ctor
-
-      var updateBody = newStmtList()
-      var updaters = newStmtList()
-
-      let this = ident("this")
-      let parent = ident("parent")
-      let updateProc = genSym(nskProc, "updateProc")
-
-      updateBody.add quote do:
-        initIfNeeded(`this`)
-
-      if body != nil:
-        var c = c
-        c.changableChild = prop
-        c.changableChildCtor = ctor
-        c.changableChildUpdaters = updaters
-        updateBody.add impl(ident("parent"), ident("this"), body, c)
-      
-      updateBody.add quote do:
-        markCompleted(`this`)
-    
-      let addingToParent =
-        if ctor == nil:  # called by `+ accessor[]: body`, adding to parent is not needed
-          newEmptyNode()
-        else:
-          quote do: `prop` = addChangableChild(`this`, `ctor`)
-
-      result = quote do:
-        block changableChildInit:
-          `addingToParent`
-
-          proc `updateProc`(`parent`: typeof(`this`), `this`: typeof(`prop`[])) =
-            `updateBody`
-
-          connect(
-            `prop`.changed, `this`.eventHandler,
-            proc() = `updateProc`(`this`, `prop`[])
-          )
-
-          emit(`prop`.changed)
-
-          `updaters`
-
-    let makeLayoutCaptureSym = genSym(nskProc, "makeLayoutCapture")
-    makeLayoutCaptureSym.copyLineInfo(obj)
-
-    result = buildAst blockStmt:
-      genSym(nskLabel, "initializationBlock")
-      stmtList:
-        procDef:
-          makeLayoutCaptureSym
-          newEmptyNode(); newEmptyNode()
-          nnkFormalParams.newTree(
-            newEmptyNode(),
-            nnkIdentDefs.newTree(ident "parent", nnkCall.newTree(bindSym"typeof", parent), newEmptyNode()),
-            nnkIdentDefs.newTree(ident "this", nnkCall.newTree(bindSym"typeof", obj), newEmptyNode()),
-          )
-          newEmptyNode(); newEmptyNode()
-          
-          stmtList:
-            nnkCall.newTree(ident"initIfNeeded", ident "this")
-
-            for x in body:
-              # - ctor: body
-              if (
-                x.kind == nnkPrefix and x.len in 2..3 and x[0] == ident("-")
-              ):
-                let ctor = x[1]
-                discard checkCtor ctor
-                let alias = genSym(nskLet, "unnamedObj")
-                letSection:
-                  identDefs(alias, empty(), ctor)
-                call(ident"addChild", ident "this", alias)
-                
-                if x.len == 2:
-                  call(ident"initIfNeeded", alias)
-                  call(ident("markCompleted"), alias)
-                else:
-                  let body = x[2]
-                  impl(ident "this", alias, body, c)
-                  call(ident("markCompleted"), alias)
-
-
-              # - ctor as alias: body
-              elif (
-                x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("as") and
-                x[1].kind == nnkPrefix and x[1][0] == ident("-")
-              ):
-                let ctor = x[1][1]
-                let alias = x[2]
-                discard checkCtor ctor
-                call(ident"addChild", ident "this", alias)
-                
-                if x.len == 3:
-                  call(ident"initIfNeeded", alias)
-                  call(ident("markCompleted"), alias)
-                else:
-                  let body = x[3]
-                  impl(ident "this", alias, body, c)
-                  call(ident("markCompleted"), alias)
-              
-
-              # todo: ctor {.param: val.}: body
-              # todo: ctor {.param: val.} as alias: body
-
-
-              # to --- ctor: body
-              elif (
-                x.kind == nnkInfix and x.len in 3..4 and x[0] == ident("---")
-              ):
-                let to = x[1]
-                let ctor = x[2]
-                discard checkCtor ctor
-                changableImpl(to, ctor, (if x.len == 3: nil else: x[3]))
-              
-
-              # --- ctor: body
-              elif (
-                x.kind == nnkPrefix and x.len == 3 and x[0] == ident("---")
-              ):
-                let ctor = x[1]
-                let anonimusChangableChild = nskVar.genSym("anonimusChangableChild")
-                discard checkCtor ctor
-
-                # var `anonimusChangableChild`: ChangableChild[typeof(`ctor`)]
-                nnkVarSection.newTree(
-                  nnkIdentDefs.newTree(
-                    anonimusChangableChild,
-                    nnkBracketExpr.newTree(
-                      newIdentNode("ChangableChild"),
-                      nnkCall.newTree(
-                        newIdentNode("typeof"),
-                        ctor
-                      )
-                    ),
-                    newEmptyNode()
-                  )
-                )
-
-                changableImpl(anonimusChangableChild, ctor, x[2])
-              
-
-              # todo: to --- {inline}: body
-              # todo: --- {inline}: body
-
-              
-              # <--- ctor: triggers
-              elif (
-                x.kind == nnkPrefix and x.len == 3 and x[0] == ident("<---")
-              ):
-                let ctor =
-                  if x[1].kind == nnkCurly and x[1].len == 1 and x[1][0] == ident("update"):
-                    # <--- {update}: triggers
-                    c.changableChildCtor
-                  else:
-                    x[1] #[ ctor ]#
-                
-                let triggers = x[2]
-                
-                if c.changableChild.kind == nnkEmpty:
-                  (error("Must be inside changable child", x))
-
-                c.changableChildUpdaters.add:
-                  buildAst:
-                    call bindSym("bindingChangableChild"):
-                      ident "this"
-                      bracketExpr:
-                        c.changableChild
-                      triggers
-                      ctor
-
-              
-              # + accessor[]: body
-              elif (
-                x.kind == nnkPrefix and x.len in 2..3 and x[0] == ident("+") and x[1].kind == nnkBracketExpr and x[1].len == 1
-              ):
-                # connect to accessor.changed, then immediatly and each time accessor changed,
-                # operate on object, accessed by `accessor`, with this/parent logic, without actually adding it to parent
-                let accessor = x[1][0]
-                changableImpl(accessor, nil, (if x.len == 2: nil else: x[2]))
-
-
-              # + accessor: body
-              elif (
-                x.kind == nnkPrefix and x.len in 2..3 and x[0] == ident("+")
-              ):
-                # operate on object, accessed by `accessor`, with this/parent logic, without actually adding it to parent
-                let accessor = x[1]
-                let alias = genSym(nskLet)
-                letSection:
-                  identDefs(alias, empty(), accessor)
-                
-                if x.len == 2:
-                  call(ident"initIfNeeded", alias)
-                else:
-                  let body = x[2]
-                  impl(ident "this", alias, body, c)
-              
-
-              # binding: body
-              elif x.kind in {nnkCommand, nnkCall} and x.len == 2 and x[0] == ident("binding"):
-                let body = x[1]
-                nnkCall.newTree(bindSym("binding"), ident("this"), body)
-
-
-              # prop := val
-              # prop = binding: val
-              elif (
-                var name, val, eh: NimNode
-                
-                # prop := val
-                if x.kind == nnkInfix and x.len == 3 and x[0] == ident(":="):
-                  name = x[1]
-                  val = x[2]
-                  eh = ident("this")
-                  true
-                
-                # prop = binding: val
-                elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1].len == 2 and x[1][0] == ident("binding"):
-                  name = x[0]
-                  val = x[1][1]
-                  eh = ident("this")
-                  true
-                
-                # prop = binding(eh): val
-                elif x.kind == nnkAsgn and x[1].kind in {nnkCommand, nnkCall} and x[1].len == 3 and x[1][0] == ident("binding"):
-                  name = x[0]
-                  val = x[1][2]
-                  eh = x[1][1]
-                  true
-                
-                else: false
-              ):
-                if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:  # name should be resolved to this.name[]
-                  call bindSym("bindingValue"):
-                    eh
-                    bracketExpr:
-                      dotExpr(ident("this"), name)
-                    val
-                else:  # name should be as is
-                  call bindSym("bindingValue"):
-                    eh
-                    name
-                    val
-              
-
-              # name = val
-              elif (
-                x.kind == nnkAsgn and x[0].kind == nnkIdent
-              ):
-                # todo: add setters (`prop=`) for each property and unify syntax for procs, field and properties on this
-                let name = x[0]
-                let val = x[1]
-
-                let asgnProperty = nnkAsgn.newTree(
-                  nnkBracketExpr.newTree(
-                    nnkDotExpr.newTree(ident("this"), name),
-                  ),
-                  val
-                )
-
-                var asgnField = nnkAsgn.newTree(
-                  nnkDotExpr.newTree(ident("this"), name),
-                  val
-                )
-
-                var asgnSimple = nnkAsgn.newTree(
-                  name,
-                  val
-                )
-
-                if name.kind in {nnkIdent, nnkSym, nnkAccQuoted}:
-                  if $name notin ["drawLayer", "layer", "top", "left", "bottom", "right", "centerX", "centerY"]:
-                    asgnField = nnkStmtList.newTree(
-                      asgnField,
-                      nnkPragma.newTree(
-                        nnkExprColonExpr.newTree(
-                          ident("warning"),
-                          newLit("ambiguous assignment, use `this.field_name = ...` instead. The `property_name = ...` syntax is for properties on this")
-                        )
-                      )
-                    )
-
-                  asgnSimple = nnkStmtList.newTree(
-                    asgnSimple,
-                    nnkPragma.newTree(
-                      nnkExprColonExpr.newTree(
-                        ident("warning"),
-                        newLit("ambiguous assignment, use (var_name) = ... instead. The `property_name = ...` syntax is for properties on this")
-                      )
-                    )
-                  )
-
-                let selector = nnkWhenStmt.newTree(
-                  nnkElifBranch.newTree(
-                    nnkCall.newTree(bindSym("compiles"), asgnProperty.copy),
-                    asgnProperty
-                  ),
-                  nnkElifBranch.newTree(
-                    nnkCall.newTree(bindSym("compiles"), asgnField.copy),
-                    asgnField
-                  ),
-                  nnkElifBranch.newTree(
-                    nnkCall.newTree(bindSym("compiles"), asgnSimple.copy),
-                    asgnSimple
-                  ),
-                  nnkElse.newTree(
-                    asgnProperty
-                  )
-                )
-                
-                (asgnProperty.copyLineInfo(x))
-                (asgnProperty[0].copyLineInfo(x))
-                (asgnField.copyLineInfo(x))
-                (asgnSimple.copyLineInfo(x))
-
-                (selector[0][0].copyLineInfo(selector[0][0][0]))
-                (selector[1][0].copyLineInfo(selector[1][0][0]))
-                (selector[2][0].copyLineInfo(selector[2][0][0]))
-
-                selector
-            
-
-              # for x in y: body
-              elif x.kind == nnkForStmt:
-                forStmt:
-                  for y in x[0..^2]: y
-                  call:
-                    par:
-                      lambda:
-                        empty()
-                        empty(); empty()
-                        formalParams:
-                          empty()
-                          for param in x[0..^3]:
-                            identDefs:
-                              param
-                              call:
-                                ident("typeof")
-                                param
-                              empty()
-                        empty(); empty()
-                        stmtList:
-                          var fwd: seq[NimNode]
-                          (implFwd(x[^1], fwd))
-                          for x in fwd: x
-                          impl(ident "parent", ident "this", x[^1], c)
-                    
-                    for param in x[0..^3]:
-                      param
-
-
-              # if x: body
-              # when x: body
-              elif x.kind in {nnkIfStmt, nnkWhenStmt}:
-                var branches: seq[NimNode]
-                for branch in x.children:
-                  branch[^1] = buildAst:
-                    stmtList:
-                      var fwd: seq[NimNode]
-                      (implFwd(branch[^1], fwd))
-                      for x in fwd: x
-                      impl(ident "parent", ident "this", branch[^1], c)
-                  branches.add branch
-                
-                x.kind.newTree(branches)
-
-
-              # case x:
-              # of y: body
-              elif x.kind == nnkCaseStmt:
-                caseStmt:
-                  x[0]
-
-                  for x in x[1..^1]:
-                    x[^1] = buildAst:
-                      stmtList:
-                        var fwd: seq[NimNode]
-                        (implFwd(x[^1], fwd))
-                        for x in fwd: x
-                        impl(ident "parent", ident "this", x[^1], c)
-                    x
-
-
-              # on SignalType: body
-              elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on") and x[1].kind == nnkIdent and x[1].strVal[0].isUpperAscii:
-                let signalType = x[1]
-                let signalUntypedIdent = ident("signalUntyped")
-                
-                let body = nnkCall.newTree(
-                  bindSym("match", brOpen),
-                  signalUntypedIdent,
-                  signalType,
-                  x[2],
-                )
-
-                let connectCall = nnkCall.newTree(
-                  bindSym("connectTo"),
-                  nnkDotExpr.newTree(ident("this"), ident("gotSignal")),
-                  ident("this"),
-                  signalUntypedIdent,
-                  body,
-                )
-                (connectCall[0].copyLineInfo(x[0]))
-                
-                connectCall
-              
-
-              # on property[] == value: body
-              elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on") and x[1].kind == nnkInfix and x[1][1].kind == nnkBracketExpr:
-                let cond = x[1]
-                let property = x[1][1]
-                let body = x[2]
-
-                let connectCall = nnkCall.newTree(
-                  bindSym("connectTo"),
-                  nnkDotExpr.newTree(property[0], ident("changed")),
-                  ident "this",
-                  nnkIfStmt.newTree(
-                    nnkElifBranch.newTree(
-                      cond,
-                      body,
-                    )
-                  )
-                )
-                (connectCall[0].copyLineInfo(x[0]))
-                
-                connectCall
-
-
-              # on event: body
-              elif x.kind == nnkCommand and x.len == 3 and x[0].eqIdent("on"):
-                let event = x[1]
-                let body = x[2]
-
-                let connectCall = nnkCall.newTree(
-                  bindSym("connectTo"),
-                  event,
-                  ident "this",
-                  body
-                )
-                (connectCall[0].copyLineInfo(x[0]))
-                
-                connectCall
-
-
-              # on event, varname: body
-              elif x.kind == nnkCommand and x.len == 4 and x[0].eqIdent("on"):
-                let event = x[1]
-                let varname = x[2]
-                let body = x[3]
-
-                let connectCall = nnkCall.newTree(
-                  bindSym("connectTo"),
-                  event,
-                  varname,
-                  ident "this",
-                  body
-                )
-                (connectCall[0].copyLineInfo(x[0]))
-                
-                connectCall
-
-              
-              # capture a, b=c, ...: body
-              # capture(a, b=c, ...): body
-              elif x.kind in CallNodes and x.len >= 3 and x[0].eqIdent("capture"):
-                var fwd: seq[NimNode]
-                (implFwd(x[^1], fwd))
-                x.kind.newTree(
-                  @[
-                    x[0],
-                    ident("parent"),
-                    ident("this"),
-                  ] &
-                  x[1..^2] &
-                  impl(ident("parent"), ident("this"), x[^1], c)
-                )
-              
-
-              else:
-                x
-
-        call:
-          makeLayoutCaptureSym
-          parent
-          obj
-
-
   result = buildAst blockStmt:
     genSym(nskLabel, "makeLayoutBlock")
     stmtList:
       letSection:
         identDefs(pragmaExpr(ident "root", pragma ident "used"), empty(), obj)
       var fwd: seq[NimNode]
-      (implFwd(body, fwd))
+      (makeLayoutTrFwd(body, fwd))
       for x in fwd: x
       
-      impl(
+      makeLayoutTr(
         nnkDotExpr.newTree(ident "root", ident "parent"),
         ident "root",
         if body.kind == nnkStmtList: body else: newStmtList(body),
