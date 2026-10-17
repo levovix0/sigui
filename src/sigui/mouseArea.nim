@@ -45,6 +45,7 @@ type
       ## if mouse leaves the area with .pressed[] == true, this event will still trigger (until mouse button is released)
       ## event pos is relative to the window,
       ##   use `posToLocal(this)` to convert it to same coordinates as this.mouseXy, or use mouseXy directly
+      ## emits only on physical (non-fake) mouse moves
 
     cursor*: Property[ref Cursor]
       ## cursor for mouse when inside this area
@@ -127,12 +128,6 @@ proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal) =
 
   let d = this.globalXy
 
-  let xChanged = not almostEqual(this.mouseX[], e.pos.x.float32 - d.x)
-  let yChanged = not almostEqual(this.mouseY[], e.pos.y.float32 - d.y)
-
-  this.mouseX{} = e.pos.x.float32 - d.x
-  this.mouseY{} = e.pos.y.float32 - d.y
-
   if signal != nil and signal.WindowEvent.handled == false and signal.WindowEvent.fake == false:
     if this.pressed[]:
       if not this.grabbed[]:
@@ -140,11 +135,12 @@ proc handleMouseMoveEvent(this: MouseArea, e: MouseMoveEvent, signal: Signal) =
         if not this.allowEventFallthrough[]:
           signal.WindowEvent.handled = true
 
-  if xChanged: this.mouseX.changed.emit()
-  if yChanged: this.mouseY.changed.emit()
+  this.mouseX[] = e.pos.x.float32 - d.x
+  this.mouseY[] = e.pos.y.float32 - d.y
 
-  if this.hovered[] or this.pressed[]:
-    this.moved.emit(e)
+  if signal != nil and signal.WindowEvent.fake == false:
+    if this.hovered[] or this.pressed[]:
+      this.moved.emit(e)
 
 
 proc handleMouseButtonEvent(this: MouseArea, e: MouseButtonEvent, signal: Signal) =

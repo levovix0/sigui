@@ -24,7 +24,6 @@ type
 
     scrollSpeed*: /float = /100.0
     fitContent*: /bool = /true
-    scrollOverFit*: /float
     barMinSize*: /float = /20.0
     barShrinkedSize*: /float = /3.0
     barHideDelay*: /Duration = /1's
@@ -41,6 +40,7 @@ type
       ## has default animation
     verticalBarLastShown: /Time
     verticalBarShouldBeVisible: /bool
+    verticalScrollOverFit*: /float
 
     horizontalBar* {.cursor.}: UiRect
     horizontalBarArea*: MouseArea
@@ -48,6 +48,7 @@ type
       ## has default animation
     horizontalBarLastShown: /Time
     horizontalBarShouldBeVisible: /bool
+    horizontalScrollOverFit*: /float
 
 
 registerComponent ScrollArea
@@ -63,12 +64,12 @@ proc `padding=`*(this: ScrollArea, v: float32) =
 proc updateScrollH(this: ScrollArea) =
   if this.fitContent[]:
     let h = this.newChildsObject.childs.mapIt(it.y[] + it.h[]).max
-    this.scrollH[] = h + this.scrollOverFit[]
+    this.scrollH[] = h + this.verticalScrollOverFit[]
 
 proc updateScrollW(this: ScrollArea) =
   if this.fitContent[]:
     let w = this.newChildsObject.childs.mapIt(it.x[] + it.w[]).max
-    this.scrollW[] = w + this.scrollOverFit[]
+    this.scrollW[] = w + this.horizontalScrollOverFit[]
 
 
 method recieve*(this: ScrollArea, signal: Signal) =
@@ -91,11 +92,12 @@ method init*(this: ScrollArea) =
   procCall this.super.init
   let scrollArea = this
   
-  this.fitContent.changed.connectTo this: this.updateScrollH()
-  this.scrollOverFit.changed.connectTo this: this.updateScrollH()
+  this.fitContent.changed.connectTo this:
+    this.updateScrollH()
+    this.updateScrollW()
 
-  this.fitContent.changed.connectTo this: this.updateScrollW()
-  this.scrollOverFit.changed.connectTo this: this.updateScrollW()
+  this.verticalScrollOverFit.changed.connectTo this: this.updateScrollH()
+  this.horizontalScrollOverFit.changed.connectTo this: this.updateScrollW()
 
   this.root.onTick.connectTo this:
     if hideScrollBarWhenNotHoveredOrScrolled in scrollArea.settings[]:

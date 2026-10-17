@@ -99,6 +99,7 @@ type
     globalTransform*: Property[bool]
       ## if true, x and y of this object is relative to UiRoot's top-left courner,
       ## if false, relative to parent's top-left courner
+      ## todo: fix fill when globalTransform==true
 
     globalX*, globalY*: Property[float32]
       ## position, relative to UiRoot (the window)
@@ -280,8 +281,7 @@ proc globalXy*(obj: Uiobj): Vec2 =
   vec2(obj.globalX[], obj.globalY[])
 
 proc `globalXy=`*(obj: Uiobj, v: Vec2) =
-  obj.globalX[] = v.x
-  obj.globalY[] = v.y
+  obj.xy = obj.xy + (v - obj.globalXy)
 
 
 proc makeCopy[T](arr: var seq[T], cow: var ptr seq[T]) =
@@ -1379,6 +1379,7 @@ proc declareFormatFields(t: NimNode): NimNode =
     if typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("Event"): continue
     let typKind =
       if typ.kind == nnkSym and typ.strVal.eqIdent("Uiobj"): uiobjType  # todo: also check if type is inherited from Uiobj
+      elif typ.kind == nnkPrefix and typ.len == 2 and typ[0].kind in {nnkIdent, nnkSym} and typ[0].strVal.eqIdent("/"): propertyType
       elif typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("Property"): propertyType
       elif typ.kind == nnkBracketExpr and typ[0].kind == nnkSym and typ[0].strVal.eqIdent("CustomProperty"): customPropertyType
       else: otherType

@@ -60,7 +60,6 @@ method draw*(win: UiWindow, ctx: DrawContext) =
 proc render*(this: UiWindow) =
   ## draws one frame, same as a real window does on each RenderEvent
   this.siwinWindow.makeCurrent()
-  RiceDrawContext(this.ctx).raw.setCurrentDrawContext()
   this.recieve(BeforeDraw(sender: this, ctx: this.ctx))
   this.draw(this.ctx)
   this.ctx.finishRendering()

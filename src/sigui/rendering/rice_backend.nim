@@ -70,19 +70,19 @@ method loadImage*(ctx: RiceDrawContext, filepath: string): DrawContextImage =
   ## todo
 
 method newImage*(ctx: RiceDrawContext, size: IVec2): any.DrawContextImage =
-  result = RiceDrawContextImage(tex: ctx.raw.newTexture(), imageSize: size)
-  ctx.raw.loadTexture(result.RiceDrawContextImage.tex, size, nil)
+  result = RiceDrawContextImage(tex: newTexture(), imageSize: size)
+  loadTexture(result.RiceDrawContextImage.tex.raw, size, nil)
 
 method imageFromBuffer*(ctx: RiceDrawContext, size: IVec2, data: pointer): any.DrawContextImage =
   ## data is pointer to uint8 rgba pixels
-  result = RiceDrawContextImage(tex: ctx.raw.newTexture(), imageSize: size)
-  ctx.raw.loadTexture(result.RiceDrawContextImage.tex, size, data)
+  result = RiceDrawContextImage(tex: newTexture(), imageSize: size)
+  loadTexture(result.RiceDrawContextImage.tex.raw, size, data)
 
 method parseSvg*(ctx: RiceDrawContext, size: IVec2, data: string): any.DrawContextImage =
   if data == "": return nil
   let img = data.parseSvg(size.x, size.y).newImage
   RiceDrawContextImage(
-    tex: ctx.raw.newTexture(img),
+    tex: newTexture(img),
     imageSize: ivec2(img.width.int32, img.height.int32),
   )
 
@@ -223,7 +223,7 @@ method drawShadowRect*(
   blurRadius: float32,
   radius: float32 = 0,
 ) =
-  ctx.raw.drawShadowRect((rect.xy + ctx.raw.offset).round, rect.wh, color, blurRadius, radius)
+  ctx.raw.drawShadowRect((rect.xy + ctx.raw.offset).round, rect.wh, blurRadius, color, radius)
 
 
 #* ------------- clip rects ------------- *#
