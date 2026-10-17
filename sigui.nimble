@@ -1,17 +1,16 @@
-version       = "0.3.0"
+version       = "0.3.1"
 author        = "levovix0"
 description   = "Flexieble gui framework"
 license       = "MIT"
 srcDir        = "src"
 
-requires "nim >= 2.2.0"
+requires "nim >= 2.2.4"
 requires "fusion"  # to write macros using pattern matching
 requires "siwin >= 1.1.2"  # to make window
 
 requires "bumpy"  # for rects
 requires "rice == 0.1.8"  # for graphics
   # imples: requires "opengl"  # for graphics
-  # imples: requires "shady"  # for writing shaders in Nim istead of GLSL
   # imples: requires "pixie"  # for complex paths (like text and svg) rendering
 
 
