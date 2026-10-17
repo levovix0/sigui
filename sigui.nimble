@@ -4,7 +4,7 @@ description   = "Flexieble gui framework"
 license       = "MIT"
 srcDir        = "src"
 
-requires "nim >= 2.2.4"
+requires "nim >= 2.2.12"
 requires "fusion"  # to write macros using pattern matching
 requires "siwin >= 1.1.2"  # to make window
 
