@@ -427,6 +427,11 @@ method mouseState*(root: UiRoot): var Mouse {.base.} = dummyMouseState
 method keyboardState*(root: UiRoot): var Keyboard {.base.} = dummyKeyboardState
 method touchscreenState*(root: UiRoot): var TouchScreen {.base.} = dummyTouchscreenState
 
+method uiScale*(root: UiRoot): float32 {.base.} = 1
+  ## device pixels per logical pixel of the drawing area.
+  ## UI is laid out and drawn in logical pixels,
+  ## the draw backend scales it to device pixels for sharpness
+
 method `cursor=`*(root: UiRoot, v: Cursor) {.base.} = discard
 
 method clipboardText*(root: UiRoot): string {.base.} = discard

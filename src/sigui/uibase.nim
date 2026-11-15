@@ -152,17 +152,26 @@ method init*(this: UiSvgImage) =
 
   var prevSize = ivec2(0, 0)
   proc updateTexture(size = ivec2()) =
-    let sz =
+    let s = this.root.uiScale
+    let szLogical =
       if size.x > 0 and size.y > 0: size
       elif this.w[].int32 > 0 and this.h[].int32 > 0: this.wh.ivec2
       else: ivec2(0, 0)
-    
+
     prevSize = size
-    
+
     if this.image[] != "":
-      this.tex = this.root.ctx.parseSvg(sz, this.image[])
-      this.imageWh[] = this.tex.size
-      this.wh = this.tex.size.vec2
+      if szLogical.x > 0 and szLogical.y > 0:
+        # render at device resolution so the image is sharp on HiDPI displays
+        let sz = ivec2((szLogical.x.float32 * s).round.int32, (szLogical.y.float32 * s).round.int32)
+        this.tex = this.root.ctx.parseSvg(sz, this.image[])
+        this.imageWh[] = this.tex.size
+        this.wh = this.tex.size.vec2 / s
+      else:
+        # size is not known yet, render at the SVG's intrinsic (logical) size
+        this.tex = this.root.ctx.parseSvg(ivec2(0, 0), this.image[])
+        this.imageWh[] = this.tex.size
+        this.wh = this.tex.size.vec2
 
   this.image.changed.connectTo this: updateTexture()
   this.w.changed.connectTo this: updateTexture(this.wh.ceil.ivec2)

@@ -475,7 +475,8 @@ proc handlePickSignal(this: Inspector, signal: Signal) =
 
     elif ev of MouseButtonEvent:
       let e = ((ref MouseButtonEvent)ev)[]
-      let hit = this.pickHitTest(e.window.mouse.pos)
+      # e.window.mouse is in device pixels; mouseState is in logical pixels
+      let hit = this.pickHitTest(we.sender.UiWindow.mouseState.pos)
 
       if e.pressed:
         # block the application, but let the clicks into the inspector itself

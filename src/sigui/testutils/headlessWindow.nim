@@ -18,7 +18,8 @@ type
     ## Mouse/keyboard state is not driven by any real device, input can only be emulated
     ## using procedures from this module.
     m_size*: IVec2
-      ## size of the drawing area in pixels
+      ## size of the drawing area in device pixels
+      ## (in logical pixels it is `size / uiScale`)
 
     fbo: GlUint
     fboTexture: GlUint
@@ -27,7 +28,10 @@ type
 var headlessGlobals: SiwinGlobals
 
 
-proc setupOffscreenFramebuffer(this: HeadlessUiWindow, size: IVec2) =
+proc setupOffscreenFramebuffer*(this: HeadlessUiWindow, size: IVec2) =
+  ## (re)creates the offscreen framebuffer of `size` device pixels.
+  ## set `this.uiScale` before calling to emulate a HiDPI display
+  let s = max(this.uiScale, 0.0001'f32)
   let raw = this.ctx.RiceDrawContext.raw
 
   if this.fbo != 0:
@@ -50,13 +54,17 @@ proc setupOffscreenFramebuffer(this: HeadlessUiWindow, size: IVec2) =
   raw.fbo = this.fbo
   raw.fboSize = size
   raw.updateDrawingAreaSize(size)
-  raw.projection = translate(vec3(-1, 1, 0)) * scale(vec3(2 / size.x.float32, -2 / size.y.float32, 1))
+  # same projection as the real window backend: logical [0 .. size/s] mapped to [-1 .. 1]
+  this.ctx.scale = s
+  raw.projection = translate(vec3(-1, 1, 0)) * scale(vec3(2 * s / size.x.float32, -2 * s / size.y.float32, 1))
 
-  this.wh = size.vec2
+  this.wh = size.vec2 / s
 
 
 proc newHeadlessUiWindow*(size = ivec2(800, 600)): HeadlessUiWindow =
-  ## creates a UiWindow with an offscreen OpenGL drawing area of the given size.
+  ## creates a UiWindow with an offscreen OpenGL drawing area of the given size (in device pixels).
+  ## `uiScale` can be set before the first render to emulate a HiDPI display:
+  ## then components are laid out in `size / uiScale` logical pixels.
   ## no window appears on the screen
   if headlessGlobals == nil:
     # siwin does not support offscreen contexts on wayland yet, use x11 (XWayland works fine)
@@ -66,8 +74,9 @@ proc newHeadlessUiWindow*(size = ivec2(800, 600)): HeadlessUiWindow =
 
   result.siwinWindow = headlessGlobals.newOpenglContext()
   loadExtensions()
-  result.setupEventsHandling()
   result.ctx = newRiceDrawContext()
+  result.updateUiScale()
+  result.setupEventsHandling()
   result.parentRoot = result
   result.m_size = size
   result.setupOffscreenFramebuffer(size)

@@ -149,7 +149,8 @@ proc handleMouseButtonEvent(this: MouseArea, e: MouseButtonEvent, signal: Signal
       if this.hovered[]:
         this.pressedButtons.incl e.button
         this.pressed[] = true
-        this.pressWindowPos = e.window.mouse.pos
+        # e.window.mouse is in device pixels, mouseState is in logical pixels
+        this.pressWindowPos = this.root.mouseState.pos
         if not this.allowEventFallthrough[]:
           signal.WindowEvent.handled = true
     else:

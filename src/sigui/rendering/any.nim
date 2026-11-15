@@ -13,6 +13,11 @@ export paths, fonts
 
 type
   DrawContext* = ref object of RootObj
+    ## all drawing coordinates are in logical pixels,
+    ## the backend scales them by `scale` to device (physical) pixels
+
+    scale*: float32 = 1
+      ## device pixels per logical pixel (UI scale factor, e.g. 1.5 on HiDPI displays)
 
   DrawContextImage* = ref object of RootObj
     ## (Texture from rice). An image, uploaded onto DrawContext (on GPU)

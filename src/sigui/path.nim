@@ -115,7 +115,8 @@ when isMainModule:
 
       proc move =
         if not this.grabbed[]: return
-        angle[] = startAngle + (this.pressWindowPos - path.xy).signedAngleTo(this.parentWindow.mouse.pos - path.xy)
+        # mouseState is in logical pixels, same as pressWindowPos
+        angle[] = startAngle + (this.pressWindowPos - path.xy).signedAngleTo(this.root.mouseState.pos - path.xy)
 
       on this.mouseX.changed: move()
       on this.mouseY.changed: move()
