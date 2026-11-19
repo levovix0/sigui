@@ -45,10 +45,6 @@ type
 
 #* ------------- window ------------- *#
 
-proc scaleOf(ctx: RiceDrawContext): float32 {.inline.} =
-  ## device pixels per logical pixel
-  max(ctx.scale, 0.0001'f32)
-
 proc snappedToDevice(v: Vec2, s: float32): Vec2 {.inline.} =
   ## snaps a logical coordinate to the device pixel grid (result is in logical pixels)
   (v * s).round / s
@@ -56,7 +52,6 @@ proc snappedToDevice(v: Vec2, s: float32): Vec2 {.inline.} =
 
 method resize*(ctx: RiceDrawContext, size: IVec2) =
   ## `size` is the size of the drawing area in device pixels
-  let s = ctx.scaleOf
   glViewport 0, 0, size.x, size.y
   assert ctx.raw.fbo == 0
   ctx.raw.fboSize = size
@@ -64,7 +59,7 @@ method resize*(ctx: RiceDrawContext, size: IVec2) =
 
   # logical coordinates of the [0 .. size/s] range are mapped to [-1 .. 1]
   ctx.raw.projection = combine(
-    scale(vec3(2 * s / size.x.float32, -2 * s / size.y.float32, 1)),
+    scale(vec3(2 * ctx.scale / size.x.float32, -2 * ctx.scale / size.y.float32, 1)),
     translate(vec3(-1, 1, 0)),
   )
 
@@ -115,15 +110,14 @@ proc computeBounds_impl*(arrangement: Arrangement): Rect {.exportc: "sigui_pixie
   fontpoly.computeBounds(arrangement)
 
 
-proc rasterFontForDrawing(ctx: RiceDrawContext, font: Font): Font {.inline.} =
+proc scale(ctx: RiceDrawContext, font: Font): Font {.inline.} =
   ## font for glyph rasterization: glyphs are rasterized at device resolution,
   ## so the font size must be scaled by the UI scale
-  let s = ctx.scaleOf
-  if s == 1'f32: font
-  else: font.typeface.withSize(font.size * s)
+  if ctx.scale.almostEqual(1): font
+  else: font.typeface.withSize(font.size * ctx.scale)
 
 
-method drawRasterText*(
+method drawRasterText_physicalScale*(
   ctx: RiceDrawContext,
   pos: Vec2,
   arrangement: Arrangement,
@@ -132,29 +126,13 @@ method drawRasterText*(
   exactBoundaries = false,
   transform = mat4(),
 ) =
+  ## for optimization reasons, this proc works in physical scale instead of logical
   if arrangement == nil or arrangement.fonts.len == 0: return
 
-  let s = ctx.scaleOf
-  var raw = ctx.raw.startRasterTextDrawing(ctx.rasterFontForDrawing(arrangement.fonts[0]))
-  raw.color.uniform = color.vec4
-
-  let posNdc = ctx.raw.viewportToGlMatrix * transform * snappedToDevice(pos + ctx.raw.offset, s).vec3(0)
-  let box = fontpoly.computeBounds(arrangement)  # logical pixels; todo: computeBounds is slow
-
-  let offset =
-    if exactBoundaries: (vec2(box.x, -box.y) + vec2(box.w, -box.h) * origin) * s
-    else: (vec2(box.w + box.x, -(box.h + box.y)) * origin) * s
-
-  for i, rune in arrangement.runes:
-    let selectionRect = arrangement.selectionRects[i]
-    let glyphOffset = (vec2(selectionRect.x, -selectionRect.y) * s).round
-    ctx.raw.fastRasterDrawRune(
-      rune,
-      rect(posNdc.xy + glyphOffset * ctx.raw.px - offset * ctx.raw.px, selectionRect.wh * s),
-      raw,
-    )
-
-  ctx.raw.endRasterTextDrawing()
+  ctx.raw.drawRasterText(
+    (pos + ctx.raw.offset).snappedToDevice(ctx.scale).vec3(0), arrangement, color.vec4,
+    origin, exactBoundaries, transform,
+  )
 
 
 method startRasterTextDrawing*(
@@ -162,8 +140,8 @@ method startRasterTextDrawing*(
   font: Font,
   origin: Vec2,
 ): any.TextDrawContext =
-  let res = RiceTextDrawContext(raw: ctx.raw.startRasterTextDrawing(ctx.rasterFontForDrawing(font)))
-  res.pos = (ctx.raw.viewportToGlMatrix * snappedToDevice(origin + ctx.raw.offset, ctx.scaleOf).vec3(0)).xy
+  let res = RiceTextDrawContext(raw: ctx.raw.startRasterTextDrawing(ctx.scale(font)))
+  res.pos = (ctx.raw.viewportToGlMatrix * (origin + ctx.raw.offset).snappedToDevice(ctx.scale).vec3(0)).xy
   res
 
 method endRasterTextDrawing*(ctx: RiceDrawContext) =
@@ -175,13 +153,12 @@ method fastRasterDrawRune*(
   rect: Rect,
   context: any.TextDrawContext,
 ) =
-  ## `rect` is in logical pixels; xy is the glyph offset relative to
-  ## the origin that was passed to startRasterTextDrawing
-  let s = ctx.scaleOf
-  let glyphOffset = (vec2(rect.x, -rect.y) * s).round
+  ## `rect` is in logical pixels;
+  ## xy is the glyph offset relative to the origin that was passed to startRasterTextDrawing
+  let glyphOffset = (vec2(rect.x, -rect.y) * ctx.scale).round
   ctx.raw.fastRasterDrawRune(
     rune,
-    rect(context.RiceTextDrawContext.pos + glyphOffset * ctx.raw.px, rect.wh * s),
+    rect(context.RiceTextDrawContext.pos + glyphOffset * ctx.raw.px, rect.wh * ctx.scale),
     context.RiceTextDrawContext.raw,
   )
 
@@ -198,9 +175,9 @@ method fillRect*(
   radius: float32 = 0,
   blend: bool = true,
 ) =
-  let s = ctx.scaleOf
   ctx.raw.fillRect(
-    ((rect.xy + ctx.raw.offset) * s).round, rect.wh * s, color, radius * s, blend
+    ((rect.xy + ctx.raw.offset) * ctx.scale).round, rect.wh * ctx.scale,
+    color, radius * ctx.scale, blend,
   )
 
 method drawRect*(
@@ -212,7 +189,6 @@ method drawRect*(
   blend: bool = true,
   dashingPattern: array[2, float32] = [1'f32, 0],
 ) =
-  let s = ctx.scaleOf
   if dashingPattern[0] > 0 and dashingPattern[1] > 0 and thickness > 0:
     # dashed border, drawn as a stroke of a rounded rect path with dashes
     # todo: antialiasing
@@ -234,7 +210,8 @@ method drawRect*(
 
   else:
     ctx.raw.drawRect(
-      ((rect.xy + ctx.raw.offset) * s).round, rect.wh * s, color, thickness * s, radius * s, blend
+      ((rect.xy + ctx.raw.offset) * ctx.scale).round, (rect.wh * ctx.scale).round,
+      color, thickness, radius * ctx.scale, blend,
     )
 
 method drawImage*(
@@ -248,10 +225,10 @@ method drawImage*(
   imagePos = vec2(),
   imageSize = vec2(),
 ) =
-  let s = ctx.scaleOf
   ctx.raw.drawImage(
-    ((rect.xy + ctx.raw.offset) * s).round, rect.wh * s, image.RiceDrawContextImage.tex.raw, color,
-    radius * s, blend, flipY = flipY, imagePos = imagePos, imageSize = imageSize,
+    ((rect.xy + ctx.raw.offset) * ctx.scale).round, rect.wh * ctx.scale,
+    image.RiceDrawContextImage.tex.raw, color,
+    radius * ctx.scale, blend, flipY = flipY, imagePos = imagePos, imageSize = imageSize,
   )
 
 method drawIcon*(
@@ -263,9 +240,9 @@ method drawIcon*(
   flipY = false,
 ) =
   # todo: rice drawIcon does not support flipY
-  let s = ctx.scaleOf
   ctx.raw.drawIcon(
-    ((rect.xy + ctx.raw.offset) * s).round, rect.wh * s, mask.RiceDrawContextImage.tex.raw, color, radius * s, true, 0'f32
+    ((rect.xy + ctx.raw.offset) * ctx.scale).round, rect.wh * ctx.scale,
+    mask.RiceDrawContextImage.tex.raw, color, radius * ctx.scale, true, 0'f32
   )
 
 method drawShadowRect*(
@@ -275,9 +252,9 @@ method drawShadowRect*(
   blurRadius: float32,
   radius: float32 = 0,
 ) =
-  let s = ctx.scaleOf
   ctx.raw.drawShadowRect(
-    ((rect.xy + ctx.raw.offset) * s).round, rect.wh * s, blurRadius * s, color, radius * s
+    ((rect.xy + ctx.raw.offset) * ctx.scale).round, rect.wh * ctx.scale,
+    blurRadius * ctx.scale, color, radius * ctx.scale
   )
 
 
@@ -289,9 +266,8 @@ method pushClipRect*(
   radius: float32 = 0,
 ) =
   # todo: if radius = 0, use glViewport for clipping
-  let s = ctx.scaleOf
   # the framebuffer content is in device pixels for sharpness
-  let sizeI = ivec2((rect.w * s).round.int32, (rect.h * s).round.int32)
+  let sizeI = (rect.wh * ctx.scale).round.ivec2
   let ef = ctx.raw.requireFrameBuffer(sizeI)
   let psh = ctx.raw.push ef
 
@@ -302,7 +278,7 @@ method pushClipRect*(
   ctx.raw.offset = -rect.xy
   # logical coordinates of the [0 .. rect.wh] range are mapped to the framebuffer [-1 .. 1]
   ctx.raw.projection = combine(
-    scale(vec3(2 * s / sizeI.x.float32, -2 * s / sizeI.y.float32, 1)),
+    scale(vec3(2 * ctx.scale / sizeI.x.float32, -2 * ctx.scale / sizeI.y.float32, 1)),
     translate(vec3(-1, 1, 0)),
   )
 
@@ -318,15 +294,15 @@ method pushClipRect*(
 
 method popClipRect*(ctx: RiceDrawContext) =
   let state = ctx.clipStack.pop()
-  let s = ctx.scaleOf
   ctx.raw.pop state.psh
   ctx.raw.free state.ef
   ctx.raw.offset = state.prevOffset
   ctx.raw.projection = state.prevProjectionMatrix
 
   ctx.raw.drawImage(
-    ((state.pos + ctx.raw.offset) * s).round, state.size * s, state.ef.tex.raw, color(1, 1, 1, 1),
-    state.radius * s, true, flipY = true, imageSize = state.ef.size.vec2,
+    ((state.pos + ctx.raw.offset) * ctx.scale).round, state.size * ctx.scale,
+    state.ef.tex.raw, color(1, 1, 1, 1),
+    state.radius * ctx.scale, true, flipY = true, imageSize = state.ef.size.vec2,
   )
 
 
@@ -351,7 +327,7 @@ method update*(
   cache.mesh = Mesh()
   if path == nil: return
   let raw = ctx.RiceDrawContext.raw
-  let s = ctx.RiceDrawContext.scaleOf
+  let scale = ctx.RiceDrawContext.scale
 
   let bounds = path.computeBounds(transform)
   var boundsI = (x: bounds.x.floor.int32, y: bounds.y.floor.int32, w: bounds.w.ceil.int32, h: bounds.h.ceil.int32)
@@ -368,7 +344,7 @@ method update*(
   cache.offset = vec2(boundsI.x.float32, boundsI.y.float32)
   cache.logicalSize = vec2(boundsI.w.float32, boundsI.h.float32)
   # the framebuffer content is in device pixels for sharpness
-  raw.resize(cache.aafb, ivec2((boundsI.w.float32 * s).round.int32, (boundsI.h.float32 * s).round.int32))
+  raw.resize(cache.aafb, ivec2((boundsI.w.float32 * scale).round.int32, (boundsI.h.float32 * scale).round.int32))
 
   if boundsI.w <= 0 or bounds.h <= 0:
     return
@@ -392,13 +368,13 @@ method draw*(
   antialiasing = true,
 ) =
   let raw = ctx.RiceDrawContext.raw
-  let s = ctx.RiceDrawContext.scaleOf
+  let scale = ctx.RiceDrawContext.scale
 
   # Mat3 is treated as a 2d affine transform (row-major translation)
   let meshTransform = mat4(
     transform[0,0], transform[0,1], 0, transform[0,2],
     transform[1,0], transform[1,1], 0, transform[1,2],
-    0,            0,            1, 0,
+    0,              0,              1, 0,
     transform[2,0], transform[2,1], 0, 1,
   )
 
@@ -422,8 +398,8 @@ method draw*(
       raw.pop prevFbo
       raw.draw(
         cache.aafb,
-        translate(snappedToDevice(pos + cache.offset, s).vec3(0)) *
-        scale(vec3(1/s, 1/s, 1)),
+        translate(snappedToDevice(pos + cache.offset, scale).vec3(0)) *
+        scale(vec3(1/scale, 1/scale, 1)),
       )
 
 

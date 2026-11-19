@@ -31,7 +31,7 @@ var headlessGlobals: SiwinGlobals
 proc setupOffscreenFramebuffer*(this: HeadlessUiWindow, size: IVec2) =
   ## (re)creates the offscreen framebuffer of `size` device pixels.
   ## set `this.uiScale` before calling to emulate a HiDPI display
-  let s = max(this.uiScale, 0.0001'f32)
+  let scale = this.uiScale[]
   let raw = this.ctx.RiceDrawContext.raw
 
   if this.fbo != 0:
@@ -55,10 +55,10 @@ proc setupOffscreenFramebuffer*(this: HeadlessUiWindow, size: IVec2) =
   raw.fboSize = size
   raw.updateDrawingAreaSize(size)
   # same projection as the real window backend: logical [0 .. size/s] mapped to [-1 .. 1]
-  this.ctx.scale = s
-  raw.projection = translate(vec3(-1, 1, 0)) * scale(vec3(2 * s / size.x.float32, -2 * s / size.y.float32, 1))
+  this.ctx.scale = scale
+  raw.projection = translate(vec3(-1, 1, 0)) * scale(vec3(2 * scale / size.x.float32, -2 * scale / size.y.float32, 1))
 
-  this.wh = size.vec2 / s
+  this.wh = size.vec2 / scale
 
 
 proc newHeadlessUiWindow*(size = ivec2(800, 600)): HeadlessUiWindow =

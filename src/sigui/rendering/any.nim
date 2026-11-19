@@ -79,15 +79,17 @@ method fastRasterDrawRune*(
 
 method `color=`*(context: TextDrawContext, v: Color) {.base.} = discard
 
-method drawRasterText*(
+method drawRasterText_physicalScale*(
   ctx: DrawContext,
-  pos: Vec2,
-  arrangement: Arrangement,
+  pos: Vec2,  # in logical pixels
+  arrangement: Arrangement,  # in physical pixels
   color: Color,
-  origin: Vec2 = vec2(0, 0),
+  origin: Vec2 = vec2(0, 0),  # 0..1
   exactBoundaries = false,
   transform = mat4(),
 ) {.base.} = discard
+  ## for optimization reasons, this proc takes Arrangement in physical scale instead of logical
+  ## (pos is still in logical pixels)
 
 
 #* ------------- drawing ------------- *#

@@ -20,15 +20,10 @@ proc sendWindowEvent[T](this: UiWindow, e: T) =
 
 #* ------------- input emulation: mouse ------------- *#
 
-proc setEmulatedMousePos(this: UiWindow, pos: Vec2) =
-  ## `pos` is in logical pixels (same as component coordinates);
-  ## siwin stores the device pixel position, events carry logical positions
-  this.siwinWindow.mouse.pos = pos * this.uiScale
-
 
 proc mouseMoveTo*(this: UiWindow, pos: Vec2, kind = MouseMoveKind.move) =
   ## moves the emulated mouse cursor to `pos` (logical pixels, same as component coordinates)
-  this.setEmulatedMousePos(pos)
+  this.siwinWindow.mouse.pos = pos * this.uiScale[]
   this.sendWindowEvent(MouseMoveEvent(window: this.siwinWindow, pos: pos, kind: kind))
 
 
@@ -92,7 +87,7 @@ proc mouseDrag*(this: UiWindow, fromPos, toPos: Vec2, button: MouseButton = Mous
 
 
 proc mouseEnterWindow*(this: UiWindow, pos: Vec2) =
-  this.setEmulatedMousePos(pos)
+  this.siwinWindow.mouse.pos = pos * this.uiScale[]
   this.sendWindowEvent(MouseMoveEvent(window: this.siwinWindow, pos: pos, kind: MouseMoveKind.enter))
 
 

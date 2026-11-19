@@ -135,6 +135,12 @@ type
   UiRoot* = ref object of Uiobj
     onTick*: Event[TickEvent]
     ctx*: DrawContext
+    
+    uiScale*: Property[float32] = 1'f32.property
+      ## device pixels per logical pixel of the drawing area.
+      ## UI is laid out and drawn in logical pixels,
+      ## the draw backend scales it to device pixels
+      ## the drawing library works in device pixels
 
 
   ChangableChild*[T] = object
@@ -427,10 +433,8 @@ method mouseState*(root: UiRoot): var Mouse {.base.} = dummyMouseState
 method keyboardState*(root: UiRoot): var Keyboard {.base.} = dummyKeyboardState
 method touchscreenState*(root: UiRoot): var TouchScreen {.base.} = dummyTouchscreenState
 
-method uiScale*(root: UiRoot): float32 {.base.} = 1
-  ## device pixels per logical pixel of the drawing area.
-  ## UI is laid out and drawn in logical pixels,
-  ## the draw backend scales it to device pixels for sharpness
+proc logicalPxToPhysical*(root: UiRoot, lpx: float32): float32 = lpx * root.uiScale[]
+proc physicalPxToLogical*(root: UiRoot, ppx: float32): float32 = ppx / root.uiScale[]
 
 method `cursor=`*(root: UiRoot, v: Cursor) {.base.} = discard
 
