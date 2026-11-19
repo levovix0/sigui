@@ -1,7 +1,7 @@
 # should be used instead of directly importing siwin
 # todo: add windy support
 
-import std/[macros, sequtils]
+import std/[macros, sequtils, tables]
 import pkg/siwin/[windowOpengl, platforms]
 import pkg/siwin/platforms/any/[window, clipboards]
 import pkg/[chroma, vmath, opengl]
@@ -17,6 +17,11 @@ type
   UiWindow* = ref object of UiRoot
     siwinWindow*: Window
     clearColor*: Color = color(0, 0, 0)
+
+    logicalMouse: Mouse
+      ## siwinWindow.mouse with pos converted to logical pixels
+    logicalTouchscreen: TouchScreen
+      ## siwinWindow.touchScreen with touch positions converted to logical pixels
 
 registerComponent UiWindow
 
@@ -65,10 +70,54 @@ proc render*(this: UiWindow) =
   this.ctx.finishRendering()
 
 
+proc updateUiScale*(win: UiWindow) =
+  ## syncs the UI scale from the siwin window and applies it to the draw context
+  let scale = win.siwinWindow.uiScale
+  assert scale > 0
+  win.uiScale[] = scale
+  win.ctx.scale = scale
+
+
 proc setupEventsHandling*(win: UiWindow) =
   proc toRef[T](e: T): ref AnyWindowEvent =
     result = (ref T)()
     (ref T)(result)[] = e
+
+  proc scale(touch: Touch, uiScale: float32): Touch =
+    ## Touch is a ref object owned by siwin, so a copy must be made
+    Touch(
+      id: touch.id,
+      pos: touch.pos / uiScale,
+      pressed: touch.pressed,
+      pressure: touch.pressure,
+      button: touch.button,
+      device: touch.device,
+    )
+
+  proc scale(e: MouseMoveEvent, uiScale: float32): MouseMoveEvent =
+    result = e
+    result.pos = result.pos / uiScale
+
+  proc scale(e: ClickEvent, uiScale: float32): ClickEvent =
+    result = e
+    result.pos = result.pos / uiScale
+
+  proc scale(e: TouchEvent, uiScale: float32): TouchEvent =
+    result = e
+    result.touch = result.touch.scale(uiScale)
+
+  proc scale(e: TouchMoveEvent, uiScale: float32): TouchMoveEvent =
+    result = e
+    result.touch = e.touch.scale(uiScale)
+    result.pos = result.pos / uiScale
+
+  proc syncScale(win: UiWindow) =
+    ## copies siwin pointer state, converting positions to logical pixels
+    win.logicalMouse = win.siwinWindow.mouse
+    win.logicalMouse.pos = win.siwinWindow.mouse.pos / win.uiScale[]
+    win.logicalTouchscreen.touches.clear()
+    for id, touch in win.siwinWindow.touchScreen.touches:
+      win.logicalTouchscreen.touches[id] = touch.scale(win.uiScale[])
 
   win.siwinWindow.eventsHandler = WindowEventsHandler(
     onClose: proc(e: CloseEvent) =
@@ -81,8 +130,11 @@ proc setupEventsHandling*(win: UiWindow) =
       win.onTick.emit(e)
     ,
     onResize: proc(e: ResizeEvent) =
-      win.wh = e.size.vec2
+      # e.size is in device pixels; uiScale can also change on this event
+      # (e.g. when the window moves to another monitor)
+      win.updateUiScale()
       win.ctx.resize(e.size)
+      win.wh = e.size.vec2 / win.uiScale[]
 
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
@@ -96,16 +148,18 @@ proc setupEventsHandling*(win: UiWindow) =
     ,
 
     onMouseMove: proc(e: MouseMoveEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
+      win.syncScale()
+      win.recieve(WindowEvent(sender: win, event: e.scale(win.uiScale[]).toRef))
     ,
     onMouseButton: proc(e: MouseButtonEvent) =
+      win.syncScale()
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
     onScroll: proc(e: ScrollEvent) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
     onClick: proc(e: ClickEvent) =
-      win.recieve(WindowEvent(sender: win, event: e.toRef))
+      win.recieve(WindowEvent(sender: win, event: e.scale(win.uiScale[]).toRef))
     ,
 
     onKey: proc(e: KeyEvent) =
@@ -114,17 +168,30 @@ proc setupEventsHandling*(win: UiWindow) =
     onTextInput: proc(e: TextInputEvent) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
+    onTouch: proc(e: TouchEvent) =
+      win.syncScale()
+      win.recieve(WindowEvent(sender: win, event: e.scale(win.uiScale[]).toRef))
+    ,
+    onTouchMove: proc(e: TouchMoveEvent) =
+      win.syncScale()
+      win.recieve(WindowEvent(sender: win, event: e.scale(win.uiScale[]).toRef))
+    ,
+    onTouchPressureChanged: proc(e: TouchPressureChangedEvent) =
+      win.recieve(WindowEvent(sender: win, event: e.toRef))
+    ,
     onDrop: proc(e: DropEvent) =
       win.recieve(WindowEvent(sender: win, event: e.toRef))
     ,
   )
 
+
 proc newUiWindow*(siwinWindow: Window): UiWindow =
   result = UiWindow(siwinWindow: siwinWindow)
   loadExtensions()
-  result.setupEventsHandling
   result.ctx = newRiceDrawContext()
-  result.wh = siwinWindow.size.vec2
+  result.updateUiScale()
+  setupEventsHandling(result)
+  result.wh = siwinWindow.size.vec2 / result.uiScale[]
 
 template newUiRoot*(siwinWindow: Window): UiWindow =
   newUiWindow(siwinWindow)
@@ -178,13 +245,13 @@ proc parentWindow*(obj: Uiobj): Window =
 
 
 method mouseState*(root: UiWindow): var Mouse =
-  root.siwinWindow.mouse
+  root.logicalMouse
 
 method keyboardState*(root: UiWindow): var Keyboard =
   root.siwinWindow.keyboard
 
 method touchscreenState*(root: UiWindow): var TouchScreen =
-  root.siwinWindow.touchScreen
+  root.logicalTouchscreen
 
 
 method `cursor=`(root: UiWindow, v: Cursor) =

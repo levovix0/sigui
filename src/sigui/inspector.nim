@@ -237,14 +237,14 @@ proc updateBadge(this: InspectorOverlay, obj: Uiobj) =
   if text != this.badgeText or this.badgeTypeface != typeface:
     this.badgeText = text
     this.badgeTypeface = typeface
-    this.badgeArrangement = typeset(typeface.withSize(11), text)
+    this.badgeArrangement = typeset(typeface.withSize(11 * this.root.uiScale[]), text)
 
 
 proc drawBadge(this: InspectorOverlay, ctx: DrawContext, obj: Uiobj) =
   this.updateBadge(obj)
   if this.badgeArrangement == nil: return
 
-  let bounds = this.badgeArrangement.layoutBounds
+  let bounds = this.badgeArrangement.layoutBounds / this.root.uiScale[]
   var pos = vec2(obj.globalX[], obj.globalY[] + obj.h[] + 2)
 
   let win = this.parentRoot
@@ -252,7 +252,7 @@ proc drawBadge(this: InspectorOverlay, ctx: DrawContext, obj: Uiobj) =
     pos.y = obj.globalY[] - bounds.y - 6
 
   ctx.fillRect(rect(pos, vec2(bounds.x + 8, bounds.y + 4)), color_overlayBadge, 2, true)
-  ctx.drawRasterText(pos + vec2(4, 2), this.badgeArrangement, color(1, 1, 1, 1))
+  ctx.drawRasterText_physicalScale(pos + vec2(4, 2), this.badgeArrangement, color(1, 1, 1, 1))
 
 
 method recieve*(this: InspectorOverlay, signal: Signal) =
@@ -475,7 +475,8 @@ proc handlePickSignal(this: Inspector, signal: Signal) =
 
     elif ev of MouseButtonEvent:
       let e = ((ref MouseButtonEvent)ev)[]
-      let hit = this.pickHitTest(e.window.mouse.pos)
+      # e.window.mouse is in device pixels; mouseState is in logical pixels
+      let hit = this.pickHitTest(we.sender.UiWindow.mouseState.pos)
 
       if e.pressed:
         # block the application, but let the clicks into the inspector itself

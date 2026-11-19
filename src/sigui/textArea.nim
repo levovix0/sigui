@@ -435,16 +435,16 @@ method init*(this: TextArea) =
   proc positionOfCharacter(arrangement: Arrangement, pos: int): float =
     if arrangement != nil:
       if pos > arrangement.positions.high:
-        arrangement.layoutBounds.x
+        arrangement.layoutBounds.x / this.root.uiScale[]
       else:
-        arrangement.selectionRects[pos].x
+        arrangement.selectionRects[pos].x / this.root.uiScale[]
     else: 0
   
   proc characterAtPosition(arrangement: Arrangement, pos: float): int =
     if arrangement != nil:
       while true:
         if result > arrangement.selectionRects.high: break
-        if arrangement.selectionRects[result].x + arrangement.selectionRects[result].w / 2 > pos: break
+        if (arrangement.selectionRects[result].x + arrangement.selectionRects[result].w / 2) / this.root.uiScale[] > pos: break
         inc result
   
 

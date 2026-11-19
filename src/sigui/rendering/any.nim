@@ -13,6 +13,11 @@ export paths, fonts
 
 type
   DrawContext* = ref object of RootObj
+    ## all drawing coordinates are in logical pixels,
+    ## the backend scales them by `scale` to device (physical) pixels
+
+    scale*: float32 = 1
+      ## device pixels per logical pixel (UI scale factor, e.g. 1.5 on HiDPI displays)
 
   DrawContextImage* = ref object of RootObj
     ## (Texture from rice). An image, uploaded onto DrawContext (on GPU)
@@ -74,15 +79,17 @@ method fastRasterDrawRune*(
 
 method `color=`*(context: TextDrawContext, v: Color) {.base.} = discard
 
-method drawRasterText*(
+method drawRasterText_physicalScale*(
   ctx: DrawContext,
-  pos: Vec2,
-  arrangement: Arrangement,
+  pos: Vec2,  # in logical pixels
+  arrangement: Arrangement,  # in physical pixels
   color: Color,
-  origin: Vec2 = vec2(0, 0),
+  origin: Vec2 = vec2(0, 0),  # 0..1
   exactBoundaries = false,
   transform = mat4(),
 ) {.base.} = discard
+  ## for optimization reasons, this proc takes Arrangement in physical scale instead of logical
+  ## (pos is still in logical pixels)
 
 
 #* ------------- drawing ------------- *#

@@ -20,14 +20,15 @@ proc sendWindowEvent[T](this: UiWindow, e: T) =
 
 #* ------------- input emulation: mouse ------------- *#
 
+
 proc mouseMoveTo*(this: UiWindow, pos: Vec2, kind = MouseMoveKind.move) =
-  ## moves the emulated mouse cursor to `pos` (window coordinates, pixels)
-  this.siwinWindow.mouse.pos = pos
+  ## moves the emulated mouse cursor to `pos` (logical pixels, same as component coordinates)
+  this.siwinWindow.mouse.pos = pos * this.uiScale[]
   this.sendWindowEvent(MouseMoveEvent(window: this.siwinWindow, pos: pos, kind: kind))
 
 
 proc mouseMoveBy*(this: UiWindow, offset: Vec2) =
-  this.mouseMoveTo(this.siwinWindow.mouse.pos + offset)
+  this.mouseMoveTo(this.mouseState.pos + offset)
 
 
 proc mousePress*(this: UiWindow, button: MouseButton = MouseButton.left) =
@@ -43,7 +44,7 @@ proc mouseRelease*(this: UiWindow, button: MouseButton = MouseButton.left, click
   this.siwinWindow.mouse.pressed.excl button
   this.sendWindowEvent(MouseButtonEvent(window: this.siwinWindow, button: button, pressed: false))
   if click:
-    this.sendWindowEvent(ClickEvent(window: this.siwinWindow, button: button, pos: this.siwinWindow.mouse.pos))
+    this.sendWindowEvent(ClickEvent(window: this.siwinWindow, button: button, pos: this.mouseState.pos))
 
 
 proc mouseClick*(this: UiWindow, pos: Vec2, button: MouseButton = MouseButton.left) =
@@ -86,7 +87,7 @@ proc mouseDrag*(this: UiWindow, fromPos, toPos: Vec2, button: MouseButton = Mous
 
 
 proc mouseEnterWindow*(this: UiWindow, pos: Vec2) =
-  this.siwinWindow.mouse.pos = pos
+  this.siwinWindow.mouse.pos = pos * this.uiScale[]
   this.sendWindowEvent(MouseMoveEvent(window: this.siwinWindow, pos: pos, kind: MouseMoveKind.enter))
 
 
