@@ -21,7 +21,7 @@ proc makeWin(scale: float32) =
   ## framebuffer is always 200x100 device pixels
   win = newHeadlessUiWindow(size = ivec2(200, 100))
   win.clearColor = color(1, 1, 1, 1)
-  win.uiScale = scale
+  win.uiScale[] = scale
   win.setupOffscreenFramebuffer(ivec2(200, 100))
 
 
@@ -33,7 +33,7 @@ suite "hidpi scaling":
   test "window size is reported in logical pixels":
     makeWin(2)
     check win.wh == vec2(100, 50)
-    check win.uiScale == 2
+    check win.uiScale[] == 2
 
     makeWin(1.5)
     check win.wh == vec2(200 / 1.5, 100 / 1.5)
