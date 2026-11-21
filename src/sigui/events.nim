@@ -117,18 +117,19 @@ proc disconnect*[T](s: var Event[T], c: var EventHandler) =
 proc emit*[T](s: Event[T], v: T) =
   if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
   if s.p != nil:
-    var i = 0
-    while i < s.p[].connected.len:
-      s.p[].connected[i].f(v)
-      inc i
+    # iterate over a snapshot: a handler can disconnect/delete objects
+    # (e.g. delete the object whose signal is being dispatched), which
+    # deallocates the connected seq during this very loop
+    let conns = s.p[].connected
+    for conn in conns:
+      conn.f(v)
 
 proc emit*(s: Event[void]) =
   if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
   if s.p != nil:
-    var i = 0
-    while i < s.p[].connected.len:
-      s.p[].connected[i].f()
-      inc i
+    let conns = s.p[].connected
+    for conn in conns:
+      conn.f()
 
 
 # todo: -d:sigui_benchmark_event_emits, to see how much and which exactly events are chain-emited
