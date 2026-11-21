@@ -244,6 +244,14 @@ proc parentWindow*(obj: Uiobj): Window =
   else: nil
 
 
+proc syncInputState*(win: UiWindow) =
+  ## syncs the logical mouse state with the underlying siwin window state;
+  ## the real event loop does this before dispatching input events,
+  ## input emulation procedures call it too
+  win.logicalMouse = win.siwinWindow.mouse
+  win.logicalMouse.pos = win.siwinWindow.mouse.pos / win.uiScale[]
+
+
 method mouseState*(root: UiWindow): var Mouse =
   root.logicalMouse
 
