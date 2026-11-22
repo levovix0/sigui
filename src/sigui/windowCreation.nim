@@ -78,21 +78,31 @@ proc updateUiScale*(win: UiWindow) =
   win.ctx.scale = scale
 
 
+proc scale(touch: Touch, uiScale: float32): Touch =
+  ## Touch is a ref object owned by siwin, so a copy must be made
+  Touch(
+    id: touch.id,
+    pos: touch.pos / uiScale,
+    pressed: touch.pressed,
+    pressure: touch.pressure,
+    button: touch.button,
+    device: touch.device,
+  )
+
+
+proc syncScale*(win: UiWindow) =
+  ## copies siwin pointer state, converting positions to logical pixels
+  win.logicalMouse = win.siwinWindow.mouse
+  win.logicalMouse.pos = win.siwinWindow.mouse.pos / win.uiScale[]
+  win.logicalTouchscreen.touches.clear()
+  for id, touch in win.siwinWindow.touchScreen.touches:
+    win.logicalTouchscreen.touches[id] = touch.scale(win.uiScale[])
+
+
 proc setupEventsHandling*(win: UiWindow) =
   proc toRef[T](e: T): ref AnyWindowEvent =
     result = (ref T)()
     (ref T)(result)[] = e
-
-  proc scale(touch: Touch, uiScale: float32): Touch =
-    ## Touch is a ref object owned by siwin, so a copy must be made
-    Touch(
-      id: touch.id,
-      pos: touch.pos / uiScale,
-      pressed: touch.pressed,
-      pressure: touch.pressure,
-      button: touch.button,
-      device: touch.device,
-    )
 
   proc scale(e: MouseMoveEvent, uiScale: float32): MouseMoveEvent =
     result = e
@@ -110,14 +120,6 @@ proc setupEventsHandling*(win: UiWindow) =
     result = e
     result.touch = e.touch.scale(uiScale)
     result.pos = result.pos / uiScale
-
-  proc syncScale(win: UiWindow) =
-    ## copies siwin pointer state, converting positions to logical pixels
-    win.logicalMouse = win.siwinWindow.mouse
-    win.logicalMouse.pos = win.siwinWindow.mouse.pos / win.uiScale[]
-    win.logicalTouchscreen.touches.clear()
-    for id, touch in win.siwinWindow.touchScreen.touches:
-      win.logicalTouchscreen.touches[id] = touch.scale(win.uiScale[])
 
   win.siwinWindow.eventsHandler = WindowEventsHandler(
     onClose: proc(e: CloseEvent) =
