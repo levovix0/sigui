@@ -290,6 +290,13 @@ proc `globalXy=`*(obj: Uiobj, v: Vec2) =
   obj.xy = obj.xy + (v - obj.globalXy)
 
 
+proc rect*(obj: Uiobj): Rect =
+  rect(obj.xy, obj.wh)
+
+proc globalRect*(obj: Uiobj): Rect =
+  rect(obj.globalXy, obj.wh)
+
+
 proc makeCopy[T](arr: var seq[T], cow: var ptr seq[T]) =
   if cow == arr.addr:
     cow = create seq[T]

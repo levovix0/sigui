@@ -185,31 +185,26 @@ method recieve*(this: MouseArea, signal: Signal) =
   procCall this.super.recieve(signal)
 
   if this.parentCollapsed == nil:
-    if signal of WindowEvent and signal.WindowEvent.event of MouseButtonEvent:
-      handleMouseButtonEvent(this, ((ref MouseButtonEvent)signal.WindowEvent.event)[], signal)
-      if this.hovered[]: this.mouseButton.emit(((ref MouseButtonEvent)signal.WindowEvent.event)[])
+    signal.match MouseButtonEvent:
+      handleMouseButtonEvent(this, e[], signal)
+      if this.hovered[]: this.mouseButton.emit(e[])
 
-
-    elif signal of WindowEvent and signal.WindowEvent.event of MouseMoveEvent:
-      handleMouseMoveEvent(this, ((ref MouseMoveEvent)signal.WindowEvent.event)[], signal)
-
-
-    elif signal of WindowEvent and signal.WindowEvent.event of ScrollEvent:
-      if signal.WindowEvent.handled == false:
-        if this.parentCollapsed == nil:
-          let e = (ref ScrollEvent)signal.WindowEvent.event
-          if this.hovered[]:
-            this.scrolled.emit(vec2(e.deltaX, e.delta))
-            if this.scrolled.hasHandlers:
-              signal.WindowEvent.handled = true
+    signal.match MouseMoveEvent:
+      handleMouseMoveEvent(this, e[], signal)
     
-
-    elif signal of GetActiveCursor:
-      if not signal.GetActiveCursor.handled and this.hovered[]:
+    signal.match GetActiveCursor:
+      if not signal.handled and this.hovered[]:
         if this.cursor[] != nil:
-          signal.GetActiveCursor.cursor = this.cursor[]
+          signal.cursor = this.cursor[]
           if not this.allowEventFallthrough[]:
-            signal.GetActiveCursor.handled = true
+            signal.handled = true
+
+    signal.match ScrollEvent:
+      if not signal.handled and this.parentCollapsed == nil:
+        if this.hovered[]:
+          this.scrolled.emit(vec2(e.deltaX, e.delta))
+          if this.scrolled.hasHandlers:
+            signal.handled = true
   
 
   if signal of VisibilityChanged:

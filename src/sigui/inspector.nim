@@ -778,8 +778,7 @@ method recieve*(this: Inspector, signal: Signal) =
   procCall this.super.recieve(signal)
 
   # exit pick mode on Esc pressed while the mouse is over the inspector itself
-  if signal of WindowEvent and signal.WindowEvent.event of KeyEvent:
-    let e = ((ref KeyEvent)signal.WindowEvent.event)[]
+  signal.match KeyEvent:
     if e.pressed and e.key == Key.escape and this.picking[]:
       this.picking[] = false
 
