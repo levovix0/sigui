@@ -118,16 +118,18 @@ proc emit*[T](s: Event[T], v: T) =
   if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
   if s.p != nil:
     # iterate over a snapshot: a handler can disconnect/delete objects
-    # (e.g. delete the object whose signal is being dispatched), which
-    # deallocates the connected seq during this very loop
-    let conns = s.p[].connected
+    # (e.g. delete the object whose signal is being dispatched) or connect
+    # new handlers during this very loop; `let conns = s.p[].connected` would
+    # not be enough, a seq assignment shares the buffer and `connect` reallocs
+    # it, freeing the memory the loop is reading — so an explicit copy is needed
+    let conns = s.p[].connected & @[]
     for conn in conns:
       conn.f(v)
 
 proc emit*(s: Event[void]) =
   if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
   if s.p != nil:
-    let conns = s.p[].connected
+    let conns = s.p[].connected & @[]
     for conn in conns:
       conn.f()
 
