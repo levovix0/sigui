@@ -743,28 +743,45 @@ proc spreadGlobalYChange(obj: Uiobj, parentGlobalY: float32) =
 method recieve*(this: Uiobj, signal: Signal) {.base.}
 
 
-template recieveBefore_subtreeReverse(this: Uiobj, signal: Signal) =
+proc recieveBefore_subtreeReverse(this: Uiobj, signal: Signal)
+proc recieveBefore_subtree(this: Uiobj, signal: Signal)
+proc recieveAfter_subtreeReverse(this: Uiobj, signal: Signal)
+proc recieveAfter_subtree(this: Uiobj, signal: Signal)
+
+proc recieveBefore_subtreeReverse(this: Uiobj, signal: Signal) =
   for after in this.layering.after.iterateChangeAwareReversed(this.afterCow):
+    after.obj.recieveBefore_subtreeReverse(signal)
     after.obj.recieve(signal)
+    after.obj.recieveAfter_subtreeReverse(signal)
 
   for beforeChilds in this.layering.beforeChilds.iterateChangeAwareReversed(this.beforeChildsCow):
+    beforeChilds.obj.recieveBefore_subtreeReverse(signal)
     beforeChilds.obj.recieve(signal)
+    beforeChilds.obj.recieveAfter_subtreeReverse(signal)
 
-template recieveBefore_subtree(this: Uiobj, signal: Signal) =
+proc recieveBefore_subtree(this: Uiobj, signal: Signal) =
   for before in this.layering.before.iterateChangeAware(this.beforeCow):
+    before.obj.recieveBefore_subtree(signal)
     before.obj.recieve(signal)
+    before.obj.recieveAfter_subtree(signal)
 
 
-template recieveAfter_subtreeReverse(this: Uiobj, signal: Signal) =
+proc recieveAfter_subtreeReverse(this: Uiobj, signal: Signal) =
   for before in this.layering.before.iterateChangeAwareReversed(this.beforeCow):
+    before.obj.recieveBefore_subtreeReverse(signal)
     before.obj.recieve(signal)
+    before.obj.recieveAfter_subtreeReverse(signal)
 
-template recieveAfter_subtree(this: Uiobj, signal: Signal) =
+proc recieveAfter_subtree(this: Uiobj, signal: Signal) =
   for beforeChilds in this.layering.beforeChilds.iterateChangeAware(this.beforeChildsCow):
+    beforeChilds.obj.recieveBefore_subtree(signal)
     beforeChilds.obj.recieve(signal)
+    beforeChilds.obj.recieveAfter_subtree(signal)
 
   for after in this.layering.after.iterateChangeAware(this.afterCow):
+    after.obj.recieveBefore_subtree(signal)
     after.obj.recieve(signal)
+    after.obj.recieveAfter_subtree(signal)
 
 
 proc handleSubtreeSignals*(this: Uiobj, signal: Signal) =
@@ -1050,6 +1067,7 @@ proc after*(this: Uiobj): Layer =
 
 proc `layer=`*(this: Uiobj, layer: typeof nil) =
   this.m_layer = LayerPinned()
+  redraw this
 
 proc `layer=`*(this: Uiobj, layer: Layer) =
   if this.m_layer.obj != nil: this.layer = nil
@@ -1068,6 +1086,7 @@ proc `layer=`*(this: Uiobj, layer: Layer) =
   of after:
     layer.obj.layering.after.makeCopy(layer.obj.afterCow)
     layer.obj.layering.after.add UiobjCursor(obj: this)
+  redraw this
 
 
 
