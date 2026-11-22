@@ -24,6 +24,7 @@ proc sendWindowEvent[T](this: UiWindow, e: T) =
 proc mouseMoveTo*(this: UiWindow, pos: Vec2, kind = MouseMoveKind.move) =
   ## moves the emulated mouse cursor to `pos` (logical pixels, same as component coordinates)
   this.siwinWindow.mouse.pos = pos * this.uiScale[]
+  this.syncScale()
   this.sendWindowEvent(MouseMoveEvent(window: this.siwinWindow, pos: pos, kind: kind))
 
 
@@ -34,6 +35,7 @@ proc mouseMoveBy*(this: UiWindow, offset: Vec2) =
 proc mousePress*(this: UiWindow, button: MouseButton = MouseButton.left) =
   ## presses an emulated mouse button at the current cursor position
   this.siwinWindow.mouse.pressed.incl button
+  this.syncScale()
   this.sendWindowEvent(MouseButtonEvent(window: this.siwinWindow, button: button, pressed: true))
 
 
@@ -42,6 +44,7 @@ proc mouseRelease*(this: UiWindow, button: MouseButton = MouseButton.left, click
   ## if `click` is true, also emits ClickEvent, as a real window does when the cursor
   ## didn't move between press and release
   this.siwinWindow.mouse.pressed.excl button
+  this.syncScale()
   this.sendWindowEvent(MouseButtonEvent(window: this.siwinWindow, button: button, pressed: false))
   if click:
     this.sendWindowEvent(ClickEvent(window: this.siwinWindow, button: button, pos: this.mouseState.pos))
@@ -58,8 +61,10 @@ proc mouseDoubleClick*(this: UiWindow, pos: Vec2, button: MouseButton = MouseBut
   ## performs two clicks at `pos`, the second one marked as double
   this.mouseClick(pos, button)
   this.siwinWindow.mouse.pressed.incl button
+  this.syncScale()
   this.sendWindowEvent(MouseButtonEvent(window: this.siwinWindow, button: button, pressed: true))
   this.siwinWindow.mouse.pressed.excl button
+  this.syncScale()
   this.sendWindowEvent(MouseButtonEvent(window: this.siwinWindow, button: button, pressed: false))
   this.sendWindowEvent(ClickEvent(window: this.siwinWindow, button: button, pos: pos, double: true))
 

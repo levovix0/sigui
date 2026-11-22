@@ -599,6 +599,11 @@ proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
   # for globalTransform objects, x/y are in global, so we must track parent's globalX/Y too
   let connectToParentGlobal = this.globalTransform[] or anchor.obj != this.parent
 
+  # if the anchor is set to another object than parent, the anchor position depends
+  # on parent's global position too. parent's global position may be updated later than
+  # anchor.obj's one in the same event cascade, so it must be tracked separately
+  let trackParentGlobal = (not this.globalTransform[]) and anchor.obj != this.parent
+
   if not isY:
     case anchor.offsetFrom:
     of start:
@@ -613,6 +618,9 @@ proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
         anchor.obj.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
       anchor.obj.w.changed.connect(anchor.eventHandler, applyThisAnchors)
 
+    if trackParentGlobal:
+      this.parent.globalX.changed.connect(anchor.eventHandler, applyThisAnchors)
+
   else:
     case anchor.offsetFrom:
     of start:
@@ -626,6 +634,10 @@ proc handleChangedEvent(this: Uiobj, anchor: var Anchor, isY: bool) =
       if connectToParentGlobal:
         anchor.obj.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
       anchor.obj.h.changed.connect(anchor.eventHandler, applyThisAnchors)
+
+    if trackParentGlobal:
+      this.parent.globalY.changed.connect(anchor.eventHandler, applyThisAnchors)
+
   anchor.obj.visibility.changed.connect(anchor.eventHandler, applyThisAnchors)
 
 template anchorAssign(anchor: untyped, isY: bool): untyped {.dirty.} =
