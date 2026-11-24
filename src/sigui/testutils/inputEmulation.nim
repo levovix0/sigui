@@ -16,8 +16,6 @@ proc toRefEvent[T](e: T): ref AnyWindowEvent =
 proc sendWindowEvent[T](this: UiWindow, e: T) =
   ## sends a window event to the ui tree, same as a real window does
   when T is MouseMoveEvent or T is MouseButtonEvent or T is TouchEvent or T is TouchMoveEvent:
-    # the real event loop syncs the logical mouse state before dispatching
-    # these events; sync here too, so `mouseState` is always up to date
     this.syncInputState()
   this.recieve(WindowEvent(sender: this, event: e.toRefEvent))
 
