@@ -787,7 +787,7 @@ method recieve*(this: UiRoot, signal: Signal) =
 
 
 template match*[T: Signal](signalObj: Signal, targetType: typedesc[T], body: untyped) =
-  if signal of T:
+  if signalObj of T:
     let signal {.inject, used.} = T(signalObj)
     block: body
 

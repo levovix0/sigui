@@ -255,8 +255,7 @@ proc trChangableChild(prop, ctor, body: NimNode, c: MkLayoutContext): NimNode =
   let parent = ident("parent")
   let updateProc = genSym(nskProc, "updateProc")
 
-  updateBody.add quote do:
-    initIfNeeded(`this`)
+  # (makeLayoutTr will call `initIfNeeded(this)` automatically)
 
   if not body.isEmptyBody:
     var c = c
