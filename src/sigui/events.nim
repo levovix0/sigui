@@ -74,20 +74,32 @@ proc destroyEvent(s: ptr EventBase) =
         handler[].connected.delete i
       else:
         inc i
-  `=destroy`(s[])
+  
+  if unlikely(s.refcount < 0): return  # closure-related recursion
   dec s.refcount
+
+  `=destroy`(s[])
+  
   if likely(s.refcount < 0):
     dealloc s
 
 
 proc destroyEventHandler(handler: ptr EventHandlerObj) =
-  for s in handler[].connected:
+  # some event handlers closures delete their events when they are deleted,
+  # so we must be careful iterating (I fukin hate closures and their lifetimes...)
+  var si = 0
+  while si < handler[].connected.len:
+    let s = handler[].connected[si]
+
     var i = 0
     while i < s[].connected.len:
       if s[].connected[i][0] == handler:
         s[].connected.delete i
       else:
         inc i
+    
+    inc si
+  
   `=destroy`(handler[])
   dealloc handler
 
