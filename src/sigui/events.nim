@@ -12,6 +12,8 @@ type
 
   EventBase = object
     connected: seq[EventConnection[int]]  # type of function argument does not matter for this
+    refcount: int  # count of emit's that are currently processing this event
+    volatile: bool
 
   Event*[T] = object  # pointer is wrapped to an object to attach custom destructor
     p: ptr EventObj[T]
@@ -25,6 +27,8 @@ type
     ## one event can be connected to one EventHandler multiple times
     ## connection can be removed, but if EventHandler connected to event multiple times, they all will be removed
     connected: seq[EventConnection[T]]
+    refcount: int  # count of emit's that are currently processing this event
+    volatile: bool
 
 
 #* ------------- Event ------------- *#
@@ -70,18 +74,32 @@ proc destroyEvent(s: ptr EventBase) =
         handler[].connected.delete i
       else:
         inc i
+  
+  if unlikely(s.refcount < 0): return  # closure-related recursion
+  dec s.refcount
+
   `=destroy`(s[])
-  dealloc s
+  
+  if likely(s.refcount < 0):
+    dealloc s
 
 
 proc destroyEventHandler(handler: ptr EventHandlerObj) =
-  for s in handler[].connected:
+  # some event handlers closures delete their events when they are deleted,
+  # so we must be careful iterating (I fukin hate closures and their lifetimes...)
+  var si = 0
+  while si < handler[].connected.len:
+    let s = handler[].connected[si]
+
     var i = 0
     while i < s[].connected.len:
       if s[].connected[i][0] == handler:
         s[].connected.delete i
       else:
         inc i
+    
+    inc si
+  
   `=destroy`(handler[])
   dealloc handler
 
@@ -114,21 +132,53 @@ proc disconnect*[T](s: var Event[T], c: var EventHandler) =
       inc i
 
 
-proc emit*[T](s: Event[T], v: T) =
-  if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
-  if s.p != nil:
-    var i = 0
-    while i < s.p[].connected.len:
-      s.p[].connected[i].f(v)
-      inc i
+proc volatile*[T](e: Event[T]): bool =
+  e.p != nil and e.p.volatile
 
-proc emit*(s: Event[void]) =
-  if s.firstHandHandler != nil: s.firstHandHandler(s.firstHandHandlerEnv)
-  if s.p != nil:
-    var i = 0
-    while i < s.p[].connected.len:
-      s.p[].connected[i].f()
-      inc i
+proc `volatile=`*[T](e: Event[T], v: bool) =
+  initIfNeeded e
+  e.p.volatile
+
+
+proc emit*(e: Event[void]) =
+  ## if event is not volatile (default):
+  ## - do not write unconditionaly self-adding handler (this leads to infinite loops)
+  ## - do not write handlers removing handlers from event, except handlers that remove themselves (this leads to skipping handlers)
+  ## if the event is volatile:
+  ## - any added/removed handler during emit will be [not] activated only when next emit happens (this leads to SIGSEGV)
+  ## - do not delete objects that handlers use
+  if e.firstHandHandler != nil: e.firstHandHandler(e.firstHandHandlerEnv)
+  let ev = e.p  # e may be deallocated during emit
+  if ev != nil:
+    if ev.volatile:
+      for conn in ev[].connected[0..^1]:
+        conn.f()
+    else:
+      inc ev.refcount
+      var i = 0
+      while ev != nil and i < ev[].connected.len:
+        ev[].connected[i].f()
+        inc i
+      dec ev.refcount
+      if unlikely(ev.refcount < 0):
+        dealloc ev
+
+proc emit*[T](e: Event[T], v: T) =
+  if e.firstHandHandler != nil: e.firstHandHandler(e.firstHandHandlerEnv)
+  let ev = e.p  # e may be deallocated during emit
+  if ev != nil:
+    if ev.volatile:
+      for conn in ev[].connected[0..^1]:
+        conn.f(v)
+    else:
+      inc ev.refcount
+      var i = 0
+      while i < ev[].connected.len:
+        ev[].connected[i].f(v)
+        inc i
+      dec ev.refcount
+      if unlikely(ev.refcount < 0):
+        dealloc ev
 
 
 # todo: -d:sigui_benchmark_event_emits, to see how much and which exactly events are chain-emited
